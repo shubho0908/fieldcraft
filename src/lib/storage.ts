@@ -36,6 +36,54 @@ const LEGACY_MODEL_ALIASES: Readonly<Record<string, string>> = {
   "gpt-5.6": "gpt-5.6-sol",
 };
 
+/**
+ * Single-shot boot loader — replaces the old pattern of 5 separate
+ * chrome.storage IPC calls (getProfile + getSettings + hasExaApiKey +
+ * getSettings→hasExaApiKey + hasApiKey) with 2 parallel multi-get reads.
+ * Returns everything the App boot screen needs in ~one round-trip.
+ */
+export async function getBootData(): Promise<{
+  profile: CandidateProfile;
+  settings: ExtensionSettings;
+  apiKeyExists: boolean;
+  exaApiKeyExists: boolean;
+}> {
+  const [local, session] = await Promise.all([
+    chrome.storage.local.get([
+      KEYS.profile,
+      KEYS.settings,
+      KEYS.openAiApiKey,
+      KEYS.geminiApiKey,
+      KEYS.apiKey,
+      KEYS.exaApiKey,
+    ]),
+    chrome.storage.session.get([
+      KEYS.openAiApiKey,
+      KEYS.geminiApiKey,
+      KEYS.apiKey,
+    ]),
+  ]);
+
+  const profile = mergeProfile(local[KEYS.profile] as Partial<CandidateProfile> | undefined);
+  const settings = parseSettings(local[KEYS.settings] as Partial<ExtensionSettings> | undefined);
+  const exaApiKeyExists = Boolean(local[KEYS.exaApiKey]);
+
+  // Clamp researchCompany when the required Exa key is absent (same logic
+  // that was previously duplicated inside getSettings).
+  if (settings.researchCompany && !exaApiKeyExists) {
+    settings.researchCompany = false;
+  }
+
+  // Mirrors getApiKey() lookup: session first, then local, then legacy key.
+  const provider = settings.provider;
+  const storageKey = apiKeyStorageKey(provider);
+  const apiKeyExists = Boolean(
+    session[storageKey] ?? local[storageKey] ?? local[KEYS.apiKey] ?? session[KEYS.apiKey],
+  );
+
+  return { profile, settings, apiKeyExists, exaApiKeyExists };
+}
+
 export async function getProfile(): Promise<CandidateProfile> {
   const stored = await chrome.storage.local.get(KEYS.profile);
   return mergeProfile(stored[KEYS.profile] as Partial<CandidateProfile> | undefined);
@@ -49,9 +97,22 @@ export async function saveProfile(profile: CandidateProfile): Promise<void> {
 
 export async function getSettings(): Promise<ExtensionSettings> {
   const stored = await chrome.storage.local.get(KEYS.settings);
+  const settings = parseSettings(stored[KEYS.settings] as Partial<ExtensionSettings> | undefined);
+
+  // Exa is optional. Never leave research enabled when its separate key is
+  // unavailable, otherwise a normal job analysis would fail after setup.
+  if (settings.researchCompany && !(await hasExaApiKey())) {
+    settings.researchCompany = false;
+  }
+
+  return settings;
+}
+
+/** Synchronous settings validation — shared by getSettings() and getBootData(). */
+function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSettings {
   const settings = {
     ...DEFAULT_SETTINGS,
-    ...(stored[KEYS.settings] ?? {}),
+    ...(raw ?? {}),
   } as ExtensionSettings;
 
   settings.model = LEGACY_MODEL_ALIASES[settings.model] ?? settings.model;
@@ -76,12 +137,6 @@ export async function getSettings(): Promise<ExtensionSettings> {
   }
   if (!isAutofillMode(settings.autofillMode)) {
     settings.autofillMode = DEFAULT_SETTINGS.autofillMode;
-  }
-
-  // Exa is optional. Never leave research enabled when its separate key is
-  // unavailable, otherwise a normal job analysis would fail after setup.
-  if (settings.researchCompany && !(await hasExaApiKey())) {
-    settings.researchCompany = false;
   }
 
   // Clamp stored effort if the current model cannot accept it.

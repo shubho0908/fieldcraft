@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ArrowLeft, Settings2 } from "lucide-react";
-import Dashboard from "./components/Dashboard";
 import BrandMark from "./components/BrandMark";
-import ProfileEditor from "./components/ProfileEditor";
-import { getProfile, getSettings, hasApiKey, hasExaApiKey } from "./lib/storage";
+import { getBootData, hasExaApiKey } from "./lib/storage";
 import type { CandidateProfile, ExtensionSettings } from "./types";
+
+const Dashboard = lazy(() => import("./components/Dashboard"));
+const ProfileEditor = lazy(() => import("./components/ProfileEditor"));
 
 type View = "dashboard" | "profile";
 
@@ -17,16 +18,19 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void Promise.all([getProfile(), getSettings(), hasExaApiKey()]).then(
-      async ([nextProfile, nextSettings, hasExa]) => {
-        const hasKey = await hasApiKey(nextSettings.provider);
-        setProfile(nextProfile);
-        setSettings(nextSettings);
-        setApiKeyExists(hasKey);
-        setExaApiKeyExists(hasExa);
-        setLoading(false);
-      },
-    );
+    const boot = getBootData();
+    // Preload lazy chunks during boot so Suspense never needs to show a
+    // fallback when the main UI transitions in — the chunks arrive before
+    // React attempts to render them.
+    const preloadDashboard = import("./components/Dashboard");
+    const preloadProfileEditor = import("./components/ProfileEditor");
+    void boot.then((data) => {
+      setProfile(data.profile);
+      setSettings(data.settings);
+      setApiKeyExists(data.apiKeyExists);
+      setExaApiKeyExists(data.exaApiKeyExists);
+      setLoading(false);
+    });
   }, []);
 
   if (loading || !profile || !settings) {
@@ -67,30 +71,39 @@ export default function App() {
         </header>
       )}
 
-      {onboarding || view === "profile" ? (
-        <ProfileEditor
-          initialProfile={profile}
-          initialSettings={settings}
-          apiKeyExists={apiKeyExists}
-          exaApiKeyExists={exaApiKeyExists}
-          onboarding={onboarding}
-          onCancel={onboarding ? undefined : () => setView("dashboard")}
-          onSaved={(nextProfile, nextSettings, hasKey) => {
-            setProfile(nextProfile);
-            setSettings(nextSettings);
-            setApiKeyExists(hasKey);
-            void hasExaApiKey().then(setExaApiKeyExists);
-            setView("dashboard");
-          }}
-        />
-      ) : (
-        <Dashboard
-          apiKeyExists={apiKeyExists}
-          settings={settings}
-          setSettings={setSettings}
-          onOpenSettings={() => setView("profile")}
-        />
-      )}
+      <Suspense
+        fallback={
+          <main className="boot-screen">
+            <BrandMark />
+            <div className="boot-line" />
+          </main>
+        }
+      >
+        {onboarding || view === "profile" ? (
+          <ProfileEditor
+            initialProfile={profile}
+            initialSettings={settings}
+            apiKeyExists={apiKeyExists}
+            exaApiKeyExists={exaApiKeyExists}
+            onboarding={onboarding}
+            onCancel={onboarding ? undefined : () => setView("dashboard")}
+            onSaved={(nextProfile, nextSettings, hasKey) => {
+              setProfile(nextProfile);
+              setSettings(nextSettings);
+              setApiKeyExists(hasKey);
+              void hasExaApiKey().then(setExaApiKeyExists);
+              setView("dashboard");
+            }}
+          />
+        ) : (
+          <Dashboard
+            apiKeyExists={apiKeyExists}
+            settings={settings}
+            setSettings={setSettings}
+            onOpenSettings={() => setView("profile")}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
