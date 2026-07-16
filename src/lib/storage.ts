@@ -4,6 +4,12 @@ import type {
   ExtensionSettings,
 } from "../types";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
+import { ReasoningEffortSettingAuto } from "./enums";
+import {
+  isKnownModel,
+  isReasoningEffortSetting,
+  resolveModel,
+} from "./models";
 
 const KEYS = {
   profile: "fieldcraft.profile",
@@ -26,7 +32,27 @@ export async function saveProfile(profile: CandidateProfile): Promise<void> {
 
 export async function getSettings(): Promise<ExtensionSettings> {
   const stored = await chrome.storage.local.get(KEYS.settings);
-  return { ...DEFAULT_SETTINGS, ...(stored[KEYS.settings] ?? {}) };
+  const settings = {
+    ...DEFAULT_SETTINGS,
+    ...(stored[KEYS.settings] ?? {}),
+  } as ExtensionSettings;
+
+  if (!isKnownModel(settings.model)) {
+    settings.model = DEFAULT_SETTINGS.model;
+  }
+  if (!isReasoningEffortSetting(settings.reasoningEffort)) {
+    settings.reasoningEffort = DEFAULT_SETTINGS.reasoningEffort;
+  }
+
+  // Clamp stored effort if the current model cannot accept it.
+  if (settings.reasoningEffort !== ReasoningEffortSettingAuto) {
+    const model = resolveModel(settings.model);
+    if (!model.supportedReasoningEfforts.includes(settings.reasoningEffort)) {
+      settings.reasoningEffort = DEFAULT_SETTINGS.reasoningEffort;
+    }
+  }
+
+  return settings;
 }
 
 export async function saveSettings(

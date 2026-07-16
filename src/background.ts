@@ -23,7 +23,13 @@ chrome.runtime.onMessage.addListener(
 
     if (request.type === "FIELDCRAFT_TEST_API") {
       void testOpenAiConnection(request.model)
-        .then(() => sendResponse({ ok: true }))
+        .then((result) =>
+          sendResponse({
+            ok: true,
+            model: result.model,
+            responseId: result.responseId,
+          }),
+        )
         .catch((error: unknown) =>
           sendResponse({
             ok: false,

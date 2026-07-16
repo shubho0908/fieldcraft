@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { collectFields, collectPageSnapshot, fillPageFields } from "./page";
 import type { FieldSuggestion } from "../types";
 
+import { Confidence, SuggestionAction } from "./enums";
 describe("job application page engine", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -78,9 +79,9 @@ describe("job application page engine", () => {
     const suggestions: FieldSuggestion[] = fields.map((field, index) => ({
       fieldId: field.id,
       label: field.label,
-      action: "fill",
+      action: SuggestionAction.Fill,
       value: values[index],
-      confidence: "high",
+      confidence: Confidence.High,
       evidence: "Saved profile",
       warning: "",
     }));
@@ -102,9 +103,9 @@ describe("job application page engine", () => {
         {
           fieldId: field.id,
           label: field.label,
-          action: "skip",
+          action: SuggestionAction.Skip,
           value: "new@example.com",
-          confidence: "high",
+          confidence: Confidence.High,
           evidence: "",
           warning: "",
         },

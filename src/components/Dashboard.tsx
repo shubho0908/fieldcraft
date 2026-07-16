@@ -24,6 +24,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { Confidence, SuggestionAction } from "../lib/enums";
 import { saveCachedAnalysis } from "../lib/storage";
 import type {
   CachedAnalysis,
@@ -156,7 +157,11 @@ export default function Dashboard({
       ...analysis,
       suggestions: analysis.suggestions.map((item) =>
         item.fieldId === fieldId
-          ? { ...item, value, action: value.trim() ? "review" : item.action }
+          ? {
+              ...item,
+              value,
+              action: value.trim() ? SuggestionAction.Review : item.action,
+            }
           : item,
       ),
     });
@@ -352,8 +357,8 @@ function AnswersView({
   onSelectSafe: () => void;
 }) {
   const resultMap = new Map(fillResults.map((result) => [result.fieldId, result]));
-  const fillable = suggestions.filter((item) => item.action !== "skip");
-  const skipped = suggestions.filter((item) => item.action === "skip");
+  const fillable = suggestions.filter((item) => item.action !== SuggestionAction.Skip);
+  const skipped = suggestions.filter((item) => item.action === SuggestionAction.Skip);
   return (
     <div className="view-stack answers-view">
       <div className="answers-toolbar">
@@ -378,7 +383,9 @@ function AnswersView({
                 <div className="answer-meta">
                   <span className={`confidence-dot ${suggestion.confidence}`} />
                   {suggestion.confidence} confidence
-                  {suggestion.action === "review" && <span className="review-pill">review</span>}
+                  {suggestion.action === SuggestionAction.Review && (
+                    <span className="review-pill">review</span>
+                  )}
                 </div>
               </div>
               {result && (
@@ -419,12 +426,19 @@ function AnswersView({
 
 function ResearchView({ analysis, snapshot }: { analysis: JobAnalysis; snapshot: PageSnapshot }) {
   const company = analysis.company;
+  const researchThin = analysis.research?.thin;
   return (
     <div className="view-stack research-view">
       <section className="research-lead">
         <div className="research-icon"><Globe2 size={21} /></div>
         <div><span className="eyebrow">Company brief</span><h2>{analysis.job.company}</h2></div>
       </section>
+      {researchThin && (
+        <div className="answer-warning" role="status">
+          <AlertCircle size={14} />
+          Live research returned little public signal. Treat company facts as incomplete.
+        </div>
+      )}
       <p className="research-summary">{company.summary}</p>
       <div className="research-facts">
         <Fact label="Product" value={company.product} />
@@ -539,8 +553,8 @@ function defaultSelection(suggestions: FieldSuggestion[]): Set<string> {
     suggestions
       .filter(
         (item) =>
-          item.action === "fill" &&
-          item.confidence !== "low" &&
+          item.action === SuggestionAction.Fill &&
+          item.confidence !== Confidence.Low &&
           !item.warning &&
           Boolean(item.value.trim()),
       )

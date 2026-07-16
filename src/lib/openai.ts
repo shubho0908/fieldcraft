@@ -1,14 +1,43 @@
 import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
+import {
+  Confidence,
+  PageFieldKind,
+  ReasoningEffort,
+  SuggestionAction,
+  isConfidence,
+  isSuggestionAction,
+} from "./enums";
+import { isChoiceField, optionMatches } from "./fields";
+import { isThinCompanyResearch, sanitizeFit } from "./fit";
+import { resolveAnalysisConfig, resolveModel } from "./models";
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
 import { getApiKey, getInstallId } from "./storage";
 import type {
   CandidateProfile,
   ExtensionSettings,
+  FieldSuggestion,
   JobAnalysis,
+  PageField,
   PageSnapshot,
 } from "../types";
 
-interface ResponsesApiResult {
+export interface OpenAiAuth {
+  apiKey: string;
+  installId: string;
+}
+
+/** Live OpenAI Responses endpoint. Connection tests and analysis both use this. */
+export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+
+/** Minimal prompt used only by the live connection probe. */
+export const CONNECTION_TEST_PROMPT = "Reply with exactly: connected";
+
+export interface ConnectionTestResult {
+  model: string;
+  responseId?: string;
+}
+
+export interface ResponsesApiResult {
   id?: string;
   status?: string;
   error?: { message?: string } | null;
@@ -38,13 +67,29 @@ export async function analyzeJob(
   if (!apiKey) {
     throw new Error("Add an OpenAI API key in Settings before analyzing a job.");
   }
+  return runJobAnalysis(snapshot, profile, settings, {
+    apiKey,
+    installId: await getInstallId(),
+  });
+}
 
-  const installId = await getInstallId();
+/**
+ * Core analysis path with injectable auth.
+ * Used by the extension (chrome storage key) and by live eval (env key).
+ */
+export async function runJobAnalysis(
+  snapshot: PageSnapshot,
+  profile: CandidateProfile,
+  settings: ExtensionSettings,
+  auth: OpenAiAuth,
+): Promise<JobAnalysis> {
+  const config = resolveAnalysisConfig(settings);
   const body: Record<string, unknown> = {
-    model: settings.model,
+    model: config.modelId,
     store: false,
-    safety_identifier: installId,
-    reasoning: { effort: "medium" },
+    safety_identifier: auth.installId,
+    // OpenAI Responses API: reasoning.effort
+    reasoning: config.reasoning,
     instructions: ANALYSIS_INSTRUCTIONS,
     input: buildAnalysisInput(snapshot, profile, settings),
     text: {
@@ -59,14 +104,19 @@ export async function analyzeJob(
   };
 
   if (settings.researchCompany) {
-    body.tools = [{ type: "web_search" }];
+    body.tools = [
+      {
+        type: "web_search",
+        search_context_size: config.searchContextSize,
+      },
+    ];
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${auth.apiKey}`,
     },
     body: JSON.stringify(body),
   });
@@ -83,46 +133,125 @@ export async function analyzeJob(
     );
   }
 
-  const refusal = payload.output
-    ?.flatMap((item) => item.content ?? [])
-    .find((content) => content.type === "refusal")?.refusal;
+  const refusal = findRefusal(payload);
   if (refusal) throw new Error(refusal);
 
   const outputText = extractOutputText(payload);
   if (!outputText) throw new Error("The model returned no analysis.");
 
-  let parsed: Omit<JobAnalysis, "generatedAt">;
+  let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
   try {
-    parsed = JSON.parse(outputText) as Omit<JobAnalysis, "generatedAt">;
+    parsed = JSON.parse(outputText) as Omit<JobAnalysis, "generatedAt" | "research">;
   } catch {
     throw new Error("The model returned an unreadable analysis. Try again.");
   }
 
-  return sanitizeAnalysis(parsed, snapshot, extractCitations(payload));
+  return sanitizeAnalysis(
+    parsed,
+    snapshot,
+    extractCitations(payload),
+    settings.researchCompany,
+  );
 }
 
-export async function testOpenAiConnection(model: string): Promise<void> {
+/**
+ * Live OpenAI probe — not mocked in production.
+ * Hits the real Responses API with the saved key and selected model, then
+ * requires a non-empty model text response (HTTP 200 alone is not enough).
+ */
+export async function testOpenAiConnection(
+  modelId: string,
+): Promise<ConnectionTestResult> {
   const apiKey = await getApiKey();
   if (!apiKey) throw new Error("Enter and save an API key first.");
-  const installId = await getInstallId();
-  const response = await fetch("https://api.openai.com/v1/responses", {
+
+  const request = buildConnectionTestRequest(modelId, await getInstallId());
+  const response = await fetch(request.url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model,
+    body: JSON.stringify(request.body),
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as ResponsesApiResult;
+  assertLiveConnectionResult(
+    { ok: response.ok, status: response.status },
+    payload,
+  );
+
+  return {
+    model: request.body.model,
+    responseId: payload.id,
+  };
+}
+
+/** Pure request builder for the live connection probe. */
+export function buildConnectionTestRequest(
+  modelId: string,
+  installId: string,
+): {
+  url: typeof OPENAI_RESPONSES_URL;
+  body: {
+    model: string;
+    store: false;
+    safety_identifier: string;
+    reasoning: { effort: typeof ReasoningEffort.None };
+    input: typeof CONNECTION_TEST_PROMPT;
+    max_output_tokens: number;
+  };
+} {
+  const model = resolveModel(modelId);
+  return {
+    url: OPENAI_RESPONSES_URL,
+    body: {
+      model: model.id,
       store: false,
       safety_identifier: installId,
-      reasoning: { effort: "none" },
-      input: "Reply with exactly: connected",
+      reasoning: { effort: ReasoningEffort.None },
+      input: CONNECTION_TEST_PROMPT,
       max_output_tokens: 24,
-    }),
-  });
-  const payload = (await response.json().catch(() => ({}))) as ResponsesApiResult;
+    },
+  };
+}
+
+/**
+ * Strict success criteria for a live connection probe.
+ * A 200 with no model text still fails — that would be a false positive.
+ */
+export function assertLiveConnectionResult(
+  response: { ok: boolean; status: number },
+  payload: ResponsesApiResult,
+): void {
   if (!response.ok) {
-    throw new Error(payload.error?.message || `Connection failed (${response.status})`);
+    throw new Error(
+      payload.error?.message || `Connection failed (${response.status})`,
+    );
+  }
+  if (payload.error?.message) {
+    throw new Error(payload.error.message);
+  }
+  if (payload.status === "failed") {
+    throw new Error(
+      payload.error?.message ||
+        "OpenAI marked the connection test as failed.",
+    );
+  }
+  if (payload.status === "incomplete") {
+    throw new Error(
+      `Connection test stopped before completion${payload.incomplete_details?.reason ? `: ${payload.incomplete_details.reason}` : ""}.`,
+    );
+  }
+
+  const refusal = findRefusal(payload);
+  if (refusal) throw new Error(refusal);
+
+  const outputText = extractOutputText(payload).trim();
+  if (!outputText) {
+    throw new Error(
+      "OpenAI accepted the key but the selected model returned no text. Check that this model is enabled on your account.",
+    );
   }
 }
 
@@ -138,10 +267,11 @@ export function extractOutputText(payload: ResponsesApiResult): string {
   );
 }
 
-function sanitizeAnalysis(
-  parsed: Omit<JobAnalysis, "generatedAt">,
+export function sanitizeAnalysis(
+  parsed: Omit<JobAnalysis, "generatedAt" | "research">,
   snapshot: PageSnapshot,
   citedSources: Array<{ title: string; url: string }>,
+  researchAttempted: boolean,
 ): JobAnalysis {
   const knownFieldIds = new Set(snapshot.fields.map((field) => field.id));
   const knownFields = new Map(snapshot.fields.map((field) => [field.id, field]));
@@ -155,55 +285,138 @@ function sanitizeAnalysis(
     })
     .map((suggestion) => {
       const field = knownFields.get(suggestion.fieldId);
-      if (!field) return suggestion;
-      if (field.sensitive && suggestion.action === "fill") {
-        return {
-          ...suggestion,
-          action: "review" as const,
-          warning:
-            suggestion.warning || "Sensitive answer: verify before filling.",
-        };
+      if (!field) {
+        return normalizeSuggestion(suggestion, {
+          id: suggestion.fieldId,
+          kind: PageFieldKind.Text,
+          type: "text",
+          name: "",
+          label: suggestion.label || suggestion.fieldId,
+          placeholder: "",
+          ariaLabel: "",
+          section: "",
+          required: false,
+          sensitive: false,
+          currentValue: "",
+          maxLength: null,
+          options: [],
+        });
       }
-      const value = field.maxLength
-        ? suggestion.value.slice(0, field.maxLength)
-        : suggestion.value;
-      return { ...suggestion, value };
+      return normalizeSuggestion(suggestion, field);
     });
 
   const suggestions = [
     ...generatedSuggestions,
     ...snapshot.fields
       .filter((field) => !seenSuggestions.has(field.id))
-      .map((field) => ({
-        fieldId: field.id,
-        label: field.label,
-        action: "review" as const,
-        value: "",
-        confidence: "low" as const,
-        evidence: "No grounded answer was returned",
-        warning: "Review this field manually before filling.",
-      })),
+      .map((field) =>
+        normalizeSuggestion(
+          {
+            fieldId: field.id,
+            label: field.label,
+            action: SuggestionAction.Review,
+            value: "",
+            confidence: Confidence.Low,
+            evidence: "No grounded answer was returned",
+            warning: "Review this field manually before filling.",
+          },
+          field,
+        ),
+      ),
   ];
 
   const sources = dedupeSources([
-    ...(parsed.company.sources ?? []),
+    ...(parsed.company?.sources ?? []),
     ...citedSources,
   ]).filter((source) => /^https?:\/\//i.test(source.url));
 
+  const company = {
+    summary: parsed.company?.summary ?? "",
+    product: parsed.company?.product ?? "",
+    stage: parsed.company?.stage ?? "",
+    size: parsed.company?.size ?? "",
+    funding: parsed.company?.funding ?? "",
+    engineeringSignals: parsed.company?.engineeringSignals ?? [],
+    risks: parsed.company?.risks ?? [],
+    sources,
+  };
+
   return {
     ...parsed,
-    fit: {
-      ...parsed.fit,
-      score: Math.max(0, Math.min(100, Math.round(parsed.fit.score))),
-    },
-    company: {
-      ...parsed.company,
-      sources,
-    },
+    fit: sanitizeFit(parsed.fit),
+    company,
     suggestions,
     missingFacts: parsed.missingFacts ?? [],
+    research: {
+      attempted: researchAttempted,
+      thin: isThinCompanyResearch(company, researchAttempted),
+    },
     generatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Coerce model suggestion enums and demote unsafe fills to review.
+ * Model output is untrusted even under structured outputs.
+ */
+export function normalizeSuggestion(
+  raw: Partial<FieldSuggestion> & { fieldId: string },
+  field: PageField,
+): FieldSuggestion {
+  let action = isSuggestionAction(String(raw.action ?? ""))
+    ? (raw.action as FieldSuggestion["action"])
+    : SuggestionAction.Review;
+  let confidence = isConfidence(String(raw.confidence ?? ""))
+    ? (raw.confidence as FieldSuggestion["confidence"])
+    : Confidence.Low;
+  let value = typeof raw.value === "string" ? raw.value : "";
+  let evidence = typeof raw.evidence === "string" ? raw.evidence : "";
+  let warning = typeof raw.warning === "string" ? raw.warning : "";
+
+  if (field.maxLength != null && field.maxLength > 0) {
+    value = value.slice(0, field.maxLength);
+  }
+
+  if (field.sensitive && action === SuggestionAction.Fill) {
+    action = SuggestionAction.Review;
+    warning = warning || "Sensitive answer: verify before filling.";
+  }
+
+  if (
+    action === SuggestionAction.Fill &&
+    isChoiceField(field) &&
+    field.options.length > 0 &&
+    !optionMatches(field, value)
+  ) {
+    action = SuggestionAction.Review;
+    warning = warning || "Value was not a valid option for this field.";
+  }
+
+  if (action === SuggestionAction.Fill && !value.trim()) {
+    action = SuggestionAction.Review;
+    warning = warning || "Empty fill demoted to review.";
+  }
+
+  if (action === SuggestionAction.Fill && !evidence.trim()) {
+    action = SuggestionAction.Review;
+    warning = warning || "Fill without evidence demoted to review.";
+  }
+
+  return {
+    fieldId: field.id,
+    label: field.label || raw.label || field.id,
+    action,
+    value,
+    confidence,
+    evidence,
+    warning,
+  };
+}
+
+function findRefusal(payload: ResponsesApiResult): string | undefined {
+  return payload.output
+    ?.flatMap((item) => item.content ?? [])
+    .find((content) => content.type === "refusal")?.refusal;
 }
 
 function extractCitations(
@@ -218,7 +431,7 @@ function extractCitations(
           annotation.type === "url_citation" && Boolean(annotation.url),
       )
       .map((annotation) => ({
-        title: annotation.title || new URL(annotation.url).hostname,
+        title: annotation.title || safeHostname(annotation.url),
         url: annotation.url,
       })) ?? []
   );
@@ -234,4 +447,12 @@ function dedupeSources(
     seen.add(key);
     return true;
   });
+}
+
+function safeHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }

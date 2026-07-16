@@ -1,3 +1,10 @@
+import {
+  CONFIDENCE_LEVELS,
+  FIT_VERDICTS,
+  SUGGESTION_ACTIONS,
+} from "./enums";
+
+/** JSON schema enums are derived from src/lib/enums — do not hardcode value lists here. */
 export const JOB_ANALYSIS_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -39,7 +46,7 @@ export const JOB_ANALYSIS_SCHEMA = {
         score: { type: "integer", minimum: 0, maximum: 100 },
         verdict: {
           type: "string",
-          enum: ["excellent", "strong", "mixed", "weak"],
+          enum: FIT_VERDICTS,
         },
         strongestMatches: { type: "array", items: { type: "string" } },
         gaps: { type: "array", items: { type: "string" } },
@@ -98,11 +105,11 @@ export const JOB_ANALYSIS_SCHEMA = {
         properties: {
           fieldId: { type: "string" },
           label: { type: "string" },
-          action: { type: "string", enum: ["fill", "review", "skip"] },
+          action: { type: "string", enum: SUGGESTION_ACTIONS },
           value: { type: "string" },
           confidence: {
             type: "string",
-            enum: ["high", "medium", "low"],
+            enum: CONFIDENCE_LEVELS,
           },
           evidence: { type: "string" },
           warning: { type: "string" },

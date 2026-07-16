@@ -1,5 +1,18 @@
-export type Confidence = "high" | "medium" | "low";
-export type SuggestionAction = "fill" | "review" | "skip";
+import type {
+  Confidence,
+  FitVerdict,
+  PageFieldKind,
+  ReasoningEffortSetting,
+  SuggestionAction,
+} from "./lib/enums";
+
+export type {
+  Confidence,
+  FitVerdict,
+  PageFieldKind,
+  ReasoningEffortSetting,
+  SuggestionAction,
+};
 
 export interface ResumeAttachment {
   name: string;
@@ -47,6 +60,8 @@ export interface CandidateProfile {
 
 export interface ExtensionSettings {
   model: string;
+  /** auto = model default; otherwise an OpenAI reasoning.effort value. */
+  reasoningEffort: ReasoningEffortSetting;
   researchCompany: boolean;
   rememberApiKey: boolean;
 }
@@ -55,15 +70,6 @@ export interface FieldOption {
   value: string;
   label: string;
 }
-
-export type PageFieldKind =
-  | "text"
-  | "textarea"
-  | "select"
-  | "radio"
-  | "checkbox"
-  | "file"
-  | "contenteditable";
 
 export interface PageField {
   id: string;
@@ -118,7 +124,7 @@ export interface JobAnalysis {
   };
   fit: {
     score: number;
-    verdict: "excellent" | "strong" | "mixed" | "weak";
+    verdict: FitVerdict;
     strongestMatches: string[];
     gaps: string[];
     hardBlockers: string[];
@@ -136,6 +142,11 @@ export interface JobAnalysis {
   };
   suggestions: FieldSuggestion[];
   missingFacts: string[];
+  /** Client-side research quality signal. Not model output. */
+  research: {
+    attempted: boolean;
+    thin: boolean;
+  };
   generatedAt: string;
 }
 

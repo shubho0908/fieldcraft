@@ -21,6 +21,12 @@ import {
   saveProfile,
   saveSettings,
 } from "../lib/storage";
+import { ReasoningEffortSettingAuto } from "../lib/enums";
+import {
+  OPENAI_MODELS,
+  resolveModel,
+  reasoningEffortsForModel,
+} from "../lib/models";
 import type { CandidateProfile, ExtensionSettings } from "../types";
 
 interface Props {
@@ -57,6 +63,24 @@ export default function ProfileEditor({
   const [testStatus, setTestStatus] = useState("");
 
   const progress = useMemo(() => ((step + 1) / STEPS.length) * 100, [step]);
+  const effortOptions = useMemo(
+    () => reasoningEffortsForModel(settings.model),
+    [settings.model],
+  );
+
+  function updateModel(modelId: string) {
+    const model = resolveModel(modelId);
+    setSettings((current) => {
+      const next = { ...current, model: model.id };
+      if (
+        next.reasoningEffort !== ReasoningEffortSettingAuto &&
+        !model.supportedReasoningEfforts.includes(next.reasoningEffort)
+      ) {
+        next.reasoningEffort = ReasoningEffortSettingAuto;
+      }
+      return next;
+    });
+  }
 
   function updateIdentity(key: keyof CandidateProfile["identity"], value: string) {
     setProfile((current) => ({
@@ -134,6 +158,8 @@ export default function ProfileEditor({
   async function testConnection() {
     setError("");
     setTestStatus("");
+    // Persist current model/effort settings so the probe matches what Analyze will use.
+    await saveSettings(settings);
     if (apiKey.trim()) await saveApiKey(apiKey, settings.rememberApiKey);
     if (!apiKey.trim() && !apiKeyExists) {
       setError("Enter an API key first.");
@@ -146,7 +172,12 @@ export default function ProfileEditor({
         model: settings.model,
       });
       if (!response?.ok) throw new Error(response?.error || "Connection failed");
-      setTestStatus("Connected");
+      // Background performs a real OpenAI Responses API call; surface the model used.
+      setTestStatus(
+        response.model
+          ? `Live API OK · ${response.model}`
+          : "Live API OK",
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection failed");
     } finally {
@@ -531,11 +562,33 @@ export default function ProfileEditor({
             <Field label="Model">
               <select
                 value={settings.model}
-                onChange={(event) => setSettings({ ...settings, model: event.target.value })}
+                onChange={(event) => updateModel(event.target.value)}
               >
-                <option value="gpt-5.6-terra">GPT-5.6 Terra · balanced</option>
-                <option value="gpt-5.6">GPT-5.6 Sol · best quality</option>
-                <option value="gpt-5.6-luna">GPT-5.6 Luna · lowest cost</option>
+                {OPENAI_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label} · {model.description}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label="Reasoning effort"
+              hint="OpenAI reasoning.effort · Auto uses the model default"
+            >
+              <select
+                value={settings.reasoningEffort}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    reasoningEffort: event.target.value as ExtensionSettings["reasoningEffort"],
+                  })
+                }
+              >
+                {effortOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label} · {option.description}
+                  </option>
+                ))}
               </select>
             </Field>
             <label className="toggle-row">

@@ -1,9 +1,9 @@
+import { PageFieldKind, SuggestionAction } from "./enums";
 import type {
   FieldOption,
   FieldSuggestion,
   FillResult,
   PageField,
-  PageFieldKind,
   PageSnapshot,
   ResumeAttachment,
 } from "../types";
@@ -137,7 +137,7 @@ export async function fillPageFields(
   const results: FillResult[] = [];
 
   for (const suggestion of suggestions) {
-    if (suggestion.action === "skip") {
+    if (suggestion.action === SuggestionAction.Skip) {
       results.push({
         fieldId: suggestion.fieldId,
         status: "skipped",
@@ -272,16 +272,16 @@ export function detectAts(hostname: string, doc: Document = document): string {
   return atsPatterns.find(([pattern]) => pattern.test(haystack))?.[1] ?? "Generic";
 }
 
-function resolveKind(element: HTMLElement): PageFieldKind {
-  if (element instanceof HTMLTextAreaElement) return "textarea";
-  if (element instanceof HTMLSelectElement) return "select";
-  if (element.isContentEditable) return "contenteditable";
+function resolveKind(element: HTMLElement): PageField["kind"] {
+  if (element instanceof HTMLTextAreaElement) return PageFieldKind.Textarea;
+  if (element instanceof HTMLSelectElement) return PageFieldKind.Select;
+  if (element.isContentEditable) return PageFieldKind.Contenteditable;
   if (element instanceof HTMLInputElement) {
-    if (element.type === "checkbox") return "checkbox";
-    if (element.type === "file") return "file";
-    return "text";
+    if (element.type === "checkbox") return PageFieldKind.Checkbox;
+    if (element.type === "file") return PageFieldKind.File;
+    return PageFieldKind.Text;
   }
-  return "text";
+  return PageFieldKind.Text;
 }
 
 function getOptions(element: HTMLElement): FieldOption[] {
