@@ -8,13 +8,14 @@
 }
 
 :root {
+  color-scheme: light dark;
   --bg: #fafaf9;
-  --fg: #1c1917;
+  --fg: #0c0a09;
   --muted: #78716c;
-  --accent: #4f46e5;
+  --accent: #2563eb;
   --accent-text: #ffffff;
-  --ring: #4f46e5;
   --surface: #ffffff;
+  --subtle: #f5f5f4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,9 +23,10 @@
     --bg: #0c0a09;
     --fg: #fafaf9;
     --muted: #a8a29e;
-    --accent: #6366f1;
+    --accent: #3b82f6;
     --accent-text: #ffffff;
     --surface: #1c1917;
+    --subtle: #1c1917;
   }
 }
 
