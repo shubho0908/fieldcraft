@@ -5,6 +5,7 @@ import {
   DEFAULT_EVAL_REASONING_EFFORT,
   DEFAULT_MODEL_ID,
   DEFAULT_REASONING_EFFORT,
+  Provider,
 } from "./models";
 
 export const DEFAULT_PROFILE: CandidateProfile = {
@@ -46,11 +47,13 @@ export const DEFAULT_PROFILE: CandidateProfile = {
 };
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
+  provider: Provider.OpenAI,
   model: DEFAULT_MODEL_ID,
   reasoningEffort: DEFAULT_REASONING_EFFORT,
   evalModel: DEFAULT_EVAL_MODEL_ID,
   evalReasoningEffort: DEFAULT_EVAL_REASONING_EFFORT,
-  researchCompany: true,
+  // Research is opt-in because it requires a separate Exa API key.
+  researchCompany: false,
   rememberApiKey: false,
   autofillMode: AutofillMode.AI,
 };

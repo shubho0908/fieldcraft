@@ -130,7 +130,7 @@ export type AutofillMode = (typeof AutofillMode)[keyof typeof AutofillMode];
 
 export const AUTOFILL_MODES = [AutofillMode.AI, AutofillMode.Direct] as const;
 
-// ── OpenAI reasoning / search ────────────────────────────────────────
+// ── OpenAI reasoning ─────────────────────────────────────────────────
 
 export const ReasoningEffort = {
   None: "none",
@@ -168,23 +168,10 @@ export const REASONING_EFFORT_SETTINGS = [
 
 export const OpenAiModelId = {
   Gpt56Terra: "gpt-5.6-terra",
-  Gpt56Sol: "gpt-5.6",
+  Gpt56Sol: "gpt-5.6-sol",
   Gpt56Luna: "gpt-5.6-luna",
   Gpt55: "gpt-5.5",
-
-  // Free tier — best reasoning (250K tokens/day)
-  Gpt54: "gpt-5.4",
-  Gpt52: "gpt-5.2",
-  Gpt41: "gpt-4.1",
-  O3: "o3",
-  O1: "o1",
-
-  // Free tier — best reasoning mini/nano (2.5M tokens/day)
-  O4Mini: "o4-mini",
-  O3Mini: "o3-mini",
-  O1Mini: "o1-mini",
-  Gpt54Mini: "gpt-5.4-mini",
-  Gpt54Nano: "gpt-5.4-nano",
+  Gpt55Pro: "gpt-5.5-pro",
 } as const;
 
 export type OpenAiModelId = (typeof OpenAiModelId)[keyof typeof OpenAiModelId];
@@ -194,18 +181,7 @@ export const OPENAI_MODEL_IDS = [
   OpenAiModelId.Gpt56Sol,
   OpenAiModelId.Gpt56Luna,
   OpenAiModelId.Gpt55,
-
-  OpenAiModelId.Gpt54,
-  OpenAiModelId.Gpt52,
-  OpenAiModelId.Gpt41,
-  OpenAiModelId.O3,
-  OpenAiModelId.O1,
-
-  OpenAiModelId.O4Mini,
-  OpenAiModelId.O3Mini,
-  OpenAiModelId.O1Mini,
-  OpenAiModelId.Gpt54Mini,
-  OpenAiModelId.Gpt54Nano,
+  OpenAiModelId.Gpt55Pro,
 ] as const;
 
 // ── Eval judges ──────────────────────────────────────────────────────

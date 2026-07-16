@@ -6,6 +6,7 @@ import type {
   ReasoningEffortSetting,
   SuggestionAction,
 } from "./lib/enums";
+import type { Provider } from "./lib/models";
 
 export type {
   AutofillMode,
@@ -61,6 +62,8 @@ export interface CandidateProfile {
 }
 
 export interface ExtensionSettings {
+  /** The provider whose API key and models are currently active. */
+  provider: Provider;
   model: string;
   /** auto = model default; otherwise an OpenAI reasoning.effort value. */
   reasoningEffort: ReasoningEffortSetting;

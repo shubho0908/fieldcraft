@@ -8,5 +8,14 @@ export default defineConfig({
   build: {
     sourcemap: false,
     target: "es2022",
+    rollupOptions: {
+      output: {
+        onlyExplicitManualChunks: true,
+        manualChunks(id) {
+          if (id.includes("/node_modules/@ai-sdk/")) return "ai-providers";
+          if (id.includes("/node_modules/ai/")) return "ai-core";
+        },
+      },
+    },
   },
 });
