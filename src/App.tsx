@@ -85,6 +85,8 @@ export default function App() {
       ) : (
         <Dashboard
           apiKeyExists={apiKeyExists}
+          settings={settings}
+          setSettings={setSettings}
           onOpenSettings={() => setView("profile")}
         />
       )}

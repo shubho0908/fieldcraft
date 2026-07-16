@@ -23,7 +23,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { ResultTab } from "../lib/dashboard-review";
-import { SuggestionAction } from "../lib/enums";
+import { AutofillMode, SuggestionAction } from "../lib/enums";
 import type {
   FieldSuggestion,
   FillResult,
@@ -33,18 +33,28 @@ import type {
 
 export function EmptyDashboard({
   apiKeyExists,
+  autofillMode,
   bindIssue,
   error,
   canAnalyze,
+  canDirectFill,
+  directFillBusy,
   onOpenSettings,
   onAnalyze,
+  onDirectFill,
+  onAutofillModeChange,
 }: {
   apiKeyExists: boolean;
+  autofillMode: AutofillMode;
   bindIssue: string;
   error: string;
   canAnalyze: boolean;
+  canDirectFill: boolean;
+  directFillBusy: boolean;
   onOpenSettings: () => void;
   onAnalyze: () => void;
+  onDirectFill: () => void;
+  onAutofillModeChange: (mode: AutofillMode) => void;
 }) {
   return (
     <main className="dashboard empty-dashboard">
@@ -89,7 +99,34 @@ export function EmptyDashboard({
         />
       </section>
 
-      {!apiKeyExists && (
+      <section className="mode-selector">
+        <div className="mode-options">
+          <button
+            type="button"
+            className={autofillMode === AutofillMode.AI ? "selected" : ""}
+            onClick={() => onAutofillModeChange(AutofillMode.AI)}
+          >
+            <ScanSearch size={18} />
+            <span>
+              <strong>Analyze with AI</strong>
+              <small>Research, fit score, and drafted answers</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className={autofillMode === AutofillMode.Direct ? "selected" : ""}
+            onClick={() => onAutofillModeChange(AutofillMode.Direct)}
+          >
+            <PencilLine size={18} />
+            <span>
+              <strong>Direct-fill</strong>
+              <small>Map profile fields to the form instantly</small>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      {autofillMode === AutofillMode.AI && !apiKeyExists && (
         <button type="button" className="setup-callout" onClick={onOpenSettings}>
           <KeyStatus />
           <span>
@@ -101,14 +138,33 @@ export function EmptyDashboard({
       )}
       {apiKeyExists && bindIssue && <ErrorBox message={bindIssue} onSettings={onOpenSettings} />}
       {error && <ErrorBox message={error} onSettings={onOpenSettings} />}
-      <button
-        type="button"
-        className="analyze-button"
-        onClick={onAnalyze}
-        disabled={!canAnalyze}
-      >
-        <ScanSearch size={18} /> Analyze this job
-      </button>
+      {autofillMode === AutofillMode.AI ? (
+        <button
+          type="button"
+          className="analyze-button"
+          onClick={onAnalyze}
+          disabled={!canAnalyze}
+        >
+          <ScanSearch size={18} /> Analyze this job
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="analyze-button"
+          onClick={onDirectFill}
+          disabled={!canDirectFill || directFillBusy}
+        >
+          {directFillBusy ? (
+            <>
+              <LoaderCircle className="spin" size={18} /> Filling…
+            </>
+          ) : (
+            <>
+              <PencilLine size={18} /> Direct-fill this page
+            </>
+          )}
+        </button>
+      )}
       <p className="microcopy">Nothing is filled or submitted automatically.</p>
     </main>
   );

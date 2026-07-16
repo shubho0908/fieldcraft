@@ -1,4 +1,5 @@
 import type {
+  AutofillMode,
   Confidence,
   FitVerdict,
   PageFieldKind,
@@ -7,6 +8,7 @@ import type {
 } from "./lib/enums";
 
 export type {
+  AutofillMode,
   Confidence,
   FitVerdict,
   PageFieldKind,
@@ -68,6 +70,8 @@ export interface ExtensionSettings {
   evalReasoningEffort: ReasoningEffortSetting;
   researchCompany: boolean;
   rememberApiKey: boolean;
+  /** Whether to analyze with AI or fill fields directly from the profile. */
+  autofillMode: AutofillMode;
 }
 
 export interface FieldOption {
@@ -200,6 +204,7 @@ export type RuntimeRequest =
       runId: string;
       suggestions: FieldSuggestion[];
     }
+  | { type: "FIELDCRAFT_DIRECT_FILL"; tabId: number; url: string }
   | { type: "FIELDCRAFT_TEST_API"; model: string }
   | { type: "FIELDCRAFT_RESOLVE_ACTIVE_TAB" };
 

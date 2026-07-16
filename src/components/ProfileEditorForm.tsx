@@ -14,6 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 import { OPENAI_MODELS } from "../lib/models";
+import { AutofillMode } from "../lib/enums";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
@@ -392,6 +393,20 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               title="Make it sound like you"
               body="The defaults are aggressively concise. Add your own rules without teaching it to exaggerate."
             />
+            <Field label="Fill mode" hint="How Fieldcraft inserts answers">
+              <select
+                value={settings.autofillMode}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    autofillMode: event.target.value as ExtensionSettings["autofillMode"],
+                  })
+                }
+              >
+                <option value={AutofillMode.AI}>Analyze with AI — fit score, research, and drafts</option>
+                <option value={AutofillMode.Direct}>Direct-fill — map profile fields to the form</option>
+              </select>
+            </Field>
             <Field label="Writing instruction">
               <textarea
                 value={profile.voice.customInstruction}

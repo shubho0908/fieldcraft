@@ -26,7 +26,7 @@ import {
   saveProfile,
   saveSettings,
 } from "../lib/storage";
-import { ReasoningEffortSettingAuto } from "../lib/enums";
+import { AutofillMode, ReasoningEffortSettingAuto } from "../lib/enums";
 import {
   preferredEvalReasoningEffort,
   resolveModel,
@@ -140,7 +140,12 @@ export default function ProfileEditor({
       setError("Paste the full text of your resume so answers can stay grounded.");
       return false;
     }
-    if (step === 3 && !apiKeyExists && !apiKey.trim()) {
+    if (
+      step === 3 &&
+      settings.autofillMode === AutofillMode.AI &&
+      !apiKeyExists &&
+      !apiKey.trim()
+    ) {
       setError("An OpenAI API key is required to analyze jobs and draft answers.");
       return false;
     }

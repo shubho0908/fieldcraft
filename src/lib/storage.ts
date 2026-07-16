@@ -4,7 +4,7 @@ import type {
   TabAnalysisSession,
 } from "../types";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
-import { ReasoningEffortSettingAuto } from "./enums";
+import { ReasoningEffortSettingAuto, isAutofillMode } from "./enums";
 import {
   isKnownModel,
   isReasoningEffortSetting,
@@ -52,6 +52,9 @@ export async function getSettings(): Promise<ExtensionSettings> {
   }
   if (!isReasoningEffortSetting(settings.evalReasoningEffort)) {
     settings.evalReasoningEffort = DEFAULT_SETTINGS.evalReasoningEffort;
+  }
+  if (!isAutofillMode(settings.autofillMode)) {
+    settings.autofillMode = DEFAULT_SETTINGS.autofillMode;
   }
 
   // Clamp stored effort if the current model cannot accept it.

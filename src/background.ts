@@ -79,6 +79,24 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    if (request.type === "FIELDCRAFT_DIRECT_FILL") {
+      void (async () => {
+        try {
+          await assertTabUrl(request.tabId, request.url);
+          const response = await chrome.tabs.sendMessage(request.tabId, {
+            type: "FIELDCRAFT_DIRECT_FILL",
+            tabId: request.tabId,
+            url: request.url,
+          } satisfies RuntimeRequest);
+          if (!response?.ok) throw new Error(response?.error || "Could not direct-fill page");
+          sendResponse({ ok: true, results: response.results as FillResult[] });
+        } catch (error) {
+          sendResponse({ ok: false, error: errorMessage(error, "Could not direct-fill page") });
+        }
+      })();
+      return true;
+    }
+
     if (request.type === "FIELDCRAFT_TEST_API") {
       void testOpenAiConnection(request.model)
         .then((result) =>

@@ -1,4 +1,5 @@
 import type { CandidateProfile, ExtensionSettings } from "../types";
+import { AutofillMode } from "./enums";
 import {
   DEFAULT_EVAL_MODEL_ID,
   DEFAULT_EVAL_REASONING_EFFORT,
@@ -51,4 +52,5 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   evalReasoningEffort: DEFAULT_EVAL_REASONING_EFFORT,
   researchCompany: true,
   rememberApiKey: false,
+  autofillMode: AutofillMode.AI,
 };

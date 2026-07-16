@@ -119,6 +119,17 @@ export const CONFIDENCE_LEVELS = [
   Confidence.Low,
 ] as const;
 
+// ── Autofill mode ─────────────────────────────────────────────────────
+
+export const AutofillMode = {
+  AI: "ai",
+  Direct: "direct",
+} as const;
+
+export type AutofillMode = (typeof AutofillMode)[keyof typeof AutofillMode];
+
+export const AUTOFILL_MODES = [AutofillMode.AI, AutofillMode.Direct] as const;
+
 // ── OpenAI reasoning / search ────────────────────────────────────────
 
 export const ReasoningEffort = {
@@ -251,6 +262,10 @@ export function isSuggestionAction(value: string): value is SuggestionAction {
 
 export function isConfidence(value: string): value is Confidence {
   return (CONFIDENCE_LEVELS as readonly string[]).includes(value);
+}
+
+export function isAutofillMode(value: string): value is AutofillMode {
+  return (AUTOFILL_MODES as readonly string[]).includes(value);
 }
 
 export function isReasoningEffort(value: string): value is ReasoningEffort {
