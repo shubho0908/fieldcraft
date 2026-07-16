@@ -2,14 +2,17 @@ import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
 import {
   Confidence,
   PageFieldKind,
-  ReasoningEffort,
   SuggestionAction,
   isConfidence,
   isSuggestionAction,
 } from "./enums";
 import { isChoiceField, optionMatches } from "./fields";
 import { isThinCompanyResearch, sanitizeFit } from "./fit";
-import { resolveAnalysisConfig, resolveModel } from "./models";
+import {
+  CONNECTION_TEST_REASONING_EFFORT,
+  resolveAnalysisConfig,
+  resolveModel,
+} from "./models";
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
 import { getApiKey, getInstallId } from "./storage";
 import type {
@@ -197,7 +200,7 @@ export function buildConnectionTestRequest(
     model: string;
     store: false;
     safety_identifier: string;
-    reasoning: { effort: typeof ReasoningEffort.None };
+    reasoning: { effort: typeof CONNECTION_TEST_REASONING_EFFORT };
     input: typeof CONNECTION_TEST_PROMPT;
     max_output_tokens: number;
   };
@@ -209,7 +212,7 @@ export function buildConnectionTestRequest(
       model: model.id,
       store: false,
       safety_identifier: installId,
-      reasoning: { effort: ReasoningEffort.None },
+      reasoning: { effort: CONNECTION_TEST_REASONING_EFFORT },
       input: CONNECTION_TEST_PROMPT,
       max_output_tokens: 24,
     },
@@ -257,14 +260,14 @@ export function assertLiveConnectionResult(
 
 export function extractOutputText(payload: ResponsesApiResult): string {
   if (payload.output_text) return payload.output_text;
-  return (
-    payload.output
-      ?.filter((item) => item.type === "message")
-      .flatMap((item) => item.content ?? [])
-      .filter((content) => content.type === "output_text")
-      .map((content) => content.text ?? "")
-      .join("") ?? ""
-  );
+  const parts: string[] = [];
+  for (const item of payload.output ?? []) {
+    if (item.type !== "message") continue;
+    for (const content of item.content ?? []) {
+      if (content.type === "output_text") parts.push(content.text ?? "");
+    }
+  }
+  return parts.join("");
 }
 
 export function sanitizeAnalysis(
@@ -273,20 +276,18 @@ export function sanitizeAnalysis(
   citedSources: Array<{ title: string; url: string }>,
   researchAttempted: boolean,
 ): JobAnalysis {
-  const knownFieldIds = new Set(snapshot.fields.map((field) => field.id));
   const knownFields = new Map(snapshot.fields.map((field) => [field.id, field]));
   const seenSuggestions = new Set<string>();
-  const generatedSuggestions = (parsed.suggestions ?? [])
-    .filter((suggestion) => knownFieldIds.has(suggestion.fieldId))
-    .filter((suggestion) => {
-      if (seenSuggestions.has(suggestion.fieldId)) return false;
-      seenSuggestions.add(suggestion.fieldId);
-      return true;
-    })
-    .map((suggestion) => {
-      const field = knownFields.get(suggestion.fieldId);
-      if (!field) {
-        return normalizeSuggestion(suggestion, {
+  const generatedSuggestions: JobAnalysis["suggestions"] = [];
+  for (const suggestion of parsed.suggestions ?? []) {
+    if (!knownFields.has(suggestion.fieldId) || seenSuggestions.has(suggestion.fieldId)) {
+      continue;
+    }
+    seenSuggestions.add(suggestion.fieldId);
+    const field = knownFields.get(suggestion.fieldId);
+    if (!field) {
+      generatedSuggestions.push(
+        normalizeSuggestion(suggestion, {
           id: suggestion.fieldId,
           kind: PageFieldKind.Text,
           type: "text",
@@ -300,30 +301,31 @@ export function sanitizeAnalysis(
           currentValue: "",
           maxLength: null,
           options: [],
-        });
-      }
-      return normalizeSuggestion(suggestion, field);
-    });
+        }),
+      );
+      continue;
+    }
+    generatedSuggestions.push(normalizeSuggestion(suggestion, field));
+  }
 
-  const suggestions = [
-    ...generatedSuggestions,
-    ...snapshot.fields
-      .filter((field) => !seenSuggestions.has(field.id))
-      .map((field) =>
-        normalizeSuggestion(
-          {
-            fieldId: field.id,
-            label: field.label,
-            action: SuggestionAction.Review,
-            value: "",
-            confidence: Confidence.Low,
-            evidence: "No grounded answer was returned",
-            warning: "Review this field manually before filling.",
-          },
-          field,
-        ),
+  const suggestions = [...generatedSuggestions];
+  for (const field of snapshot.fields) {
+    if (seenSuggestions.has(field.id)) continue;
+    suggestions.push(
+      normalizeSuggestion(
+        {
+          fieldId: field.id,
+          label: field.label,
+          action: SuggestionAction.Review,
+          value: "",
+          confidence: Confidence.Low,
+          evidence: "No grounded answer was returned",
+          warning: "Review this field manually before filling.",
+        },
+        field,
       ),
-  ];
+    );
+  }
 
   const sources = dedupeSources([
     ...(parsed.company?.sources ?? []),
@@ -414,27 +416,30 @@ export function normalizeSuggestion(
 }
 
 function findRefusal(payload: ResponsesApiResult): string | undefined {
-  return payload.output
-    ?.flatMap((item) => item.content ?? [])
-    .find((content) => content.type === "refusal")?.refusal;
+  for (const item of payload.output ?? []) {
+    for (const content of item.content ?? []) {
+      if (content.type === "refusal") return content.refusal;
+    }
+  }
+  return undefined;
 }
 
 function extractCitations(
   payload: ResponsesApiResult,
 ): Array<{ title: string; url: string }> {
-  return (
-    payload.output
-      ?.flatMap((item) => item.content ?? [])
-      .flatMap((content) => content.annotations ?? [])
-      .filter(
-        (annotation): annotation is { type?: string; url: string; title?: string } =>
-          annotation.type === "url_citation" && Boolean(annotation.url),
-      )
-      .map((annotation) => ({
-        title: annotation.title || safeHostname(annotation.url),
-        url: annotation.url,
-      })) ?? []
-  );
+  const citations: Array<{ title: string; url: string }> = [];
+  for (const item of payload.output ?? []) {
+    for (const content of item.content ?? []) {
+      for (const annotation of content.annotations ?? []) {
+        if (annotation.type !== "url_citation" || !annotation.url) continue;
+        citations.push({
+          title: annotation.title || safeHostname(annotation.url),
+          url: annotation.url,
+        });
+      }
+    }
+  }
+  return citations;
 }
 
 function dedupeSources(

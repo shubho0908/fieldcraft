@@ -42,12 +42,14 @@ export function evaluateAnalysis(
     judgeSourceUrls(analysis),
   ];
 
-  const failures = results
-    .filter((result) => !result.ok)
-    .map((result) => ({
+  const failures = [];
+  for (const result of results) {
+    if (result.ok) continue;
+    failures.push({
       judge: result.judge,
       message: result.message || "failed",
-    }));
+    });
+  }
 
   return {
     fixtureId: fixture.id,
@@ -121,9 +123,10 @@ export function judgeFieldCoverage(
   snapshot: PageSnapshot,
 ): JudgeResult {
   const suggested = new Set(analysis.suggestions.map((item) => item.fieldId));
-  const missing = snapshot.fields
-    .map((field) => field.id)
-    .filter((id) => !suggested.has(id));
+  const missing: string[] = [];
+  for (const field of snapshot.fields) {
+    if (!suggested.has(field.id)) missing.push(field.id);
+  }
   if (missing.length > 0) {
     return fail(
       JudgeId.FieldsCoverage,
@@ -213,15 +216,20 @@ export function judgeSensitiveSafety(
   analysis: JobAnalysis,
   snapshot: PageSnapshot,
 ): JudgeResult {
-  const sensitiveIds = new Set(
-    snapshot.fields.filter((field) => field.sensitive).map((field) => field.id),
-  );
-  const bad = analysis.suggestions.filter(
-    (item) =>
+  const sensitiveIds = new Set<string>();
+  for (const field of snapshot.fields) {
+    if (field.sensitive) sensitiveIds.add(field.id);
+  }
+  const bad: typeof analysis.suggestions = [];
+  for (const item of analysis.suggestions) {
+    if (
       sensitiveIds.has(item.fieldId) &&
       item.action === SuggestionAction.Fill &&
-      item.value.trim(),
-  );
+      item.value.trim()
+    ) {
+      bad.push(item);
+    }
+  }
   if (bad.length > 0) {
     return fail(
       JudgeId.FieldsSensitive,

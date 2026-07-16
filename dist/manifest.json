@@ -12,7 +12,9 @@
     "unlimitedStorage"
   ],
   "host_permissions": [
-    "https://api.openai.com/*"
+    "https://api.openai.com/*",
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "service-worker-loader.js",
@@ -39,7 +41,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/content.ts-loader-AsOTTnqr.js"
+        "assets/content.ts-loader-BPIjtBPp.js"
       ],
       "matches": [
         "http://*/*",
@@ -55,8 +57,8 @@
         "https://*/*"
       ],
       "resources": [
-        "assets/storage-BUXYQOvz.js",
-        "assets/content.ts-BR9jApXJ.js"
+        "assets/storage-Dak3x10k.js",
+        "assets/content.ts-CdThga78.js"
       ],
       "use_dynamic_url": false
     }

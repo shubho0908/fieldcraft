@@ -103,6 +103,33 @@ const GPT_5_5_EFFORTS = [
   ReasoningEffort.XHigh,
 ] as const satisfies readonly ReasoningEffortType[];
 
+const GPT_5_4_EFFORTS = [
+  ReasoningEffort.None,
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+  ReasoningEffort.High,
+  ReasoningEffort.XHigh,
+] as const satisfies readonly ReasoningEffortType[];
+
+const MINI_EFFORTS = [
+  ReasoningEffort.None,
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+  ReasoningEffort.High,
+] as const satisfies readonly ReasoningEffortType[];
+
+const NANO_EFFORTS = [
+  ReasoningEffort.None,
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+] as const satisfies readonly ReasoningEffortType[];
+
+const REASONING_EFFORTS = [
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+  ReasoningEffort.High,
+] as const satisfies readonly ReasoningEffortType[];
+
 /** Supported OpenAI Responses models and per-tier analysis defaults. */
 export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
   {
@@ -137,11 +164,115 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_5_EFFORTS,
     searchContextSize: SearchContextSize.Medium,
   },
+
+  // ── Free tier — best reasoning (250K tokens/day) ─────────────────
+
+  {
+    id: OpenAiModelId.Gpt54,
+    label: "GPT-5.4",
+    description: "Latest flagship, excellent reasoning",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: GPT_5_4_EFFORTS,
+    searchContextSize: SearchContextSize.Medium,
+  },
+  {
+    id: OpenAiModelId.Gpt52,
+    label: "GPT-5.2",
+    description: "Strong reasoning, good value",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: GPT_5_4_EFFORTS,
+    searchContextSize: SearchContextSize.Medium,
+  },
+  {
+    id: OpenAiModelId.Gpt41,
+    label: "GPT-4.1",
+    description: "Reliable reasoning, strong generalist",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: GPT_5_4_EFFORTS,
+    searchContextSize: SearchContextSize.Medium,
+  },
+  {
+    id: OpenAiModelId.O3,
+    label: "o3",
+    description: "Dedicated deep reasoning model",
+    defaultReasoningEffort: ReasoningEffort.High,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+    searchContextSize: SearchContextSize.Medium,
+  },
+  {
+    id: OpenAiModelId.O1,
+    label: "o1",
+    description: "Reasoning specialist, deliberate analysis",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+    searchContextSize: SearchContextSize.Medium,
+  },
+
+  // ── Free tier — best reasoning mini/nano (2.5M tokens/day) ───────
+
+  {
+    id: OpenAiModelId.O4Mini,
+    label: "o4-mini",
+    description: "Latest reasoning mini, best in class",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+    searchContextSize: SearchContextSize.Low,
+  },
+  {
+    id: OpenAiModelId.O3Mini,
+    label: "o3-mini",
+    description: "Efficient reasoning at scale",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+    searchContextSize: SearchContextSize.Low,
+  },
+  {
+    id: OpenAiModelId.O1Mini,
+    label: "o1-mini",
+    description: "Budget reasoning, good for quick analysis",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+    searchContextSize: SearchContextSize.Low,
+  },
+  {
+    id: OpenAiModelId.Gpt54Mini,
+    label: "GPT-5.4 Mini",
+    description: "Strong quality at lower cost",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: MINI_EFFORTS,
+    searchContextSize: SearchContextSize.Low,
+  },
+  {
+    id: OpenAiModelId.Gpt54Nano,
+    label: "GPT-5.4 Nano",
+    description: "Lowest cost, fast everyday analysis",
+    defaultReasoningEffort: ReasoningEffort.Low,
+    supportedReasoningEfforts: NANO_EFFORTS,
+    searchContextSize: SearchContextSize.Low,
+  },
 ] as const;
 
-export const DEFAULT_MODEL_ID = OpenAiModelId.Gpt56Terra;
+/** Single default model for Analyze + Evals when nothing is saved yet. */
+export const DEFAULT_MODEL_ID: OpenAiModelIdType = OPENAI_MODELS[0].id;
+
+/** Analyze UI default: Auto → model.defaultReasoningEffort. */
 export const DEFAULT_REASONING_EFFORT: ReasoningEffortSetting =
   ReasoningEffortSettingAuto;
+
+/** Live fixture evals default to the same catalog model. */
+export const DEFAULT_EVAL_MODEL_ID: OpenAiModelIdType = DEFAULT_MODEL_ID;
+
+/**
+ * Live fixture evals prefer high reasoning. Prefer this over hardcoding
+ * `ReasoningEffort.High` at call sites — use preferredEvalReasoningEffort()
+ * when clamping to a specific model.
+ */
+export const DEFAULT_EVAL_REASONING_EFFORT: ReasoningEffortSetting =
+  ReasoningEffort.High;
+
+/** Connection probe stays cheap and fixed. */
+export const CONNECTION_TEST_REASONING_EFFORT: ReasoningEffortType =
+  ReasoningEffort.None;
 
 export function isKnownModel(modelId: string): modelId is OpenAiModelIdType {
   return isOpenAiModelId(modelId);
@@ -170,6 +301,23 @@ export function resolveReasoningEffort(
   const model = resolveModel(modelId);
   if (setting === ReasoningEffortSettingAuto) return model.defaultReasoningEffort;
   if (model.supportedReasoningEfforts.includes(setting)) return setting;
+  return model.defaultReasoningEffort;
+}
+
+/**
+ * Eval preference: DEFAULT_EVAL_REASONING_EFFORT when the model supports it,
+ * otherwise the model’s own default effort.
+ */
+export function preferredEvalReasoningEffort(
+  modelId: string,
+): ReasoningEffortSetting {
+  const model = resolveModel(modelId);
+  if (
+    DEFAULT_EVAL_REASONING_EFFORT !== ReasoningEffortSettingAuto &&
+    model.supportedReasoningEfforts.includes(DEFAULT_EVAL_REASONING_EFFORT)
+  ) {
+    return DEFAULT_EVAL_REASONING_EFFORT;
+  }
   return model.defaultReasoningEffort;
 }
 

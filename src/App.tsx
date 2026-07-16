@@ -3,17 +3,8 @@ import { ArrowLeft, Settings2 } from "lucide-react";
 import Dashboard from "./components/Dashboard";
 import BrandMark from "./components/BrandMark";
 import ProfileEditor from "./components/ProfileEditor";
-import {
-  getCachedAnalysis,
-  getProfile,
-  getSettings,
-  hasApiKey,
-} from "./lib/storage";
-import type {
-  CachedAnalysis,
-  CandidateProfile,
-  ExtensionSettings,
-} from "./types";
+import { getProfile, getSettings, hasApiKey } from "./lib/storage";
+import type { CandidateProfile, ExtensionSettings } from "./types";
 
 type View = "dashboard" | "profile";
 
@@ -21,21 +12,14 @@ export default function App() {
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [settings, setSettings] = useState<ExtensionSettings | null>(null);
   const [apiKeyExists, setApiKeyExists] = useState(false);
-  const [cached, setCached] = useState<CachedAnalysis | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void Promise.all([
-      getProfile(),
-      getSettings(),
-      hasApiKey(),
-      getCachedAnalysis(),
-    ]).then(([nextProfile, nextSettings, hasKey, nextCached]) => {
+    void Promise.all([getProfile(), getSettings(), hasApiKey()]).then(([nextProfile, nextSettings, hasKey]) => {
       setProfile(nextProfile);
       setSettings(nextSettings);
       setApiKeyExists(hasKey);
-      setCached(nextCached);
       setLoading(false);
     });
   }, []);
@@ -56,6 +40,7 @@ export default function App() {
       {!onboarding && (
         <header className="app-header">
           <button
+            type="button"
             className="brand-button"
             onClick={() => setView("dashboard")}
             aria-label="Go to job analysis"
@@ -64,12 +49,12 @@ export default function App() {
             <span>Fieldcraft</span>
           </button>
           {view === "profile" ? (
-            <button className="icon-button" onClick={() => setView("dashboard")}>
+            <button type="button" className="icon-button" onClick={() => setView("dashboard")}>
               <ArrowLeft size={18} />
               <span className="sr-only">Back</span>
             </button>
           ) : (
-            <button className="icon-button" onClick={() => setView("profile")}>
+            <button type="button" className="icon-button" onClick={() => setView("profile")}>
               <Settings2 size={18} />
               <span className="sr-only">Profile and settings</span>
             </button>
@@ -93,11 +78,7 @@ export default function App() {
         />
       ) : (
         <Dashboard
-          profile={profile}
-          settings={settings}
           apiKeyExists={apiKeyExists}
-          initialCache={cached}
-          onCache={setCached}
           onOpenSettings={() => setView("profile")}
         />
       )}

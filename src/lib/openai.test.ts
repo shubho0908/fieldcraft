@@ -13,21 +13,24 @@ import {
   Confidence,
   FitVerdict,
   HARD_BLOCKER_SCORE_CAP,
-  OpenAiModelId,
   PageFieldKind,
-  ReasoningEffort,
   SuggestionAction,
 } from "./enums";
+import {
+  CONNECTION_TEST_REASONING_EFFORT,
+  DEFAULT_MODEL_ID,
+} from "./models";
+
 describe("live connection probe", () => {
   it("targets the real OpenAI Responses endpoint with the selected model", () => {
-    const request = buildConnectionTestRequest(OpenAiModelId.Gpt56Terra, "install-1");
+    const request = buildConnectionTestRequest(DEFAULT_MODEL_ID, "install-1");
     expect(request.url).toBe(OPENAI_RESPONSES_URL);
     expect(request.url).toBe("https://api.openai.com/v1/responses");
     expect(request.body).toEqual({
-      model: OpenAiModelId.Gpt56Terra,
+      model: DEFAULT_MODEL_ID,
       store: false,
       safety_identifier: "install-1",
-      reasoning: { effort: ReasoningEffort.None },
+      reasoning: { effort: CONNECTION_TEST_REASONING_EFFORT },
       input: CONNECTION_TEST_PROMPT,
       max_output_tokens: 24,
     });

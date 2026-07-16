@@ -16,6 +16,7 @@ import {
   SEARCH_CONTEXT_SIZES,
   SUGGESTION_ACTIONS,
   SuggestionAction,
+  enumGuards,
   isConfidence,
   isFitVerdict,
   isOpenAiModelId,
@@ -78,6 +79,9 @@ describe("domain enums cross-validation", () => {
     expect(isReasoningEffort("ultra")).toBe(false);
     expect(isOpenAiModelId(OpenAiModelId.Gpt56Terra)).toBe(true);
     expect(isOpenAiModelId("gpt-5.5-pro")).toBe(false);
+    expect(enumGuards.isSearchContextSize(SEARCH_CONTEXT_SIZES[0]!)).toBe(true);
+    expect(enumGuards.isJudgeId(JUDGE_IDS[0]!)).toBe(true);
+    expect(enumGuards.isJudgeId("nope")).toBe(false);
   });
 
   it("judge id catalog is non-empty and unique", () => {

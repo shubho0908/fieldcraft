@@ -16,18 +16,30 @@ import {
 } from "./models";
 
 describe("OpenAI model catalog", () => {
-  it("includes the extended 5.5 and 5.6 set without pro variants", () => {
+  it("includes the full model catalog without pro variants", () => {
     expect(OPENAI_MODELS.map((model) => model.id)).toEqual([
       OpenAiModelId.Gpt56Terra,
       OpenAiModelId.Gpt56Sol,
       OpenAiModelId.Gpt56Luna,
       OpenAiModelId.Gpt55,
+
+      OpenAiModelId.Gpt54,
+      OpenAiModelId.Gpt52,
+      OpenAiModelId.Gpt41,
+      OpenAiModelId.O3,
+      OpenAiModelId.O1,
+
+      OpenAiModelId.O4Mini,
+      OpenAiModelId.O3Mini,
+      OpenAiModelId.O1Mini,
+      OpenAiModelId.Gpt54Mini,
+      OpenAiModelId.Gpt54Nano,
     ]);
   });
 
   it("defaults to Terra", () => {
-    expect(DEFAULT_MODEL_ID).toBe(OpenAiModelId.Gpt56Terra);
-    expect(resolveModel("not-a-model").id).toBe(OpenAiModelId.Gpt56Terra);
+    expect(DEFAULT_MODEL_ID).toBe(OPENAI_MODELS[0].id);
+    expect(resolveModel("not-a-model").id).toBe(DEFAULT_MODEL_ID);
   });
 
   it("exposes GPT-5.6 efforts including max", () => {

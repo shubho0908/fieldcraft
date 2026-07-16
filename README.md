@@ -49,12 +49,28 @@ npm run build
 ```
 
 - `npm run eval` — deterministic judges (no network)
-- `npm run eval:live` — optional live OpenAI Responses run of the fixture pack (skipped without `OPENAI_API_KEY`). Optional: `FIELDCRAFT_EVAL_MODEL`, `FIELDCRAFT_EVAL_RESEARCH=1`.
+- `npm run eval:live` — optional live OpenAI Responses run of the fixture pack (skipped without `OPENAI_API_KEY`)
+
+Live eval options (env):
+
+| Env | Default | Description |
+|-----|---------|-------------|
+| `FIELDCRAFT_EVAL_MODEL` | catalog default (`DEFAULT_EVAL_MODEL_ID`) | Any id from the model catalog |
+| `FIELDCRAFT_EVAL_REASONING` | catalog default (`DEFAULT_EVAL_REASONING_EFFORT`) | `none` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` \| `auto` |
+| `FIELDCRAFT_EVAL_RESEARCH` | off | Set to `1` to enable company web research |
+
+```bash
+OPENAI_API_KEY=sk-... npm run eval:live
+OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> npm run eval:live
+OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high npm run eval:live
+```
+
+Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or reasoning strings.
 
 ## Architecture
 
 - `src/content.ts` reads the active page and applies reviewed values.
-- `src/background.ts` owns API calls so the API key never enters page code.
+- `src/background.ts` owns API calls and the tab-scoped analysis sessions, so the API key never enters page code and switching tabs never shows or redirects another tab's work.
 - `src/lib/page.ts` performs generic ATS/form extraction and browser-compatible filling.
 - `src/lib/prompt.ts` defines the truthfulness, prompt-injection, writing, and field-action contract.
 - `src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, model IDs, judge IDs).

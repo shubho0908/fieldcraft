@@ -175,6 +175,20 @@ export const OpenAiModelId = {
   Gpt56Sol: "gpt-5.6",
   Gpt56Luna: "gpt-5.6-luna",
   Gpt55: "gpt-5.5",
+
+  // Free tier — best reasoning (250K tokens/day)
+  Gpt54: "gpt-5.4",
+  Gpt52: "gpt-5.2",
+  Gpt41: "gpt-4.1",
+  O3: "o3",
+  O1: "o1",
+
+  // Free tier — best reasoning mini/nano (2.5M tokens/day)
+  O4Mini: "o4-mini",
+  O3Mini: "o3-mini",
+  O1Mini: "o1-mini",
+  Gpt54Mini: "gpt-5.4-mini",
+  Gpt54Nano: "gpt-5.4-nano",
 } as const;
 
 export type OpenAiModelId = (typeof OpenAiModelId)[keyof typeof OpenAiModelId];
@@ -184,6 +198,18 @@ export const OPENAI_MODEL_IDS = [
   OpenAiModelId.Gpt56Sol,
   OpenAiModelId.Gpt56Luna,
   OpenAiModelId.Gpt55,
+
+  OpenAiModelId.Gpt54,
+  OpenAiModelId.Gpt52,
+  OpenAiModelId.Gpt41,
+  OpenAiModelId.O3,
+  OpenAiModelId.O1,
+
+  OpenAiModelId.O4Mini,
+  OpenAiModelId.O3Mini,
+  OpenAiModelId.O1Mini,
+  OpenAiModelId.Gpt54Mini,
+  OpenAiModelId.Gpt54Nano,
 ] as const;
 
 // ── Eval judges ──────────────────────────────────────────────────────
@@ -252,7 +278,7 @@ export function isReasoningEffortSetting(
   return (REASONING_EFFORT_SETTINGS as readonly string[]).includes(value);
 }
 
-export function isSearchContextSize(value: string): value is SearchContextSize {
+function isSearchContextSize(value: string): value is SearchContextSize {
   return (SEARCH_CONTEXT_SIZES as readonly string[]).includes(value);
 }
 
@@ -260,6 +286,12 @@ export function isOpenAiModelId(value: string): value is OpenAiModelId {
   return (OPENAI_MODEL_IDS as readonly string[]).includes(value);
 }
 
-export function isJudgeId(value: string): value is JudgeId {
+function isJudgeId(value: string): value is JudgeId {
   return (JUDGE_IDS as readonly string[]).includes(value);
 }
+
+// Keep type-guards reachable for tree-shaking-safe consumers / future eval tooling.
+export const enumGuards = {
+  isSearchContextSize,
+  isJudgeId,
+} as const;

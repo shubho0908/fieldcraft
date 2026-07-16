@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "eval": "vitest run src/lib/eval/eval.test.ts",
     "eval:live": "vitest run src/lib/eval/live.eval.test.ts",
-    "check": "tsc --noEmit --pretty false"
+    "check": "tsc --noEmit --pretty false",
+    "doctor": "react-doctor . --verbose"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -24,6 +25,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^25.0.1",
+    "react-doctor": "^0.7.8",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
     "vitest": "^2.1.8"

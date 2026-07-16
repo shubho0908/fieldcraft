@@ -46,7 +46,7 @@ export interface CandidateProfile {
     yearsOfExperience: string;
     referralSource: string;
   };
-  canonicalAnswers: Array<{ question: string; answer: string }>;
+  canonicalAnswers: Array<{ id: string; question: string; answer: string }>;
   voice: {
     customInstruction: string;
     bannedPhrases: string;
@@ -62,6 +62,10 @@ export interface ExtensionSettings {
   model: string;
   /** auto = model default; otherwise an OpenAI reasoning.effort value. */
   reasoningEffort: ReasoningEffortSetting;
+  /** Model used for live fixture evals (`npm run eval:live` / eval harness). */
+  evalModel: string;
+  /** Reasoning effort for live evals. Defaults to high. */
+  evalReasoningEffort: ReasoningEffortSetting;
   researchCompany: boolean;
   rememberApiKey: boolean;
 }
@@ -156,19 +160,51 @@ export interface FillResult {
   message: string;
 }
 
+/**
+ * The durable, tab-scoped unit of work shown in the side panel.  It lives in
+ * chrome.storage.session and is only mutated by the service worker.
+ */
+export interface TabAnalysisSession {
+  tabId: number;
+  /** Exact document URL captured for this run; never use a result on another page. */
+  url: string;
+  /** Invalidates completions from a previous analysis or fill operation. */
+  runId: string;
+  status: "capturing" | "analyzing" | "done" | "filling" | "error";
+  snapshot?: PageSnapshot;
+  analysis?: JobAnalysis;
+  selectedFieldIds: string[];
+  fillResults: FillResult[];
+  error: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type RuntimeRequest =
   | { type: "FIELDCRAFT_CAPTURE" }
   | { type: "FIELDCRAFT_FILL"; suggestions: FieldSuggestion[] }
+  | { type: "FIELDCRAFT_START_ANALYSIS"; tabId: number }
+  | { type: "FIELDCRAFT_GET_TAB_SESSION"; tabId: number }
   | {
-      type: "FIELDCRAFT_ANALYZE";
-      snapshot: PageSnapshot;
-      profile: CandidateProfile;
-      settings: ExtensionSettings;
+      type: "FIELDCRAFT_UPDATE_TAB_REVIEW";
+      tabId: number;
+      url: string;
+      runId: string;
+      analysis: JobAnalysis;
+      selectedFieldIds: string[];
     }
-  | { type: "FIELDCRAFT_TEST_API"; model: string };
+  | {
+      type: "FIELDCRAFT_FILL_TAB";
+      tabId: number;
+      url: string;
+      runId: string;
+      suggestions: FieldSuggestion[];
+    }
+  | { type: "FIELDCRAFT_TEST_API"; model: string }
+  | { type: "FIELDCRAFT_RESOLVE_ACTIVE_TAB" };
 
-export interface CachedAnalysis {
+export type ResolvedActiveTab = {
+  id: number;
   url: string;
-  snapshot: PageSnapshot;
-  analysis: JobAnalysis;
-}
+  title?: string;
+};
