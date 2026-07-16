@@ -361,15 +361,6 @@ export function judgeResearchMeta(
       `research.attempted=${analysis.research.attempted}, expected ${fixture.researchAttempted}`,
     );
   }
-  if (
-    fixture.expectations.researchAttempted !== undefined &&
-    analysis.research.attempted !== fixture.expectations.researchAttempted
-  ) {
-    return fail(
-      JudgeId.ResearchAttempted,
-      `expectation researchAttempted=${fixture.expectations.researchAttempted}`,
-    );
-  }
   return pass(JudgeId.ResearchAttempted);
 }
 

@@ -341,6 +341,14 @@ function getOptions(element: HTMLElement): FieldOption[] {
     return [
       { value: "true", label: "Checked" },
       { value: "false", label: "Unchecked" },
+      { value: "yes", label: "Yes" },
+      { value: "no", label: "No" },
+      { value: "y", label: "Y" },
+      { value: "n", label: "N" },
+      { value: "1", label: "1" },
+      { value: "0", label: "0" },
+      { value: "checked", label: "checked" },
+      { value: "unchecked", label: "unchecked" },
     ];
   }
   return [];

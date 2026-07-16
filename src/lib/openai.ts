@@ -375,6 +375,18 @@ export function normalizeSuggestion(
   let evidence = typeof raw.evidence === "string" ? raw.evidence : "";
   let warning = typeof raw.warning === "string" ? raw.warning : "";
 
+  if (
+    action === SuggestionAction.Fill &&
+    field.currentValue.trim() &&
+    field.currentValue !== field.placeholder
+  ) {
+    const isCheckboxUnchecked =
+      field.kind === PageFieldKind.Checkbox && field.currentValue === "false";
+    if (!isCheckboxUnchecked) {
+      action = SuggestionAction.Skip;
+    }
+  }
+
   if (field.maxLength != null && field.maxLength > 0) {
     value = value.slice(0, field.maxLength);
   }

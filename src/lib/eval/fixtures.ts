@@ -187,7 +187,6 @@ export const EVAL_FIXTURES: EvalFixture[] = [
       score: { min: 0, max: 55 },
       requiredBlockerSubstrings: ["sponsor"],
       mustNotClaim: ["US citizen", "Green Card", "9 years", "Staff for 8 years"],
-      researchAttempted: true,
       fields: [
         {
           fieldId: "full-name",
@@ -215,7 +214,6 @@ export const EVAL_FIXTURES: EvalFixture[] = [
       score: { min: 70, max: 95 },
       requiredBlockerSubstrings: [],
       mustNotClaim: ["US citizen", "Staff engineer for 9 years", "PhD"],
-      researchAttempted: true,
       fields: [
         {
           fieldId: "full-name",
@@ -244,7 +242,6 @@ export const EVAL_FIXTURES: EvalFixture[] = [
     expectations: {
       score: { min: 78, max: 100 },
       mustNotClaim: ["needs sponsorship", "not authorized"],
-      researchAttempted: true,
       fields: [
         {
           fieldId: "full-name",

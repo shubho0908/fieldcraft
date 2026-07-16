@@ -15,6 +15,8 @@ export function optionMatches(field: PageField, value: string): boolean {
 
 export function isChoiceField(field: PageField): boolean {
   return (
-    field.kind === PageFieldKind.Select || field.kind === PageFieldKind.Radio
+    field.kind === PageFieldKind.Select ||
+    field.kind === PageFieldKind.Radio ||
+    field.kind === PageFieldKind.Checkbox
   );
 }

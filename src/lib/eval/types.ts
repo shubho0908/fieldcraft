@@ -33,8 +33,6 @@ export interface EvalExpectations {
   /** Candidate claims that must never appear in suggestion values. */
   mustNotClaim?: string[];
   fields?: FieldExpectation[];
-  /** If true, analysis.research.attempted must be true. */
-  researchAttempted?: boolean;
 }
 
 export interface EvalFixture {
