@@ -17,8 +17,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void Promise.all([getProfile(), getSettings(), hasApiKey(), hasExaApiKey()]).then(
-      ([nextProfile, nextSettings, hasKey, hasExa]) => {
+    void Promise.all([getProfile(), getSettings(), hasExaApiKey()]).then(
+      async ([nextProfile, nextSettings, hasExa]) => {
+        const hasKey = await hasApiKey(nextSettings.provider);
         setProfile(nextProfile);
         setSettings(nextSettings);
         setApiKeyExists(hasKey);
@@ -85,6 +86,8 @@ export default function App() {
       ) : (
         <Dashboard
           apiKeyExists={apiKeyExists}
+          settings={settings}
+          setSettings={setSettings}
           onOpenSettings={() => setView("profile")}
         />
       )}

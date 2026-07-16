@@ -76,7 +76,8 @@ describe("domain enums cross-validation", () => {
     expect(isReasoningEffort(ReasoningEffort.Max)).toBe(true);
     expect(isReasoningEffort("ultra")).toBe(false);
     expect(isOpenAiModelId(OpenAiModelId.Gpt56Terra)).toBe(true);
-    expect(isOpenAiModelId("gpt-5.5-pro")).toBe(false);
+    expect(isOpenAiModelId(OpenAiModelId.Gpt55Pro)).toBe(true);
+    expect(isOpenAiModelId("gpt-5.4")).toBe(false);
     expect(enumGuards.isJudgeId(JUDGE_IDS[0]!)).toBe(true);
     expect(enumGuards.isJudgeId("nope")).toBe(false);
   });

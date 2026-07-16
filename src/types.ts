@@ -1,12 +1,15 @@
 import type {
+  AutofillMode,
   Confidence,
   FitVerdict,
   PageFieldKind,
   ReasoningEffortSetting,
   SuggestionAction,
 } from "./lib/enums";
+import type { Provider } from "./lib/models";
 
 export type {
+  AutofillMode,
   Confidence,
   FitVerdict,
   PageFieldKind,
@@ -59,6 +62,8 @@ export interface CandidateProfile {
 }
 
 export interface ExtensionSettings {
+  /** The provider whose API key and models are currently active. */
+  provider: Provider;
   model: string;
   /** auto = model default; otherwise an OpenAI reasoning.effort value. */
   reasoningEffort: ReasoningEffortSetting;
@@ -68,6 +73,8 @@ export interface ExtensionSettings {
   evalReasoningEffort: ReasoningEffortSetting;
   researchCompany: boolean;
   rememberApiKey: boolean;
+  /** Whether to analyze with AI or fill fields directly from the profile. */
+  autofillMode: AutofillMode;
 }
 
 export interface FieldOption {
@@ -200,6 +207,7 @@ export type RuntimeRequest =
       runId: string;
       suggestions: FieldSuggestion[];
     }
+  | { type: "FIELDCRAFT_DIRECT_FILL"; tabId: number; url: string }
   | { type: "FIELDCRAFT_TEST_API"; model: string }
   | { type: "FIELDCRAFT_RESOLVE_ACTIVE_TAB" };
 

@@ -25,6 +25,45 @@ export interface ResearchResult {
   sources: Array<{ title: string; url: string }>;
 }
 
+export interface ExaConnectionTestResult {
+  requestId?: string;
+}
+
+/**
+ * Validates an Exa key with the smallest valid Search request. This is kept
+ * separate from company research so testing never fetches page content.
+ */
+export async function testExaConnection(
+  apiKey: string,
+): Promise<ExaConnectionTestResult> {
+  if (!apiKey.trim()) throw new Error("Enter and save an Exa API key first.");
+
+  const response = await fetch(EXA_SEARCH_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      query: "Fieldcraft connection test",
+      type: "instant",
+      numResults: 1,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text().catch(() => "Unknown error");
+    throw new Error(`Exa connection failed (${response.status}): ${error}`);
+  }
+
+  const data = (await response.json()) as Partial<ExaSearchResponse>;
+  if (!Array.isArray(data.results)) {
+    throw new Error("Exa returned an invalid response to the connection test.");
+  }
+
+  return { requestId: data.requestId };
+}
+
 export async function researchCompany(
   apiKey: string,
   pageTitle: string,

@@ -6,6 +6,7 @@ import {
 } from "./enums";
 import {
   DEFAULT_MODEL_ID,
+  GEMINI_MODELS,
   isKnownModel,
   OPENAI_MODELS,
   resolveAnalysisConfig,
@@ -15,24 +16,21 @@ import {
 } from "./models";
 
 describe("OpenAI model catalog", () => {
-  it("includes the full model catalog without pro variants", () => {
+  it("keeps only the requested GPT-5.6 and GPT-5.5 series", () => {
     expect(OPENAI_MODELS.map((model) => model.id)).toEqual([
       OpenAiModelId.Gpt56Terra,
       OpenAiModelId.Gpt56Sol,
       OpenAiModelId.Gpt56Luna,
       OpenAiModelId.Gpt55,
+      OpenAiModelId.Gpt55Pro,
+    ]);
+  });
 
-      OpenAiModelId.Gpt54,
-      OpenAiModelId.Gpt52,
-      OpenAiModelId.Gpt41,
-      OpenAiModelId.O3,
-      OpenAiModelId.O1,
-
-      OpenAiModelId.O4Mini,
-      OpenAiModelId.O3Mini,
-      OpenAiModelId.O1Mini,
-      OpenAiModelId.Gpt54Mini,
-      OpenAiModelId.Gpt54Nano,
+  it("includes the current Gemini Pro and Flash choices", () => {
+    expect(GEMINI_MODELS.map((model) => model.id)).toEqual([
+      "gemini-3.1-pro-preview",
+      "gemini-3.5-flash",
+      "gemini-3.1-flash-lite",
     ]);
   });
 
@@ -58,6 +56,14 @@ describe("OpenAI model catalog", () => {
     expect(resolveModel(OpenAiModelId.Gpt55).supportedReasoningEfforts).toEqual([
       ReasoningEffort.None,
       ReasoningEffort.Low,
+      ReasoningEffort.Medium,
+      ReasoningEffort.High,
+      ReasoningEffort.XHigh,
+    ]);
+  });
+
+  it("limits GPT-5.5 Pro to the documented efforts", () => {
+    expect(resolveModel(OpenAiModelId.Gpt55Pro).supportedReasoningEfforts).toEqual([
       ReasoningEffort.Medium,
       ReasoningEffort.High,
       ReasoningEffort.XHigh,
@@ -114,6 +120,7 @@ describe("reasoning resolution", () => {
 
   it("keeps known model lookup stable", () => {
     expect(isKnownModel(OpenAiModelId.Gpt56Terra)).toBe(true);
-    expect(isKnownModel("gpt-5.5-pro")).toBe(false);
+    expect(isKnownModel("gpt-5.5-pro")).toBe(true);
+    expect(isKnownModel("gpt-5.4")).toBe(false);
   });
 });

@@ -1,6 +1,8 @@
 import { isAnalyzableTabUrl } from "./lib/page";
-import { analyzeJob, testOpenAiConnection } from "./lib/openai";
+import { analyzeJob, testAiConnection } from "./lib/openai";
+import { testExaConnection } from "./lib/exa";
 import {
+  getExaApiKey,
   getProfile,
   getSettings,
   getTabAnalysisSession,
@@ -79,13 +81,33 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    if (request.type === "FIELDCRAFT_DIRECT_FILL") {
+      void (async () => {
+        try {
+          await assertTabUrl(request.tabId, request.url);
+          const response = await chrome.tabs.sendMessage(request.tabId, {
+            type: "FIELDCRAFT_DIRECT_FILL",
+            tabId: request.tabId,
+            url: request.url,
+          } satisfies RuntimeRequest);
+          if (!response?.ok) throw new Error(response?.error || "Could not direct-fill page");
+          sendResponse({ ok: true, results: response.results as FillResult[] });
+        } catch (error) {
+          sendResponse({ ok: false, error: errorMessage(error, "Could not direct-fill page") });
+        }
+      })();
+      return true;
+    }
+
     if (request.type === "FIELDCRAFT_TEST_API") {
-      void testOpenAiConnection(request.model)
+      void testConfiguredConnections(request.model)
         .then((result) =>
           sendResponse({
             ok: true,
             model: result.model,
             responseId: result.responseId,
+            exaTested: result.exaTested,
+            exaRequestId: result.exaRequestId,
           }),
         )
         .catch((error: unknown) =>
@@ -112,6 +134,24 @@ chrome.runtime.onMessage.addListener(
     return false;
   },
 );
+
+async function testConfiguredConnections(model: string): Promise<{
+  model: string;
+  responseId?: string;
+  exaTested: boolean;
+  exaRequestId?: string;
+}> {
+  const aiTest = testAiConnection(model);
+  const exaApiKey = await getExaApiKey();
+  const exaTest = exaApiKey ? testExaConnection(exaApiKey) : undefined;
+  const [ai, exa] = await Promise.all([aiTest, exaTest]);
+
+  return {
+    ...ai,
+    exaTested: Boolean(exaTest),
+    exaRequestId: exa?.requestId,
+  };
+}
 
 async function startAnalysis(tabId: number): Promise<void> {
   const tab = await getEligibleTab(tabId);

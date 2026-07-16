@@ -4,9 +4,12 @@ import type {
   TabAnalysisSession,
 } from "../types";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
-import { ReasoningEffortSettingAuto } from "./enums";
+import { ReasoningEffortSettingAuto, isAutofillMode } from "./enums";
 import {
+  defaultModelForProvider,
+  isProvider,
   isKnownModel,
+  Provider,
   isReasoningEffortSetting,
   resolveModel,
 } from "./models";
@@ -14,7 +17,10 @@ import {
 const KEYS = {
   profile: "fieldcraft.profile",
   settings: "fieldcraft.settings",
+  /** Legacy OpenAI key name, retained for a safe one-time read migration. */
   apiKey: "fieldcraft.apiKey",
+  openAiApiKey: "fieldcraft.openAiApiKey",
+  geminiApiKey: "fieldcraft.geminiApiKey",
   exaApiKey: "fieldcraft.exaApiKey",
   tabSessions: "fieldcraft.tabAnalysisSessions",
   installId: "fieldcraft.installId",
@@ -22,6 +28,13 @@ const KEYS = {
 
 const MAX_TAB_SESSIONS = 24;
 let tabSessionMutation: Promise<void> = Promise.resolve();
+
+// OpenAI documents gpt-5.6 as an alias for the canonical GPT-5.6 Sol ID.
+// Preserve an existing user's intentional Sol choice while keeping the catalog
+// itself on stable, explicit model IDs.
+const LEGACY_MODEL_ALIASES: Readonly<Record<string, string>> = {
+  "gpt-5.6": "gpt-5.6-sol",
+};
 
 export async function getProfile(): Promise<CandidateProfile> {
   const stored = await chrome.storage.local.get(KEYS.profile);
@@ -41,8 +54,16 @@ export async function getSettings(): Promise<ExtensionSettings> {
     ...(stored[KEYS.settings] ?? {}),
   } as ExtensionSettings;
 
-  if (!isKnownModel(settings.model)) {
-    settings.model = DEFAULT_SETTINGS.model;
+  settings.model = LEGACY_MODEL_ALIASES[settings.model] ?? settings.model;
+  settings.evalModel = LEGACY_MODEL_ALIASES[settings.evalModel] ?? settings.evalModel;
+
+  if (!isProvider(settings.provider)) {
+    settings.provider = isKnownModel(settings.model)
+      ? resolveModel(settings.model).provider
+      : DEFAULT_SETTINGS.provider;
+  }
+  if (!isKnownModel(settings.model) || resolveModel(settings.model).provider !== settings.provider) {
+    settings.model = defaultModelForProvider(settings.provider).id;
   }
   if (!isReasoningEffortSetting(settings.reasoningEffort)) {
     settings.reasoningEffort = DEFAULT_SETTINGS.reasoningEffort;
@@ -52,6 +73,15 @@ export async function getSettings(): Promise<ExtensionSettings> {
   }
   if (!isReasoningEffortSetting(settings.evalReasoningEffort)) {
     settings.evalReasoningEffort = DEFAULT_SETTINGS.evalReasoningEffort;
+  }
+  if (!isAutofillMode(settings.autofillMode)) {
+    settings.autofillMode = DEFAULT_SETTINGS.autofillMode;
+  }
+
+  // Exa is optional. Never leave research enabled when its separate key is
+  // unavailable, otherwise a normal job analysis would fail after setup.
+  if (settings.researchCompany && !(await hasExaApiKey())) {
+    settings.researchCompany = false;
   }
 
   // Clamp stored effort if the current model cannot accept it.
@@ -78,35 +108,57 @@ export async function saveSettings(
 }
 
 export async function saveApiKey(
+  provider: Provider,
   apiKey: string,
   remember: boolean,
 ): Promise<void> {
   const key = apiKey.trim();
+  const storageKey = apiKeyStorageKey(provider);
   if (remember) {
-    await chrome.storage.local.set({ [KEYS.apiKey]: key });
-    await chrome.storage.session.remove(KEYS.apiKey);
+    await chrome.storage.local.set({ [storageKey]: key });
+    await chrome.storage.session.remove(storageKey);
   } else {
-    await chrome.storage.session.set({ [KEYS.apiKey]: key });
-    await chrome.storage.local.remove(KEYS.apiKey);
+    await chrome.storage.session.set({ [storageKey]: key });
+    await chrome.storage.local.remove(storageKey);
   }
 }
 
-export async function getApiKey(): Promise<string> {
-  const session = await chrome.storage.session.get(KEYS.apiKey);
-  if (session[KEYS.apiKey]) return String(session[KEYS.apiKey]);
-  const local = await chrome.storage.local.get(KEYS.apiKey);
-  return String(local[KEYS.apiKey] ?? "");
+export async function getApiKey(provider: Provider): Promise<string> {
+  const storageKey = apiKeyStorageKey(provider);
+  const session = await chrome.storage.session.get(storageKey);
+  if (session[storageKey]) return String(session[storageKey]);
+  const local = await chrome.storage.local.get(storageKey);
+  if (local[storageKey]) return String(local[storageKey]);
+
+  // Existing installs only had one key and supported OpenAI. Never reuse that
+  // key for Gemini, where it would be both misleading and invalid.
+  if (provider !== Provider.OpenAI) return "";
+  const legacySession = await chrome.storage.session.get(KEYS.apiKey);
+  if (legacySession[KEYS.apiKey]) return String(legacySession[KEYS.apiKey]);
+  const legacyLocal = await chrome.storage.local.get(KEYS.apiKey);
+  return String(legacyLocal[KEYS.apiKey] ?? "");
 }
 
-export async function hasApiKey(): Promise<boolean> {
-  return Boolean(await getApiKey());
+export async function hasApiKey(provider: Provider): Promise<boolean> {
+  return Boolean(await getApiKey(provider));
 }
 
-export async function clearApiKey(): Promise<void> {
+export async function clearApiKey(provider: Provider): Promise<void> {
+  const storageKey = apiKeyStorageKey(provider);
   await Promise.all([
-    chrome.storage.local.remove(KEYS.apiKey),
-    chrome.storage.session.remove(KEYS.apiKey),
+    chrome.storage.local.remove(storageKey),
+    chrome.storage.session.remove(storageKey),
+    ...(provider === Provider.OpenAI
+      ? [
+          chrome.storage.local.remove(KEYS.apiKey),
+          chrome.storage.session.remove(KEYS.apiKey),
+        ]
+      : []),
   ]);
+}
+
+function apiKeyStorageKey(provider: Provider): string {
+  return provider === Provider.Gemini ? KEYS.geminiApiKey : KEYS.openAiApiKey;
 }
 
 export async function saveExaApiKey(apiKey: string): Promise<void> {

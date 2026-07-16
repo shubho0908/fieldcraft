@@ -23,7 +23,7 @@ export interface LiveEvalOptions {
   apiKey: string;
   /** Exa API key for company research in eval runs. */
   exaApiKey?: string;
-  /** OpenAI model id from the Fieldcraft catalog (defaults to DEFAULT_EVAL_MODEL_ID). */
+  /** Model id from the Fieldcraft catalog (defaults to DEFAULT_EVAL_MODEL_ID). */
   model?: string;
   /**
    * Reasoning effort for the eval run.
@@ -48,7 +48,7 @@ export interface ResolvedLiveEvalConfig {
   modelLabel: string;
   /** Setting after defaulting (e.g. high). */
   reasoningEffort: ReasoningEffortSetting;
-  /** Concrete effort sent to OpenAI after model clamp. */
+  /** Concrete OpenAI effort after the model-specific clamp. */
   resolvedReasoningEffort: ReturnType<typeof resolveReasoningEffort>;
   researchCompany: boolean;
 }
@@ -73,7 +73,7 @@ export function resolveLiveEvalConfig(
 }
 
 /**
- * Run fixture pack against the live OpenAI Responses API, then apply judges.
+ * Run fixture pack against the selected provider, then apply judges.
  * Requires a real API key. Not used by the Chrome extension runtime.
  */
 export async function runLiveEval(
@@ -82,6 +82,7 @@ export async function runLiveEval(
   const resolved = resolveLiveEvalConfig(options);
   const settings: ExtensionSettings = {
     ...DEFAULT_SETTINGS,
+    provider: resolveModel(resolved.model).provider,
     model: resolved.model,
     reasoningEffort: resolved.reasoningEffort,
     evalModel: resolved.model,

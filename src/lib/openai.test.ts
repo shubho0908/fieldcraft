@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertLiveConnectionResult,
   buildConnectionTestRequest,
+  CONNECTION_TEST_MAX_OUTPUT_TOKENS,
   CONNECTION_TEST_PROMPT,
   extractOutputText,
   normalizeSuggestion,
@@ -32,7 +33,7 @@ describe("live connection probe", () => {
       safety_identifier: "install-1",
       reasoning: { effort: CONNECTION_TEST_REASONING_EFFORT },
       input: CONNECTION_TEST_PROMPT,
-      max_output_tokens: 24,
+      max_output_tokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
     });
   });
 
@@ -100,7 +101,7 @@ describe("Responses API parser", () => {
     expect(
       extractOutputText({
         output: [
-          { type: "web_search_call" },
+          { type: "function_call" },
           {
             type: "message",
             content: [{ type: "output_text", text: '{"fit":{"score":91}}' }],

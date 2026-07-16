@@ -5,8 +5,14 @@ import {
   type ResultTab,
   type ReviewDraft,
 } from "../lib/dashboard-review";
-import { SuggestionAction } from "../lib/enums";
-import type { FieldSuggestion, RuntimeRequest } from "../types";
+import { AutofillMode, SuggestionAction } from "../lib/enums";
+import { saveSettings } from "../lib/storage";
+import type {
+  ExtensionSettings,
+  FieldSuggestion,
+  FillResult,
+  RuntimeRequest,
+} from "../types";
 import {
   AnalysisLoader,
   EmptyDashboard,
@@ -17,15 +23,23 @@ import { useDashboardBinding } from "./useDashboardBinding";
 
 interface Props {
   apiKeyExists: boolean;
+  settings: ExtensionSettings;
+  setSettings: (settings: ExtensionSettings) => void;
   onOpenSettings: () => void;
 }
 
-export default function Dashboard({ apiKeyExists, onOpenSettings }: Props) {
+export default function Dashboard({
+  apiKeyExists,
+  settings,
+  setSettings,
+  onOpenSettings,
+}: Props) {
   const { binding, bindIssue, session, setSession } = useDashboardBinding();
   const [review, setReview] = useState<ReviewDraft | null>(null);
   const [reviewSeed, setReviewSeed] = useState("");
   const [activeTab, setActiveTab] = useState<ResultTab>("fit");
   const [toast, setToast] = useState("");
+  const [directFilling, setDirectFilling] = useState(false);
 
   if (session?.analysis && session.snapshot) {
     if (reviewSeed !== session.runId) {
@@ -54,6 +68,12 @@ export default function Dashboard({ apiKeyExists, onOpenSettings }: Props) {
     return next;
   }, [analysis, selected]);
 
+  function setAutofillMode(autofillMode: AutofillMode) {
+    const next = { ...settings, autofillMode };
+    setSettings(next);
+    void saveSettings(next);
+  }
+
   function analyze() {
     if (status === "capturing" || status === "analyzing" || status === "filling") return;
     if (!apiKeyExists) {
@@ -71,6 +91,41 @@ export default function Dashboard({ apiKeyExists, onOpenSettings }: Props) {
       type: "FIELDCRAFT_START_ANALYSIS",
       tabId: binding.id,
     } satisfies RuntimeRequest);
+  }
+
+  function directFill() {
+    if (!binding || directFilling) return;
+    setDirectFilling(true);
+    void chrome.runtime
+      .sendMessage({
+        type: "FIELDCRAFT_DIRECT_FILL",
+        tabId: binding.id,
+        url: binding.url,
+      } satisfies RuntimeRequest)
+      .then((response) => {
+        setDirectFilling(false);
+        if (!response?.ok) {
+          setToast(response?.error || "Could not direct-fill page");
+          window.setTimeout(() => setToast(""), 4200);
+          return;
+        }
+        const results = response.results as FillResult[];
+        let filled = 0;
+        let failed = 0;
+        for (const result of results) {
+          if (result.status === "filled") filled += 1;
+          if (result.status === "failed") failed += 1;
+        }
+        setToast(
+          `${filled} field${filled === 1 ? "" : "s"} filled${failed ? ` · ${failed} need attention` : ""}`,
+        );
+        window.setTimeout(() => setToast(""), 4200);
+      })
+      .catch((error: unknown) => {
+        setDirectFilling(false);
+        setToast(error instanceof Error ? error.message : "Could not direct-fill page");
+        window.setTimeout(() => setToast(""), 4200);
+      });
   }
 
   function fillSelected() {
@@ -140,11 +195,16 @@ export default function Dashboard({ apiKeyExists, onOpenSettings }: Props) {
     return (
       <EmptyDashboard
         apiKeyExists={apiKeyExists}
+        autofillMode={settings.autofillMode}
         bindIssue={bindIssue}
         error={error}
         canAnalyze={Boolean(apiKeyExists && binding)}
+        canDirectFill={Boolean(binding) && !directFilling}
+        directFillBusy={directFilling}
         onOpenSettings={onOpenSettings}
         onAnalyze={analyze}
+        onDirectFill={directFill}
+        onAutofillModeChange={setAutofillMode}
       />
     );
   }

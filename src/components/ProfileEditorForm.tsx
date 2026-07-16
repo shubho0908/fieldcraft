@@ -13,7 +13,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { OPENAI_MODELS } from "../lib/models";
+import { modelsForProvider, Provider } from "../lib/models";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
@@ -49,6 +49,8 @@ export type ProfileEditorFormProps = {
   updateVoice: (key: keyof CandidateProfile["voice"], value: string | number) => void;
   updateModel: (modelId: string) => void;
   updateEvalModel: (modelId: string) => void;
+  updateProvider: (provider: Provider) => void;
+  setResearchCompany: (researchCompany: boolean) => void;
   attachResume: (file?: File) => void;
   testConnection: () => void;
   removeApiKey: () => void;
@@ -89,6 +91,8 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     updateVoice,
     updateModel,
     updateEvalModel,
+    updateProvider,
+    setResearchCompany,
     attachResume,
     testConnection,
     removeApiKey,
@@ -96,6 +100,8 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     next,
     setStep,
   } = props;
+  const providerModels = modelsForProvider(settings.provider);
+  const providerName = settings.provider === Provider.Gemini ? "Gemini" : "OpenAI";
 
   return (
     <main className={`profile-editor ${onboarding ? "onboarding" : "editing"}`}>
@@ -429,17 +435,29 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             <div className="api-heading">
               <div className="api-icon"><KeyRound size={18} /></div>
               <div>
-                <h3>OpenAI connection</h3>
+                <h3>AI provider connection</h3>
                 <p>Used for analysis, company research, and answer drafting.</p>
               </div>
             </div>
-            <Field label="API key" hint={apiKeyExists ? "A key is already saved" : "Required"}>
+            <Field label="AI provider">
+              <select
+                value={settings.provider}
+                onChange={(event) => updateProvider(event.target.value as Provider)}
+              >
+                <option value={Provider.OpenAI}>OpenAI</option>
+                <option value={Provider.Gemini}>Gemini</option>
+              </select>
+            </Field>
+            <Field
+              label={`${providerName} API key`}
+              hint={apiKeyExists ? `A ${providerName} key is already saved` : "Required"}
+            >
               <div className="secret-input">
                 <input
                   type={showApiKey ? "text" : "password"}
                   value={apiKey}
                   onChange={(event) => setApiKeyState(event.target.value)}
-                  placeholder={apiKeyExists ? "•••••••••••••••• (replace key)" : "sk-proj-…"}
+                  placeholder={apiKeyExists ? "•••••••••••••••• (replace key)" : `${providerName} API key`}
                   autoComplete="off"
                 />
                 <button type="button" onClick={() => setShowApiKey(!showApiKey)}>
@@ -452,16 +470,16 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 value={settings.model}
                 onChange={(event) => updateModel(event.target.value)}
               >
-                {OPENAI_MODELS.map((model) => (
+                {providerModels.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.label} · {model.description}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field
+            {settings.provider === Provider.OpenAI && <Field
               label="Reasoning effort"
-              hint="OpenAI reasoning.effort · Auto uses the model default"
+              hint="Reasoning effort · Auto uses the model default"
             >
               <select
                 value={settings.reasoningEffort}
@@ -478,7 +496,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                   </option>
                 ))}
               </select>
-            </Field>
+            </Field>}
 
             <div className="divider" />
             <div className="api-heading">
@@ -495,14 +513,14 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 value={settings.evalModel}
                 onChange={(event) => updateEvalModel(event.target.value)}
               >
-                {OPENAI_MODELS.map((model) => (
+                {providerModels.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.label} · {model.description}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field
+            {settings.provider === Provider.OpenAI && <Field
               label="Eval reasoning"
               hint="Default high · clamped if the model cannot use that effort"
             >
@@ -522,7 +540,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                   </option>
                 ))}
               </select>
-            </Field>
+            </Field>}
 
             <div className="divider" />
             <div className="api-heading">
@@ -532,7 +550,10 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 <p>Looks up company background (funding, size, products) so job fit recommendations are more accurate.</p>
               </div>
             </div>
-            <Field label="Exa API key" hint={exaApiKeyExists ? "A key is already saved" : "Required for research"}>
+            <Field
+              label="Exa API key"
+              hint={exaApiKeyExists ? "A key is already saved" : "Optional · required only for company research"}
+            >
               <div className="secret-input">
                 <input
                   type={showExaApiKey ? "text" : "password"}
@@ -556,18 +577,18 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             <label className="toggle-row">
               <span>
                 <strong>Research the company</strong>
-                <small>Use Exa web search and show the sources used.</small>
+                <small>Optional. Enable only after adding an Exa key; job analysis works without it.</small>
               </span>
               <input
                 type="checkbox"
                 checked={settings.researchCompany}
-                onChange={(event) => setSettings({ ...settings, researchCompany: event.target.checked })}
+                onChange={(event) => setResearchCompany(event.target.checked)}
               />
               <i />
             </label>
             <label className="toggle-row">
               <span>
-                <strong>Remember API key</strong>
+                <strong>Remember {providerName} API key</strong>
                 <small>
                   Off keeps it only for this browser session. On stores it in Chrome local extension storage.
                 </small>
@@ -593,7 +614,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             <div className="privacy-note">
               <ShieldCheck size={17} />
               <p>
-                Your profile is stored in this extension. Profile and job context are sent to OpenAI only when you press Analyze, with API response storage disabled.
+                Your profile is stored in this extension. Profile and job context are sent to your selected AI provider only when you press Analyze. OpenAI requests disable response storage.
               </p>
             </div>
           </div>
@@ -660,4 +681,3 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-

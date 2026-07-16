@@ -1,5 +1,5 @@
 /**
- * OpenAI Responses API model catalog.
+ * AI model catalog (multi-provider).
  * Effort / search enums live in ./enums (single source of truth).
  */
 
@@ -7,9 +7,7 @@ import {
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
-  isOpenAiModelId,
   isReasoningEffortSetting,
-  type OpenAiModelId as OpenAiModelIdType,
   type ReasoningEffort as ReasoningEffortType,
   type ReasoningEffortSetting,
 } from "./enums";
@@ -22,22 +20,33 @@ export {
   isReasoningEffortSetting,
 };
 
+export const Provider = {
+  OpenAI: "openai",
+  Gemini: "gemini",
+} as const;
+
+export type Provider = (typeof Provider)[keyof typeof Provider];
+
 export interface ReasoningEffortOption {
   id: ReasoningEffortSetting;
   label: string;
   description: string;
 }
 
-export interface OpenAiModelOption {
-  id: OpenAiModelIdType;
+export interface ModelOption {
+  id: string;
+  provider: Provider;
   label: string;
   description: string;
   defaultReasoningEffort: ReasoningEffortType;
   supportedReasoningEfforts: readonly ReasoningEffortType[];
 }
 
+/** @deprecated Use ModelOption */
+export type OpenAiModelOption = ModelOption;
+
 export interface ResolvedAnalysisConfig {
-  modelId: OpenAiModelIdType;
+  modelId: string;
   reasoning: {
     effort: ReasoningEffortType;
   };
@@ -98,36 +107,16 @@ const GPT_5_5_EFFORTS = [
   ReasoningEffort.XHigh,
 ] as const satisfies readonly ReasoningEffortType[];
 
-const GPT_5_4_EFFORTS = [
-  ReasoningEffort.None,
-  ReasoningEffort.Low,
+const GPT_5_5_PRO_EFFORTS = [
   ReasoningEffort.Medium,
   ReasoningEffort.High,
   ReasoningEffort.XHigh,
 ] as const satisfies readonly ReasoningEffortType[];
 
-const MINI_EFFORTS = [
-  ReasoningEffort.None,
-  ReasoningEffort.Low,
-  ReasoningEffort.Medium,
-  ReasoningEffort.High,
-] as const satisfies readonly ReasoningEffortType[];
-
-const NANO_EFFORTS = [
-  ReasoningEffort.None,
-  ReasoningEffort.Low,
-  ReasoningEffort.Medium,
-] as const satisfies readonly ReasoningEffortType[];
-
-const REASONING_EFFORTS = [
-  ReasoningEffort.Low,
-  ReasoningEffort.Medium,
-  ReasoningEffort.High,
-] as const satisfies readonly ReasoningEffortType[];
-
 /** Supported OpenAI Responses models and per-tier analysis defaults. */
-export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
+export const OPENAI_MODELS: readonly ModelOption[] = [
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Terra,
     label: "GPT-5.6 Terra",
     description: "Balanced quality and cost",
@@ -135,6 +124,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Sol,
     label: "GPT-5.6 Sol",
     description: "Best quality",
@@ -142,6 +132,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Luna,
     label: "GPT-5.6 Luna",
     description: "Lowest cost",
@@ -149,99 +140,78 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt55,
     label: "GPT-5.5",
     description: "Prior frontier, stable fallback",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_5_EFFORTS,
   },
-
-  // ── Free tier — best reasoning (250K tokens/day) ─────────────────
-
   {
-    id: OpenAiModelId.Gpt54,
-    label: "GPT-5.4",
-    description: "Latest flagship, excellent reasoning",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: GPT_5_4_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.Gpt52,
-    label: "GPT-5.2",
-    description: "Strong reasoning, good value",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: GPT_5_4_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.Gpt41,
-    label: "GPT-4.1",
-    description: "Reliable reasoning, strong generalist",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: GPT_5_4_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.O3,
-    label: "o3",
-    description: "Dedicated deep reasoning model",
+    provider: Provider.OpenAI,
+    id: OpenAiModelId.Gpt55Pro,
+    label: "GPT-5.5 Pro",
+    description: "Highest-quality GPT-5.5 analysis",
     defaultReasoningEffort: ReasoningEffort.High,
-    supportedReasoningEfforts: REASONING_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.O1,
-    label: "o1",
-    description: "Reasoning specialist, deliberate analysis",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: REASONING_EFFORTS,
-  },
-
-  // ── Free tier — best reasoning mini/nano (2.5M tokens/day) ───────
-
-  {
-    id: OpenAiModelId.O4Mini,
-    label: "o4-mini",
-    description: "Latest reasoning mini, best in class",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: REASONING_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.O3Mini,
-    label: "o3-mini",
-    description: "Efficient reasoning at scale",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: REASONING_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.O1Mini,
-    label: "o1-mini",
-    description: "Budget reasoning, good for quick analysis",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: REASONING_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.Gpt54Mini,
-    label: "GPT-5.4 Mini",
-    description: "Strong quality at lower cost",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: MINI_EFFORTS,
-  },
-  {
-    id: OpenAiModelId.Gpt54Nano,
-    label: "GPT-5.4 Nano",
-    description: "Lowest cost, fast everyday analysis",
-    defaultReasoningEffort: ReasoningEffort.Low,
-    supportedReasoningEfforts: NANO_EFFORTS,
+    supportedReasoningEfforts: GPT_5_5_PRO_EFFORTS,
   },
 ] as const;
 
+/** Current Gemini text models that support structured output. */
+export const GEMINI_MODELS: readonly ModelOption[] = [
+  {
+    provider: Provider.Gemini,
+    id: "gemini-3.1-pro-preview",
+    label: "Gemini 3.1 Pro Preview",
+    description: "Most capable Gemini reasoning model",
+    defaultReasoningEffort: ReasoningEffort.None,
+    supportedReasoningEfforts: [],
+  },
+  {
+    provider: Provider.Gemini,
+    id: "gemini-3.5-flash",
+    label: "Gemini 3.5 Flash",
+    description: "Frontier performance at higher speed",
+    defaultReasoningEffort: ReasoningEffort.None,
+    supportedReasoningEfforts: [],
+  },
+  {
+    provider: Provider.Gemini,
+    id: "gemini-3.1-flash-lite",
+    label: "Gemini 3.1 Flash-Lite",
+    description: "Fast, economical high-volume analysis",
+    defaultReasoningEffort: ReasoningEffort.None,
+    supportedReasoningEfforts: [],
+  },
+] as const;
+
+/** Combined catalog used by the UI and runtime. */
+export const AI_MODELS: readonly ModelOption[] = [
+  ...OPENAI_MODELS,
+  ...GEMINI_MODELS,
+] as const;
+
+export function isProvider(value: string): value is Provider {
+  return Object.values(Provider).includes(value as Provider);
+}
+
+export function modelsForProvider(provider: Provider): readonly ModelOption[] {
+  return AI_MODELS.filter((model) => model.provider === provider);
+}
+
+export function defaultModelForProvider(provider: Provider): ModelOption {
+  return modelsForProvider(provider)[0] ?? AI_MODELS[0];
+}
+
 /** Single default model for Analyze + Evals when nothing is saved yet. */
-export const DEFAULT_MODEL_ID: OpenAiModelIdType = OPENAI_MODELS[0].id;
+export const DEFAULT_MODEL_ID: string = AI_MODELS[0].id;
 
 /** Analyze UI default: Auto → model.defaultReasoningEffort. */
 export const DEFAULT_REASONING_EFFORT: ReasoningEffortSetting =
   ReasoningEffortSettingAuto;
 
 /** Live fixture evals default to the same catalog model. */
-export const DEFAULT_EVAL_MODEL_ID: OpenAiModelIdType = DEFAULT_MODEL_ID;
+export const DEFAULT_EVAL_MODEL_ID: string = DEFAULT_MODEL_ID;
 
 /**
  * Live fixture evals prefer high reasoning. Prefer this over hardcoding
@@ -255,12 +225,12 @@ export const DEFAULT_EVAL_REASONING_EFFORT: ReasoningEffortSetting =
 export const CONNECTION_TEST_REASONING_EFFORT: ReasoningEffortType =
   ReasoningEffort.None;
 
-export function isKnownModel(modelId: string): modelId is OpenAiModelIdType {
-  return isOpenAiModelId(modelId);
+export function isKnownModel(modelId: string): boolean {
+  return AI_MODELS.some((model) => model.id === modelId);
 }
 
-export function resolveModel(modelId: string): OpenAiModelOption {
-  return OPENAI_MODELS.find((model) => model.id === modelId) ?? OPENAI_MODELS[0];
+export function resolveModel(modelId: string): ModelOption {
+  return AI_MODELS.find((model) => model.id === modelId) ?? AI_MODELS[0];
 }
 
 /** Effort options valid for the selected model, always including Auto. */
@@ -303,7 +273,7 @@ export function preferredEvalReasoningEffort(
 }
 
 /**
- * Build the Responses API reasoning payload for an analysis call.
+ * Resolve the model and reasoning effort for an analysis call.
  * Invalid user choices are clamped to the model's supported set.
  */
 export function resolveAnalysisConfig(input: {

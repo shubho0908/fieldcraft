@@ -1,4 +1,7 @@
+import { generateText, jsonSchema, Output } from "ai";
+import type { JSONSchema7 } from "@ai-sdk/provider";
 import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
+import { createAiModel } from "./ai-provider";
 import {
   Confidence,
   PageFieldKind,
@@ -10,6 +13,7 @@ import { isChoiceField, optionMatches } from "./fields";
 import { isThinCompanyResearch, sanitizeFit } from "./fit";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
+  Provider,
   resolveAnalysisConfig,
   resolveModel,
 } from "./models";
@@ -31,11 +35,31 @@ export interface OpenAiAuth {
   exaApiKey?: string;
 }
 
-/** Live OpenAI Responses endpoint. Connection tests and analysis both use this. */
+/** Legacy endpoint constant — kept for connection-test request parity. */
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 /** Minimal prompt used only by the live connection probe. */
 export const CONNECTION_TEST_PROMPT = "Reply with exactly: connected";
+/** Enough room for a provider's response envelope without making the probe expensive. */
+export const CONNECTION_TEST_MAX_OUTPUT_TOKENS = 96;
+
+/**
+ * Models generate from supplied job/profile context only. Never add provider
+ * web-search, crawl, browser, or scraping tools here: company research is
+ * deliberately performed through Exa in `researchCompany`.
+ */
+const NO_MODEL_TOOLS = {} as const;
+
+/**
+ * AI SDK v7 requires a Schema wrapper here. Passing the JSON Schema object
+ * directly makes it try to invoke that object as a validator at runtime.
+ */
+const JOB_ANALYSIS_OUTPUT = Output.object({
+  // The shared schema is intentionally deeply readonly; the SDK's JSONSchema7
+  // type models arrays as mutable even though it never mutates the input.
+  schema: jsonSchema(JOB_ANALYSIS_SCHEMA as unknown as JSONSchema7),
+  name: "fieldcraft_job_analysis",
+});
 
 export interface ConnectionTestResult {
   model: string;
@@ -68,9 +92,10 @@ export async function analyzeJob(
   profile: CandidateProfile,
   settings: ExtensionSettings,
 ): Promise<JobAnalysis> {
-  const apiKey = await getApiKey();
+  const model = resolveModel(settings.model);
+  const apiKey = await getApiKey(model.provider);
   if (!apiKey) {
-    throw new Error("Add an OpenAI API key in Settings before analyzing a job.");
+    throw new Error(`Add a ${providerLabel(model.provider)} API key in Settings before analyzing a job.`);
   }
   return runJobAnalysis(snapshot, profile, settings, {
     apiKey,
@@ -81,7 +106,7 @@ export async function analyzeJob(
 
 /**
  * Core analysis path with injectable auth.
- * Used by the extension (chrome storage key) and by live eval (env key).
+ * Uses the Vercel AI SDK so the same code can drive OpenAI and Gemini.
  */
 export async function runJobAnalysis(
   snapshot: PageSnapshot,
@@ -89,12 +114,14 @@ export async function runJobAnalysis(
   settings: ExtensionSettings,
   auth: OpenAiAuth,
 ): Promise<JobAnalysis> {
+  const model = resolveModel(settings.model);
+  const aiModel = createAiModel(model, auth.apiKey);
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
   let researchSources: Array<{ title: string; url: string }> = [];
 
   if (settings.researchCompany) {
-    const exaKey = auth.exaApiKey || await getExaApiKey();
+    const exaKey = auth.exaApiKey || (await getExaApiKey());
     if (!exaKey) {
       throw new Error(
         "Add an Exa API key in Settings or disable 'Research the company'.",
@@ -110,100 +137,83 @@ export async function runJobAnalysis(
     }
   }
 
-  const body: Record<string, unknown> = {
-    model: config.modelId,
-    store: false,
-    safety_identifier: auth.installId,
-    reasoning: config.reasoning,
+  const result = await generateText({
+    model: aiModel,
+    prompt: input,
     instructions: ANALYSIS_INSTRUCTIONS,
-    input,
-    text: {
-      format: {
-        type: "json_schema",
-        name: "fieldcraft_job_analysis",
-        strict: true,
-        schema: JOB_ANALYSIS_SCHEMA,
-      },
-    },
-    max_output_tokens: 14_000,
-  };
-
-  const response = await fetch(OPENAI_RESPONSES_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.apiKey}`,
-    },
-    body: JSON.stringify(body),
+    tools: NO_MODEL_TOOLS,
+    maxOutputTokens: 14_000,
+    output: JOB_ANALYSIS_OUTPUT,
+    providerOptions:
+      model.provider === Provider.OpenAI
+        ? {
+            openai: {
+              store: false,
+              user: auth.installId,
+              reasoningEffort: config.reasoning.effort,
+            },
+          }
+        : undefined,
   });
 
-  const payload = (await response.json().catch(() => ({}))) as ResponsesApiResult;
-  if (!response.ok) {
-    const message = payload.error?.message || `OpenAI request failed (${response.status})`;
-    throw new Error(message);
+  const parsed = result.output as Omit<JobAnalysis, "generatedAt" | "research">;
+  if (!parsed) {
+    throw new Error("The model returned no analysis.");
   }
 
-  if (payload.status === "incomplete") {
-    throw new Error(
-      `Analysis stopped before completion${payload.incomplete_details?.reason ? `: ${payload.incomplete_details.reason}` : ""}. Try again.`,
-    );
-  }
-
-  const refusal = findRefusal(payload);
-  if (refusal) throw new Error(refusal);
-
-  const outputText = extractOutputText(payload);
-  if (!outputText) throw new Error("The model returned no analysis.");
-
-  let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
-  try {
-    parsed = JSON.parse(outputText) as Omit<JobAnalysis, "generatedAt" | "research">;
-  } catch {
-    throw new Error("The model returned an unreadable analysis. Try again.");
-  }
-
-  return sanitizeAnalysis(
-    parsed,
-    snapshot,
-    researchSources,
-    settings.researchCompany,
-  );
+  return sanitizeAnalysis(parsed, snapshot, researchSources, settings.researchCompany);
 }
 
 /**
- * Live OpenAI probe — not mocked in production.
- * Hits the real Responses API with the saved key and selected model, then
- * requires a non-empty model text response (HTTP 200 alone is not enough).
+ * Live connection probe — hits the selected provider with a tiny prompt.
+ * A completed SDK call is the connection signal. Some reasoning-capable models
+ * complete valid, low-token probes without exposing a text part.
  */
-export async function testOpenAiConnection(
+export async function testAiConnection(
   modelId: string,
 ): Promise<ConnectionTestResult> {
-  const apiKey = await getApiKey();
-  if (!apiKey) throw new Error("Enter and save an API key first.");
+  const model = resolveModel(modelId);
+  const apiKey = await getApiKey(model.provider);
+  if (!apiKey) throw new Error(`Enter and save a ${providerLabel(model.provider)} API key first.`);
+  const aiModel = createAiModel(model, apiKey);
 
-  const request = buildConnectionTestRequest(modelId, await getInstallId());
-  const response = await fetch(request.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(request.body),
+  const result = await generateText({
+    model: aiModel,
+    prompt: CONNECTION_TEST_PROMPT,
+    tools: NO_MODEL_TOOLS,
+    maxOutputTokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
+    providerOptions:
+      model.provider === Provider.OpenAI
+        ? {
+            openai: {
+              store: false,
+              user: await getInstallId(),
+              reasoningEffort: CONNECTION_TEST_REASONING_EFFORT,
+            },
+          }
+        : undefined,
   });
 
-  const payload = (await response.json().catch(() => ({}))) as ResponsesApiResult;
-  assertLiveConnectionResult(
-    { ok: response.ok, status: response.status },
-    payload,
-  );
+  if (result.finishReason === "error") {
+    throw new Error(
+      "The provider ended the connection test with an error.",
+    );
+  }
 
   return {
-    model: request.body.model,
-    responseId: payload.id,
+    model: model.id,
+    responseId: result.response?.id,
   };
 }
 
-/** Pure request builder for the live connection probe. */
+/** @deprecated Use testAiConnection. */
+export const testOpenAiConnection = testAiConnection;
+
+function providerLabel(provider: Provider): string {
+  return provider === Provider.Gemini ? "Gemini" : "OpenAI";
+}
+
+/** Pure request builder for the live connection probe — retained for tests. */
 export function buildConnectionTestRequest(
   modelId: string,
   installId: string,
@@ -215,10 +225,13 @@ export function buildConnectionTestRequest(
     safety_identifier: string;
     reasoning: { effort: typeof CONNECTION_TEST_REASONING_EFFORT };
     input: typeof CONNECTION_TEST_PROMPT;
-    max_output_tokens: number;
+    max_output_tokens: typeof CONNECTION_TEST_MAX_OUTPUT_TOKENS;
   };
 } {
   const model = resolveModel(modelId);
+  if (model.provider !== Provider.OpenAI) {
+    throw new Error("The raw connection request builder supports OpenAI Responses models only.");
+  }
   return {
     url: OPENAI_RESPONSES_URL,
     body: {
@@ -227,7 +240,7 @@ export function buildConnectionTestRequest(
       safety_identifier: installId,
       reasoning: { effort: CONNECTION_TEST_REASONING_EFFORT },
       input: CONNECTION_TEST_PROMPT,
-      max_output_tokens: 24,
+      max_output_tokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
     },
   };
 }
@@ -460,5 +473,3 @@ function dedupeSources(
     return true;
   });
 }
-
-

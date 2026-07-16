@@ -1,5 +1,5 @@
 import { ProfileEditorForm } from "./ProfileEditorForm";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,9 +26,11 @@ import {
   saveProfile,
   saveSettings,
 } from "../lib/storage";
-import { ReasoningEffortSettingAuto } from "../lib/enums";
+import { AutofillMode, ReasoningEffortSettingAuto } from "../lib/enums";
 import {
   preferredEvalReasoningEffort,
+  defaultModelForProvider,
+  Provider,
   resolveModel,
   reasoningEffortsForModel,
 } from "../lib/models";
@@ -62,6 +64,7 @@ export default function ProfileEditor({
   const [profile, setProfile] = useState(() => structuredClone(initialProfile));
   const [settings, setSettings] = useState(() => ({ ...initialSettings }));
   const [apiKey, setApiKeyState] = useState("");
+  const [activeApiKeyExists, setActiveApiKeyExists] = useState(apiKeyExists);
   const [showApiKey, setShowApiKey] = useState(false);
   const [exaApiKey, setExaApiKeyState] = useState("");
   const [showExaApiKey, setShowExaApiKey] = useState(false);
@@ -80,6 +83,24 @@ export default function ProfileEditor({
     () => reasoningEffortsForModel(settings.evalModel),
     [settings.evalModel],
   );
+
+  useEffect(() => {
+    void hasApiKey(settings.provider).then(setActiveApiKeyExists);
+  }, [settings.provider]);
+
+  function updateProvider(provider: Provider) {
+    const model = defaultModelForProvider(provider);
+    setSettings((current) => ({
+      ...current,
+      provider,
+      model: model.id,
+      reasoningEffort: ReasoningEffortSettingAuto,
+      evalModel: model.id,
+      evalReasoningEffort: ReasoningEffortSettingAuto,
+    }));
+    setApiKeyState("");
+    setTestStatus("");
+  }
 
   function updateModel(modelId: string) {
     const model = resolveModel(modelId);
@@ -130,6 +151,16 @@ export default function ProfileEditor({
     }));
   }
 
+  function setResearchCompany(researchCompany: boolean) {
+    const exaKeyAvailable = exaApiKeyExists || Boolean(exaApiKey.trim());
+    if (researchCompany && !exaKeyAvailable) {
+      setError("Add an Exa API key before enabling company research.");
+      return;
+    }
+    setError("");
+    setSettings((current) => ({ ...current, researchCompany }));
+  }
+
   function validateStep(): boolean {
     setError("");
     if (step === 0 && (!profile.identity.fullName.trim() || !profile.identity.email.trim())) {
@@ -140,8 +171,13 @@ export default function ProfileEditor({
       setError("Paste the full text of your resume so answers can stay grounded.");
       return false;
     }
-    if (step === 3 && !apiKeyExists && !apiKey.trim()) {
-      setError("An OpenAI API key is required to analyze jobs and draft answers.");
+    if (
+      step === 3 &&
+      settings.autofillMode === AutofillMode.AI &&
+      !activeApiKeyExists &&
+      !apiKey.trim()
+    ) {
+      setError("An AI provider API key is required to analyze jobs and draft answers.");
       return false;
     }
     return true;
@@ -169,15 +205,17 @@ export default function ProfileEditor({
       await saveProfile(nextProfile);
       await saveSettings(settings);
       if (apiKey.trim()) {
-        await saveApiKey(apiKey, settings.rememberApiKey);
-      } else if (apiKeyExists) {
-        const existingKey = await getApiKey();
-        if (existingKey) await saveApiKey(existingKey, settings.rememberApiKey);
+        await saveApiKey(settings.provider, apiKey, settings.rememberApiKey);
+      } else if (activeApiKeyExists) {
+        const existingKey = await getApiKey(settings.provider);
+        if (existingKey) {
+          await saveApiKey(settings.provider, existingKey, settings.rememberApiKey);
+        }
       }
       if (exaApiKey.trim()) {
         await saveExaApiKey(exaApiKey);
       }
-      onSaved(nextProfile, settings, await hasApiKey());
+      onSaved(nextProfile, settings, await hasApiKey(settings.provider));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save profile.");
     } finally {
@@ -190,9 +228,15 @@ export default function ProfileEditor({
     setTestStatus("");
     // Persist current model/effort settings so the probe matches what Analyze will use.
     await saveSettings(settings);
-    if (apiKey.trim()) await saveApiKey(apiKey, settings.rememberApiKey);
-    if (!apiKey.trim() && !apiKeyExists) {
-      setError("Enter an API key first.");
+    if (apiKey.trim()) {
+      await saveApiKey(settings.provider, apiKey, settings.rememberApiKey);
+      setActiveApiKeyExists(true);
+    }
+    if (exaApiKey.trim()) {
+      await saveExaApiKey(exaApiKey);
+    }
+    if (!apiKey.trim() && !activeApiKeyExists) {
+      setError(`Enter a ${settings.provider === Provider.Gemini ? "Gemini" : "OpenAI"} API key first.`);
       return;
     }
     setTesting(true);
@@ -202,11 +246,13 @@ export default function ProfileEditor({
         model: settings.model,
       });
       if (!response?.ok) throw new Error(response?.error || "Connection failed");
-      // Background performs a real OpenAI Responses API call; surface the model used.
+      // Background performs a real provider connection test; surface the model used.
       setTestStatus(
         response.model
-          ? `Live API OK · ${response.model}`
-          : "Live API OK",
+          ? `AI connected · ${response.model}${response.exaTested ? " · Exa connected" : " · Exa not configured"}`
+          : response.exaTested
+            ? "AI and Exa connected"
+            : "AI connected · Exa not configured",
       );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection failed");
@@ -216,14 +262,16 @@ export default function ProfileEditor({
   }
 
   async function removeApiKey() {
-    await clearApiKey();
+    await clearApiKey(settings.provider);
     setApiKeyState("");
+    setActiveApiKeyExists(false);
     setTestStatus("Key removed");
   }
 
   async function removeExaApiKey() {
     await clearExaApiKey();
     setExaApiKeyState("");
+    setSettings((current) => ({ ...current, researchCompany: false }));
   }
 
   async function attachResume(file?: File) {
@@ -259,7 +307,7 @@ export default function ProfileEditor({
       saving={saving}
       testing={testing}
       testStatus={testStatus}
-      apiKeyExists={apiKeyExists}
+      apiKeyExists={activeApiKeyExists}
       exaApiKey={exaApiKey}
       showExaApiKey={showExaApiKey}
       exaApiKeyExists={exaApiKeyExists}
@@ -277,6 +325,8 @@ export default function ProfileEditor({
       updateVoice={updateVoice}
       updateModel={updateModel}
       updateEvalModel={updateEvalModel}
+      updateProvider={updateProvider}
+      setResearchCompany={setResearchCompany}
       attachResume={(file) => void attachResume(file)}
       testConnection={() => void testConnection()}
       removeApiKey={() => void removeApiKey()}
