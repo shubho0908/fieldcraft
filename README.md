@@ -16,7 +16,7 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode**.
 3. Click **Load unpacked**.
-4. Select the `dist` directory.
+4. Select the `apps/extension/dist` directory.
 5. Pin Fieldcraft, open a job page, and click its toolbar icon.
 
 Chrome may ask for access to pages you visit. Fieldcraft needs this to read visible job forms and insert only the answers you approve. It does not analyze a page until you press **Analyze this job**.
@@ -33,11 +33,18 @@ By default, the API key is held in `chrome.storage.session` and disappears when 
 
 ## Develop
 
-This project uses [Bun](https://bun.sh/). Run:
+This project is a [Bun](https://bun.sh/) + [Turborepo](https://turbo.build/) monorepo. Run:
 
 ```bash
 bun install
 bun run dev
+```
+
+This starts all apps in parallel. To start a single app:
+
+```bash
+bun run dev --filter=fieldcraft-extension
+bun run dev --filter=fieldcraft-web
 ```
 
 Load the development output shown by CRXJS in `chrome://extensions`. For a production bundle:
@@ -67,23 +74,29 @@ OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> bun run eval:live
 OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high bun run eval:live
 ```
 
-Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or reasoning strings.
+Defaults live in `apps/extension/src/lib/models.ts` only — runtime never hardcodes model or reasoning strings.
+
+## Workspace layout
+
+- `apps/extension/` — the Chrome MV3 extension.
+- `apps/web/` — the public website (Vite + React placeholder).
 
 ## Architecture
 
-- `src/content.ts` reads the active page and applies reviewed values.
-- `src/background.ts` owns API calls and the tab-scoped analysis sessions, so the API key never enters page code and switching tabs never shows or redirects another tab's work.
-- `src/lib/chrome-events.ts` and `src/lib/chrome-tabs.ts` provide small Chrome extension event/active-tab helpers.
-- `src/lib/page.ts` performs generic ATS/form extraction and browser-compatible filling.
-- `src/lib/prompt.ts` defines the truthfulness, prompt-injection, writing, and field-action contract.
-- `src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, model IDs, judge IDs).
-- `src/lib/models.ts` defines the OpenAI model catalog and per-tier defaults on top of those enums.
-- `src/lib/fit.ts` enforces fit-score invariants after model output.
-- `src/lib/openai.ts` calls the Responses API with structured outputs, configured web search, response storage disabled, and a privacy-preserving installation identifier.
-- `src/lib/eval/` holds fixtures, deterministic judges, and golden samples for analysis quality gates.
-- `src/lib/tab-sessions.ts` guards session identity and run matching for background/sidepanel state.
-- `src/lib/dashboard-review.ts` builds review drafts and the default auto-selection of safe fills.
-- `src/components/` contains the sidepanel UI, split into `Dashboard.tsx`, `DashboardViews.tsx`, `ProfileEditor.tsx`, `ProfileEditorForm.tsx`, and the `useDashboardBinding` hook.
+- `apps/extension/src/content.ts` reads the active page and applies reviewed values.
+- `apps/extension/src/background.ts` owns API calls and the tab-scoped analysis sessions, so the API key never enters page code and switching tabs never shows or redirects another tab's work.
+- `apps/extension/src/lib/chrome-events.ts` and `apps/extension/src/lib/chrome-tabs.ts` provide small Chrome extension event/active-tab helpers.
+- `apps/extension/src/lib/page.ts` performs generic ATS/form extraction and browser-compatible filling.
+- `apps/extension/src/lib/prompt.ts` defines the truthfulness, prompt-injection, writing, and field-action contract.
+- `apps/extension/src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, model IDs, judge IDs).
+- `apps/extension/src/lib/models.ts` defines the OpenAI model catalog and per-tier defaults on top of those enums.
+- `apps/extension/src/lib/fit.ts` enforces fit-score invariants after model output.
+- `apps/extension/src/lib/openai.ts` calls the Responses API with structured outputs, configured web search, response storage disabled, and a privacy-preserving installation identifier.
+- `apps/extension/src/lib/eval/` holds fixtures, deterministic judges, and golden samples for analysis quality gates.
+- `apps/extension/src/lib/tab-sessions.ts` guards session identity and run matching for background/sidepanel state.
+- `apps/extension/src/lib/dashboard-review.ts` builds review drafts and the default auto-selection of safe fills.
+- `apps/extension/src/components/` contains the sidepanel UI, split into `Dashboard.tsx`, `DashboardViews.tsx`, `ProfileEditor.tsx`, `ProfileEditorForm.tsx`, and the `useDashboardBinding` hook.
+- `turbo.json` orchestrates `build`, `dev`, `test`, `check`, `eval`, and `eval:live` across workspaces.
 
 ## Deliberate safety boundaries
 

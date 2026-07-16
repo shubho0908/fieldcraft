@@ -1,5 +1,9 @@
 node_modules/
 *.log
 .DS_Store
+.turbo/
+.env*.local
+apps/web/dist/
+apps/web/.next/
 fieldcraft-extension.zip
 fieldcraft-source.zip

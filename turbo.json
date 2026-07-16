@@ -1,0 +1,25 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "globalEnv": [
+    "OPENAI_API_KEY",
+    "FIELDCRAFT_EVAL_MODEL",
+    "FIELDCRAFT_EVAL_REASONING",
+    "FIELDCRAFT_EVAL_RESEARCH"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "check": {},
+    "test": {},
+    "eval": {},
+    "eval:live": {},
+    "doctor": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
