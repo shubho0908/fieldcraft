@@ -1,6 +1,39 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { collectFields, collectPageSnapshot, fillPageFields } from "./page";
+import {
+  collectFields,
+  collectPageSnapshot,
+  fillPageFields,
+  isAnalyzableTabUrl,
+  isJobRelevantUrl,
+  pageHelpers,
+} from "./page";
 import type { FieldSuggestion } from "../types";
+
+import { Confidence, SuggestionAction } from "./enums";
+
+describe("tab URL gates", () => {
+  it("enables any public http(s) page — user owns credit spend", () => {
+    expect(isAnalyzableTabUrl("https://careers.acme.com/frontend-developer")).toBe(true);
+    expect(isAnalyzableTabUrl("https://github.com/vercel/next.js")).toBe(true);
+    expect(isAnalyzableTabUrl("https://jobs.lever.co/acme/abc/apply")).toBe(true);
+    expect(isAnalyzableTabUrl("http://localhost:3000/apply")).toBe(true);
+    expect(isAnalyzableTabUrl("chrome://extensions")).toBe(false);
+    expect(isAnalyzableTabUrl("about:blank")).toBe(false);
+    expect(isJobRelevantUrl("https://example.com/anything")).toBe(true);
+    expect(
+      pageHelpers.hasJobRelevantContent({
+        title: "Home",
+        url: "https://example.com",
+        hostname: "example.com",
+        ats: "Generic",
+        headings: [],
+        pageText: "hi",
+        fields: [],
+        capturedAt: new Date().toISOString(),
+      }),
+    ).toBe(false);
+  });
+});
 
 describe("job application page engine", () => {
   beforeEach(() => {
@@ -78,9 +111,9 @@ describe("job application page engine", () => {
     const suggestions: FieldSuggestion[] = fields.map((field, index) => ({
       fieldId: field.id,
       label: field.label,
-      action: "fill",
+      action: SuggestionAction.Fill,
       value: values[index],
-      confidence: "high",
+      confidence: Confidence.High,
       evidence: "Saved profile",
       warning: "",
     }));
@@ -102,9 +135,9 @@ describe("job application page engine", () => {
         {
           fieldId: field.id,
           label: field.label,
-          action: "skip",
+          action: SuggestionAction.Skip,
           value: "new@example.com",
-          confidence: "high",
+          confidence: Confidence.High,
           evidence: "",
           warning: "",
         },

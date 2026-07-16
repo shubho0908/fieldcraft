@@ -1,9 +1,9 @@
+import { PageFieldKind, SuggestionAction } from "./enums";
 import type {
   FieldOption,
   FieldSuggestion,
   FillResult,
   PageField,
-  PageFieldKind,
   PageSnapshot,
   ResumeAttachment,
 } from "../types";
@@ -27,11 +27,15 @@ const JOB_TEXT_SELECTORS = [
 
 export function collectPageSnapshot(doc: Document = document): PageSnapshot {
   const fields = collectFields(doc);
-  const headings = Array.from(doc.querySelectorAll("h1, h2, h3"))
-    .map((node) => cleanText(node.textContent ?? ""))
-    .filter(Boolean)
-    .filter(unique)
-    .slice(0, 24);
+  const headings: string[] = [];
+  const seenHeadings = new Set<string>();
+  for (const node of Array.from(doc.querySelectorAll("h1, h2, h3"))) {
+    const text = cleanText(node.textContent ?? "");
+    if (!text || seenHeadings.has(text)) continue;
+    seenHeadings.add(text);
+    headings.push(text);
+    if (headings.length >= 24) break;
+  }
 
   return {
     title: cleanText(doc.title),
@@ -137,7 +141,7 @@ export async function fillPageFields(
   const results: FillResult[] = [];
 
   for (const suggestion of suggestions) {
-    if (suggestion.action === "skip") {
+    if (suggestion.action === SuggestionAction.Skip) {
       results.push({
         fieldId: suggestion.fieldId,
         status: "skipped",
@@ -239,11 +243,12 @@ export function extractRelevantPageText(doc: Document = document): string {
     }
   }
 
-  const formText = Array.from(doc.querySelectorAll("form"))
-    .map((form) => cleanMultiline((form as HTMLElement).innerText || ""))
-    .filter((text) => text.length > 40)
-    .join("\n\n");
-  if (formText) chunks.push(formText);
+  const formParts: string[] = [];
+  for (const form of Array.from(doc.querySelectorAll("form"))) {
+    const text = cleanMultiline((form as HTMLElement).innerText || "");
+    if (text.length > 40) formParts.push(text);
+  }
+  if (formParts.length) chunks.push(formParts.join("\n\n"));
 
   if (!chunks.length && doc.body) {
     chunks.push(cleanMultiline(doc.body.innerText || doc.body.textContent || ""));
@@ -255,48 +260,95 @@ export function extractRelevantPageText(doc: Document = document): string {
   return combined.slice(0, 60_000);
 }
 
-export function detectAts(hostname: string, doc: Document = document): string {
-  const haystack = `${hostname} ${doc.documentElement.innerHTML.slice(0, 10_000)}`;
-  const atsPatterns: Array<[RegExp, string]> = [
-    [/greenhouse|boards\.greenhouse/i, "Greenhouse"],
-    [/lever\.co|lever-jobs/i, "Lever"],
-    [/ashbyhq|ashby-embed/i, "Ashby"],
-    [/myworkdayjobs|workday/i, "Workday"],
-    [/smartrecruiters/i, "SmartRecruiters"],
-    [/jobvite/i, "Jobvite"],
-    [/icims/i, "iCIMS"],
-    [/bamboohr/i, "BambooHR"],
-    [/wellfound|angel\.co/i, "Wellfound"],
-    [/linkedin/i, "LinkedIn"],
-  ];
-  return atsPatterns.find(([pattern]) => pattern.test(haystack))?.[1] ?? "Generic";
+export const ATS_HOSTNAME_PATTERNS: Array<[RegExp, string]> = [
+  [/greenhouse\.io|boards\.greenhouse/i, "Greenhouse"],
+  [/lever\.co/i, "Lever"],
+  [/ashbyhq/i, "Ashby"],
+  [/myworkdayjobs/i, "Workday"],
+  [/smartrecruiters/i, "SmartRecruiters"],
+  [/jobvite/i, "Jobvite"],
+  [/icims/i, "iCIMS"],
+  [/bamboohr/i, "BambooHR"],
+  [/wellfound|angel\.co/i, "Wellfound"],
+  [/linkedin/i, "LinkedIn"],
+];
+
+/**
+ * Only hard gate for Analyze: can we read this tab as a normal web page?
+ * No denylist, no job-URL heuristics — the user chooses when to spend credits.
+ */
+export function isAnalyzableTabUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
-function resolveKind(element: HTMLElement): PageFieldKind {
-  if (element instanceof HTMLTextAreaElement) return "textarea";
-  if (element instanceof HTMLSelectElement) return "select";
-  if (element.isContentEditable) return "contenteditable";
+/** @deprecated Use isAnalyzableTabUrl — kept for older call sites/tests. */
+export function isJobRelevantUrl(url: string): boolean {
+  return isAnalyzableTabUrl(url);
+}
+
+/**
+ * Lightweight page sniff for helpers/tests. Not used to block Analyze.
+ */
+function hasJobRelevantContent(snapshot: PageSnapshot): boolean {
+  if (snapshot.ats !== "Generic") return true;
+  if (snapshot.fields.length >= 2) return true;
+  const text = snapshot.pageText.toLowerCase();
+  const hasJobKeywords =
+    /\b(job|apply|resume|application|position|hiring|career|candidate|qualification|requirement|responsibilit)\b/.test(
+      text,
+    );
+  return hasJobKeywords && text.length > 300;
+}
+
+/** Exposed for unit tests without expanding dead-export surface. */
+export const pageHelpers = { hasJobRelevantContent } as const;
+
+export function detectAts(hostname: string, doc: Document = document): string {
+  const haystack = `${hostname} ${doc.documentElement.innerHTML.slice(0, 10_000)}`;
+  return ATS_HOSTNAME_PATTERNS.find(([pattern]) => pattern.test(haystack))?.[1] ?? "Generic";
+}
+
+function resolveKind(element: HTMLElement): PageField["kind"] {
+  if (element instanceof HTMLTextAreaElement) return PageFieldKind.Textarea;
+  if (element instanceof HTMLSelectElement) return PageFieldKind.Select;
+  if (element.isContentEditable) return PageFieldKind.Contenteditable;
   if (element instanceof HTMLInputElement) {
-    if (element.type === "checkbox") return "checkbox";
-    if (element.type === "file") return "file";
-    return "text";
+    if (element.type === "checkbox") return PageFieldKind.Checkbox;
+    if (element.type === "file") return PageFieldKind.File;
+    return PageFieldKind.Text;
   }
-  return "text";
+  return PageFieldKind.Text;
 }
 
 function getOptions(element: HTMLElement): FieldOption[] {
   if (element instanceof HTMLSelectElement) {
-    return Array.from(element.options)
-      .filter((option) => !option.disabled)
-      .map((option) => ({
+    const options: FieldOption[] = [];
+    for (const option of Array.from(element.options)) {
+      if (option.disabled) continue;
+      options.push({
         value: option.value,
         label: cleanText(option.textContent ?? option.label),
-      }));
+      });
+    }
+    return options;
   }
   if (element instanceof HTMLInputElement && element.type === "checkbox") {
     return [
       { value: "true", label: "Checked" },
       { value: "false", label: "Unchecked" },
+      { value: "yes", label: "Yes" },
+      { value: "no", label: "No" },
+      { value: "y", label: "Y" },
+      { value: "n", label: "N" },
+      { value: "1", label: "1" },
+      { value: "0", label: "0" },
+      { value: "checked", label: "checked" },
+      { value: "unchecked", label: "unchecked" },
     ];
   }
   return [];

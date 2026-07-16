@@ -1,4 +1,10 @@
 import type { CandidateProfile, ExtensionSettings } from "../types";
+import {
+  DEFAULT_EVAL_MODEL_ID,
+  DEFAULT_EVAL_REASONING_EFFORT,
+  DEFAULT_MODEL_ID,
+  DEFAULT_REASONING_EFFORT,
+} from "./models";
 
 export const DEFAULT_PROFILE: CandidateProfile = {
   identity: {
@@ -39,7 +45,10 @@ export const DEFAULT_PROFILE: CandidateProfile = {
 };
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
-  model: "gpt-5.6-terra",
+  model: DEFAULT_MODEL_ID,
+  reasoningEffort: DEFAULT_REASONING_EFFORT,
+  evalModel: DEFAULT_EVAL_MODEL_ID,
+  evalReasoningEffort: DEFAULT_EVAL_REASONING_EFFORT,
   researchCompany: true,
   rememberApiKey: false,
 };

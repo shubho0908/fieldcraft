@@ -6,7 +6,7 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 
 - Keeps a structured candidate profile, full resume text, proof points, work-authorization defaults, compensation/notice-period facts, canonical answers, and an optional resume attachment in Chrome extension storage.
 - Extracts visible JD content and up to 100 application controls from Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Jobvite, iCIMS, BambooHR, Wellfound, LinkedIn, and generic forms.
-- Uses the OpenAI Responses API with structured output and optional live web search.
+- Uses the OpenAI Responses API with structured output, tiered GPT-5.5/5.6 models, and optional live web search.
 - Produces an honest fit score, hard blockers, company brief with clickable sources, missing-fact list, and one reviewed suggestion per detected field.
 - Handles textareas, native selects, radio groups, checkboxes, contenteditable controls, and resume file inputs.
 - Requires field-level review. Sensitive or unsupported facts are never guessed, and the extension never presses Submit.
@@ -43,16 +43,41 @@ Load the development output shown by CRXJS in `chrome://extensions`. For a produ
 ```bash
 npm run check
 npm test
+npm run eval
+OPENAI_API_KEY=sk-... npm run eval:live
 npm run build
 ```
+
+- `npm run eval` — deterministic judges (no network)
+- `npm run eval:live` — optional live OpenAI Responses run of the fixture pack (skipped without `OPENAI_API_KEY`)
+
+Live eval options (env):
+
+| Env | Default | Description |
+|-----|---------|-------------|
+| `FIELDCRAFT_EVAL_MODEL` | catalog default (`DEFAULT_EVAL_MODEL_ID`) | Any id from the model catalog |
+| `FIELDCRAFT_EVAL_REASONING` | catalog default (`DEFAULT_EVAL_REASONING_EFFORT`) | `none` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` \| `auto` |
+| `FIELDCRAFT_EVAL_RESEARCH` | off | Set to `1` to enable company web research |
+
+```bash
+OPENAI_API_KEY=sk-... npm run eval:live
+OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> npm run eval:live
+OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high npm run eval:live
+```
+
+Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or reasoning strings.
 
 ## Architecture
 
 - `src/content.ts` reads the active page and applies reviewed values.
-- `src/background.ts` owns API calls so the API key never enters page code.
+- `src/background.ts` owns API calls and the tab-scoped analysis sessions, so the API key never enters page code and switching tabs never shows or redirects another tab's work.
 - `src/lib/page.ts` performs generic ATS/form extraction and browser-compatible filling.
 - `src/lib/prompt.ts` defines the truthfulness, prompt-injection, writing, and field-action contract.
-- `src/lib/openai.ts` calls the Responses API with structured outputs, web search, response storage disabled, and a privacy-preserving installation identifier.
+- `src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, model IDs, judge IDs).
+- `src/lib/models.ts` defines the OpenAI model catalog and per-tier defaults on top of those enums.
+- `src/lib/fit.ts` enforces fit-score invariants after model output.
+- `src/lib/openai.ts` calls the Responses API with structured outputs, configured web search, response storage disabled, and a privacy-preserving installation identifier.
+- `src/lib/eval/` holds fixtures, deterministic judges, and golden samples for analysis quality gates.
 - `src/components/` contains onboarding, candidate settings, analysis, research, and field-review UI.
 
 ## Deliberate safety boundaries

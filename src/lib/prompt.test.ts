@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
-import { buildAnalysisInput } from "./prompt";
+import { HARD_BLOCKER_SCORE_CAP, SuggestionAction } from "./enums";
+import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
 import type { PageSnapshot } from "../types";
+
+describe("analysis instructions", () => {
+  it("derives rubric and action contracts from domain enums", () => {
+    expect(ANALYSIS_INSTRUCTIONS).toContain(`score must be at most ${HARD_BLOCKER_SCORE_CAP}`);
+    expect(ANALYSIS_INSTRUCTIONS).toContain(`action "${SuggestionAction.Fill}"`);
+    expect(ANALYSIS_INSTRUCTIONS).toContain(`action "${SuggestionAction.Review}"`);
+    expect(ANALYSIS_INSTRUCTIONS).toContain(`action "${SuggestionAction.Skip}"`);
+    expect(ANALYSIS_INSTRUCTIONS).toContain("90–100 excellent");
+  });
+});
 
 describe("analysis input", () => {
   it("includes candidate truth while excluding resume attachment bytes", () => {
