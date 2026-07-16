@@ -153,21 +153,6 @@ export const REASONING_EFFORT_SETTINGS = [
   ...REASONING_EFFORTS,
 ] as const;
 
-export const SearchContextSize = {
-  Low: "low",
-  Medium: "medium",
-  High: "high",
-} as const;
-
-export type SearchContextSize =
-  (typeof SearchContextSize)[keyof typeof SearchContextSize];
-
-export const SEARCH_CONTEXT_SIZES = [
-  SearchContextSize.Low,
-  SearchContextSize.Medium,
-  SearchContextSize.High,
-] as const;
-
 // ── OpenAI model IDs ─────────────────────────────────────────────────
 
 export const OpenAiModelId = {
@@ -278,10 +263,6 @@ export function isReasoningEffortSetting(
   return (REASONING_EFFORT_SETTINGS as readonly string[]).includes(value);
 }
 
-function isSearchContextSize(value: string): value is SearchContextSize {
-  return (SEARCH_CONTEXT_SIZES as readonly string[]).includes(value);
-}
-
 export function isOpenAiModelId(value: string): value is OpenAiModelId {
   return (OPENAI_MODEL_IDS as readonly string[]).includes(value);
 }
@@ -292,6 +273,6 @@ function isJudgeId(value: string): value is JudgeId {
 
 // Keep type-guards reachable for tree-shaking-safe consumers / future eval tooling.
 export const enumGuards = {
-  isSearchContextSize,
+
   isJudgeId,
 } as const;

@@ -3,7 +3,6 @@ import {
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
-  SearchContextSize,
 } from "./enums";
 import {
   DEFAULT_MODEL_ID,
@@ -100,7 +99,6 @@ describe("reasoning resolution", () => {
     ).toEqual({
       modelId: OpenAiModelId.Gpt56Sol,
       reasoning: { effort: ReasoningEffort.XHigh },
-      searchContextSize: SearchContextSize.High,
     });
 
     expect(
@@ -111,7 +109,6 @@ describe("reasoning resolution", () => {
     ).toEqual({
       modelId: OpenAiModelId.Gpt55,
       reasoning: { effort: ReasoningEffort.Medium },
-      searchContextSize: SearchContextSize.Medium,
     });
   });
 

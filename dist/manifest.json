@@ -13,6 +13,7 @@
   ],
   "host_permissions": [
     "https://api.openai.com/*",
+    "https://api.exa.ai/*",
     "http://*/*",
     "https://*/*"
   ],
@@ -41,7 +42,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/content.ts-loader-BPIjtBPp.js"
+        "assets/content.ts-loader-Cf7E1Y6v.js"
       ],
       "matches": [
         "http://*/*",
@@ -57,8 +58,8 @@
         "https://*/*"
       ],
       "resources": [
-        "assets/storage-Dak3x10k.js",
-        "assets/content.ts-CdThga78.js"
+        "assets/storage-CxWVV1Ft.js",
+        "assets/content.ts-CiP-CDbN.js"
       ],
       "use_dynamic_url": false
     }

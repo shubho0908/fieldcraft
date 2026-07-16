@@ -14,7 +14,8 @@ import {
   resolveModel,
 } from "./models";
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
-import { getApiKey, getInstallId } from "./storage";
+import { getApiKey, getExaApiKey, getInstallId } from "./storage";
+import { researchCompany } from "./exa";
 import type {
   CandidateProfile,
   ExtensionSettings,
@@ -27,6 +28,7 @@ import type {
 export interface OpenAiAuth {
   apiKey: string;
   installId: string;
+  exaApiKey?: string;
 }
 
 /** Live OpenAI Responses endpoint. Connection tests and analysis both use this. */
@@ -73,6 +75,7 @@ export async function analyzeJob(
   return runJobAnalysis(snapshot, profile, settings, {
     apiKey,
     installId: await getInstallId(),
+    exaApiKey: await getExaApiKey(),
   });
 }
 
@@ -87,14 +90,33 @@ export async function runJobAnalysis(
   auth: OpenAiAuth,
 ): Promise<JobAnalysis> {
   const config = resolveAnalysisConfig(settings);
+  let input = buildAnalysisInput(snapshot, profile, settings);
+  let researchSources: Array<{ title: string; url: string }> = [];
+
+  if (settings.researchCompany) {
+    const exaKey = auth.exaApiKey || await getExaApiKey();
+    if (!exaKey) {
+      throw new Error(
+        "Add an Exa API key in Settings or disable 'Research the company'.",
+      );
+    }
+    try {
+      const research = await researchCompany(exaKey, snapshot.title, snapshot.hostname);
+      input += research.context;
+      researchSources = research.sources;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Exa research failed";
+      throw new Error(`Company research failed. ${message}`);
+    }
+  }
+
   const body: Record<string, unknown> = {
     model: config.modelId,
     store: false,
     safety_identifier: auth.installId,
-    // OpenAI Responses API: reasoning.effort
     reasoning: config.reasoning,
     instructions: ANALYSIS_INSTRUCTIONS,
-    input: buildAnalysisInput(snapshot, profile, settings),
+    input,
     text: {
       format: {
         type: "json_schema",
@@ -105,15 +127,6 @@ export async function runJobAnalysis(
     },
     max_output_tokens: 14_000,
   };
-
-  if (settings.researchCompany) {
-    body.tools = [
-      {
-        type: "web_search",
-        search_context_size: config.searchContextSize,
-      },
-    ];
-  }
 
   const response = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
@@ -152,7 +165,7 @@ export async function runJobAnalysis(
   return sanitizeAnalysis(
     parsed,
     snapshot,
-    extractCitations(payload),
+    researchSources,
     settings.researchCompany,
   );
 }
@@ -436,24 +449,6 @@ function findRefusal(payload: ResponsesApiResult): string | undefined {
   return undefined;
 }
 
-function extractCitations(
-  payload: ResponsesApiResult,
-): Array<{ title: string; url: string }> {
-  const citations: Array<{ title: string; url: string }> = [];
-  for (const item of payload.output ?? []) {
-    for (const content of item.content ?? []) {
-      for (const annotation of content.annotations ?? []) {
-        if (annotation.type !== "url_citation" || !annotation.url) continue;
-        citations.push({
-          title: annotation.title || safeHostname(annotation.url),
-          url: annotation.url,
-        });
-      }
-    }
-  }
-  return citations;
-}
-
 function dedupeSources(
   sources: Array<{ title: string; url: string }>,
 ): Array<{ title: string; url: string }> {
@@ -466,10 +461,4 @@ function dedupeSources(
   });
 }
 
-function safeHostname(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
+

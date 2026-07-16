@@ -32,6 +32,9 @@ export type ProfileEditorFormProps = {
   testing: boolean;
   testStatus: string;
   apiKeyExists: boolean;
+  exaApiKey: string;
+  showExaApiKey: boolean;
+  exaApiKeyExists: boolean;
   effortOptions: readonly EffortOption[];
   evalEffortOptions: readonly EffortOption[];
   onCancel?: () => void;
@@ -39,6 +42,8 @@ export type ProfileEditorFormProps = {
   setSettings: React.Dispatch<React.SetStateAction<ExtensionSettings>>;
   setApiKeyState: (v: string) => void;
   setShowApiKey: (v: boolean | ((c: boolean) => boolean)) => void;
+  setExaApiKeyState: (v: string) => void;
+  setShowExaApiKey: (v: boolean | ((c: boolean) => boolean)) => void;
   updateIdentity: (key: keyof CandidateProfile["identity"], value: string) => void;
   updateDefault: (key: keyof CandidateProfile["defaults"], value: string) => void;
   updateVoice: (key: keyof CandidateProfile["voice"], value: string | number) => void;
@@ -47,6 +52,7 @@ export type ProfileEditorFormProps = {
   attachResume: (file?: File) => void;
   testConnection: () => void;
   removeApiKey: () => void;
+  removeExaApiKey: () => void;
   next: () => void;
   setStep: (n: number | ((c: number) => number)) => void;
 };
@@ -66,6 +72,9 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     testing,
     testStatus,
     apiKeyExists,
+    exaApiKey,
+    showExaApiKey,
+    exaApiKeyExists,
     effortOptions,
     evalEffortOptions,
     onCancel,
@@ -73,6 +82,8 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     setSettings,
     setApiKeyState,
     setShowApiKey,
+    setExaApiKeyState,
+    setShowExaApiKey,
     updateIdentity,
     updateDefault,
     updateVoice,
@@ -81,6 +92,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     attachResume,
     testConnection,
     removeApiKey,
+    removeExaApiKey,
     next,
     setStep,
   } = props;
@@ -475,7 +487,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               </div>
               <div>
                 <h3>Live fixture evals</h3>
-                <p>Model used by npm run eval:live. Reasoning defaults to high.</p>
+                <p>Verifies that job evaluations are accurate during automated testing. Uses deeper thinking by default.</p>
               </div>
             </div>
             <Field label="Eval model" hint="Separate from Analyze model above">
@@ -512,10 +524,39 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               </select>
             </Field>
 
+            <div className="divider" />
+            <div className="api-heading">
+              <div className="api-icon"><KeyRound size={18} /></div>
+              <div>
+                <h3>Exa company research</h3>
+                <p>Looks up company background (funding, size, products) so job fit recommendations are more accurate.</p>
+              </div>
+            </div>
+            <Field label="Exa API key" hint={exaApiKeyExists ? "A key is already saved" : "Required for research"}>
+              <div className="secret-input">
+                <input
+                  type={showExaApiKey ? "text" : "password"}
+                  value={exaApiKey}
+                  onChange={(event) => setExaApiKeyState(event.target.value)}
+                  placeholder={exaApiKeyExists ? "•••••••••••••••• (replace key)" : "exa-…"}
+                  autoComplete="off"
+                />
+                <button type="button" onClick={() => setShowExaApiKey(!showExaApiKey)}>
+                  {showExaApiKey ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+            </Field>
+            {exaApiKeyExists && !onboarding && (
+              <div className="api-actions">
+                <button className="text-danger" type="button" onClick={() => void removeExaApiKey()}>
+                  Remove Exa key
+                </button>
+              </div>
+            )}
             <label className="toggle-row">
               <span>
                 <strong>Research the company</strong>
-                <small>Use live web search and show the sources used.</small>
+                <small>Use Exa web search and show the sources used.</small>
               </span>
               <input
                 type="checkbox"

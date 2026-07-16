@@ -13,7 +13,6 @@ import {
   PageFieldKind,
   REASONING_EFFORTS,
   ReasoningEffort,
-  SEARCH_CONTEXT_SIZES,
   SUGGESTION_ACTIONS,
   SuggestionAction,
   enumGuards,
@@ -45,7 +44,6 @@ describe("domain enums cross-validation", () => {
       for (const effort of model.supportedReasoningEfforts) {
         expect(isReasoningEffort(effort)).toBe(true);
       }
-      expect(SEARCH_CONTEXT_SIZES).toContain(model.searchContextSize);
     }
   });
 
@@ -79,7 +77,6 @@ describe("domain enums cross-validation", () => {
     expect(isReasoningEffort("ultra")).toBe(false);
     expect(isOpenAiModelId(OpenAiModelId.Gpt56Terra)).toBe(true);
     expect(isOpenAiModelId("gpt-5.5-pro")).toBe(false);
-    expect(enumGuards.isSearchContextSize(SEARCH_CONTEXT_SIZES[0]!)).toBe(true);
     expect(enumGuards.isJudgeId(JUDGE_IDS[0]!)).toBe(true);
     expect(enumGuards.isJudgeId("nope")).toBe(false);
   });

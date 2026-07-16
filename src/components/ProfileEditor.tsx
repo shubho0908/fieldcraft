@@ -16,9 +16,13 @@ import {
 import BrandMark from "./BrandMark";
 import {
   clearApiKey,
+  clearExaApiKey,
   getApiKey,
+  getExaApiKey,
   hasApiKey,
+  hasExaApiKey,
   saveApiKey,
+  saveExaApiKey,
   saveProfile,
   saveSettings,
 } from "../lib/storage";
@@ -34,6 +38,7 @@ interface Props {
   initialProfile: CandidateProfile;
   initialSettings: ExtensionSettings;
   apiKeyExists: boolean;
+  exaApiKeyExists: boolean;
   onboarding: boolean;
   onCancel?: () => void;
   onSaved: (
@@ -49,6 +54,7 @@ export default function ProfileEditor({
   initialProfile,
   initialSettings,
   apiKeyExists,
+  exaApiKeyExists,
   onboarding,
   onCancel,
   onSaved,
@@ -57,6 +63,8 @@ export default function ProfileEditor({
   const [settings, setSettings] = useState(() => ({ ...initialSettings }));
   const [apiKey, setApiKeyState] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [exaApiKey, setExaApiKeyState] = useState("");
+  const [showExaApiKey, setShowExaApiKey] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -166,6 +174,9 @@ export default function ProfileEditor({
         const existingKey = await getApiKey();
         if (existingKey) await saveApiKey(existingKey, settings.rememberApiKey);
       }
+      if (exaApiKey.trim()) {
+        await saveExaApiKey(exaApiKey);
+      }
       onSaved(nextProfile, settings, await hasApiKey());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save profile.");
@@ -210,6 +221,11 @@ export default function ProfileEditor({
     setTestStatus("Key removed");
   }
 
+  async function removeExaApiKey() {
+    await clearExaApiKey();
+    setExaApiKeyState("");
+  }
+
   async function attachResume(file?: File) {
     if (!file) return;
     setError("");
@@ -244,6 +260,9 @@ export default function ProfileEditor({
       testing={testing}
       testStatus={testStatus}
       apiKeyExists={apiKeyExists}
+      exaApiKey={exaApiKey}
+      showExaApiKey={showExaApiKey}
+      exaApiKeyExists={exaApiKeyExists}
       effortOptions={effortOptions}
       evalEffortOptions={evalEffortOptions}
       onCancel={onCancel}
@@ -251,6 +270,8 @@ export default function ProfileEditor({
       setSettings={setSettings}
       setApiKeyState={setApiKeyState}
       setShowApiKey={setShowApiKey}
+      setExaApiKeyState={setExaApiKeyState}
+      setShowExaApiKey={setShowExaApiKey}
       updateIdentity={updateIdentity}
       updateDefault={updateDefault}
       updateVoice={updateVoice}
@@ -259,6 +280,7 @@ export default function ProfileEditor({
       attachResume={(file) => void attachResume(file)}
       testConnection={() => void testConnection()}
       removeApiKey={() => void removeApiKey()}
+      removeExaApiKey={() => void removeExaApiKey()}
       next={() => void next()}
       setStep={setStep}
     />

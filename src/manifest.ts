@@ -16,7 +16,7 @@ const manifest: ManifestV3Export = {
   ],
   // Job-page host access is required so chrome.tabs can expose tab.url to the
   // side panel. Without it, Analyze stays disabled because binding never resolves.
-  host_permissions: ["https://api.openai.com/*", "http://*/*", "https://*/*"],
+  host_permissions: ["https://api.openai.com/*", "https://api.exa.ai/*", "http://*/*", "https://*/*"],
   background: {
     service_worker: "src/background.ts",
     type: "module",

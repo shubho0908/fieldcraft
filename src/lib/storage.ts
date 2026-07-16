@@ -15,6 +15,7 @@ const KEYS = {
   profile: "fieldcraft.profile",
   settings: "fieldcraft.settings",
   apiKey: "fieldcraft.apiKey",
+  exaApiKey: "fieldcraft.exaApiKey",
   tabSessions: "fieldcraft.tabAnalysisSessions",
   installId: "fieldcraft.installId",
 };
@@ -106,6 +107,28 @@ export async function clearApiKey(): Promise<void> {
     chrome.storage.local.remove(KEYS.apiKey),
     chrome.storage.session.remove(KEYS.apiKey),
   ]);
+}
+
+export async function saveExaApiKey(apiKey: string): Promise<void> {
+  const key = apiKey.trim();
+  if (key) {
+    await chrome.storage.local.set({ [KEYS.exaApiKey]: key });
+  } else {
+    await chrome.storage.local.remove(KEYS.exaApiKey);
+  }
+}
+
+export async function getExaApiKey(): Promise<string> {
+  const stored = await chrome.storage.local.get(KEYS.exaApiKey);
+  return String(stored[KEYS.exaApiKey] ?? "");
+}
+
+export async function hasExaApiKey(): Promise<boolean> {
+  return Boolean(await getExaApiKey());
+}
+
+export async function clearExaApiKey(): Promise<void> {
+  await chrome.storage.local.remove(KEYS.exaApiKey);
 }
 
 /**

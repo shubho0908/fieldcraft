@@ -5,3 +5,6 @@ fieldcraft-extension.zip
 fieldcraft-source.zip
 release/
 .turbo/
+*.zip
+* 2.*
+.react-doctor/

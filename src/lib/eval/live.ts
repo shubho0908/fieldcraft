@@ -21,6 +21,8 @@ export {
 
 export interface LiveEvalOptions {
   apiKey: string;
+  /** Exa API key for company research in eval runs. */
+  exaApiKey?: string;
   /** OpenAI model id from the Fieldcraft catalog (defaults to DEFAULT_EVAL_MODEL_ID). */
   model?: string;
   /**
@@ -106,6 +108,7 @@ export async function runLiveEval(
         {
           apiKey: options.apiKey,
           installId: `fieldcraft-eval-${fixture.id}`,
+          exaApiKey: options.exaApiKey,
         },
       );
       const report = evaluateAnalysis(

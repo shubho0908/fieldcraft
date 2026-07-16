@@ -7,13 +7,11 @@ import {
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
-  SearchContextSize,
   isOpenAiModelId,
   isReasoningEffortSetting,
   type OpenAiModelId as OpenAiModelIdType,
   type ReasoningEffort as ReasoningEffortType,
   type ReasoningEffortSetting,
-  type SearchContextSize as SearchContextSizeType,
 } from "./enums";
 
 export type { ReasoningEffortSetting };
@@ -21,7 +19,6 @@ export {
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
-  SearchContextSize,
   isReasoningEffortSetting,
 };
 
@@ -37,7 +34,6 @@ export interface OpenAiModelOption {
   description: string;
   defaultReasoningEffort: ReasoningEffortType;
   supportedReasoningEfforts: readonly ReasoningEffortType[];
-  searchContextSize: SearchContextSizeType;
 }
 
 export interface ResolvedAnalysisConfig {
@@ -45,7 +41,6 @@ export interface ResolvedAnalysisConfig {
   reasoning: {
     effort: ReasoningEffortType;
   };
-  searchContextSize: SearchContextSizeType;
 }
 
 export const REASONING_EFFORT_OPTIONS: readonly ReasoningEffortOption[] = [
@@ -138,7 +133,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Balanced quality and cost",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
-    searchContextSize: SearchContextSize.Medium,
   },
   {
     id: OpenAiModelId.Gpt56Sol,
@@ -146,7 +140,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Best quality",
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
-    searchContextSize: SearchContextSize.High,
   },
   {
     id: OpenAiModelId.Gpt56Luna,
@@ -154,7 +147,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Lowest cost",
     defaultReasoningEffort: ReasoningEffort.Low,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
-    searchContextSize: SearchContextSize.Low,
   },
   {
     id: OpenAiModelId.Gpt55,
@@ -162,7 +154,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Prior frontier, stable fallback",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_5_EFFORTS,
-    searchContextSize: SearchContextSize.Medium,
   },
 
   // ── Free tier — best reasoning (250K tokens/day) ─────────────────
@@ -173,7 +164,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Latest flagship, excellent reasoning",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_4_EFFORTS,
-    searchContextSize: SearchContextSize.Medium,
   },
   {
     id: OpenAiModelId.Gpt52,
@@ -181,7 +171,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Strong reasoning, good value",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_4_EFFORTS,
-    searchContextSize: SearchContextSize.Medium,
   },
   {
     id: OpenAiModelId.Gpt41,
@@ -189,7 +178,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Reliable reasoning, strong generalist",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_4_EFFORTS,
-    searchContextSize: SearchContextSize.Medium,
   },
   {
     id: OpenAiModelId.O3,
@@ -197,7 +185,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Dedicated deep reasoning model",
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: REASONING_EFFORTS,
-    searchContextSize: SearchContextSize.Medium,
   },
   {
     id: OpenAiModelId.O1,
@@ -205,7 +192,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Reasoning specialist, deliberate analysis",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: REASONING_EFFORTS,
-    searchContextSize: SearchContextSize.Medium,
   },
 
   // ── Free tier — best reasoning mini/nano (2.5M tokens/day) ───────
@@ -216,7 +202,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Latest reasoning mini, best in class",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: REASONING_EFFORTS,
-    searchContextSize: SearchContextSize.Low,
   },
   {
     id: OpenAiModelId.O3Mini,
@@ -224,7 +209,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Efficient reasoning at scale",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: REASONING_EFFORTS,
-    searchContextSize: SearchContextSize.Low,
   },
   {
     id: OpenAiModelId.O1Mini,
@@ -232,7 +216,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Budget reasoning, good for quick analysis",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: REASONING_EFFORTS,
-    searchContextSize: SearchContextSize.Low,
   },
   {
     id: OpenAiModelId.Gpt54Mini,
@@ -240,7 +223,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Strong quality at lower cost",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: MINI_EFFORTS,
-    searchContextSize: SearchContextSize.Low,
   },
   {
     id: OpenAiModelId.Gpt54Nano,
@@ -248,7 +230,6 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     description: "Lowest cost, fast everyday analysis",
     defaultReasoningEffort: ReasoningEffort.Low,
     supportedReasoningEfforts: NANO_EFFORTS,
-    searchContextSize: SearchContextSize.Low,
   },
 ] as const;
 
@@ -322,8 +303,8 @@ export function preferredEvalReasoningEffort(
 }
 
 /**
- * Build the Responses API reasoning payload + search tier for an analysis call.
- * Invalid user choices are clamped to the model’s supported set.
+ * Build the Responses API reasoning payload for an analysis call.
+ * Invalid user choices are clamped to the model's supported set.
  */
 export function resolveAnalysisConfig(input: {
   model: string;
@@ -335,6 +316,5 @@ export function resolveAnalysisConfig(input: {
     reasoning: {
       effort: resolveReasoningEffort(model.id, input.reasoningEffort),
     },
-    searchContextSize: model.searchContextSize,
   };
 }
