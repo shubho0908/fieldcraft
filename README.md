@@ -33,23 +33,25 @@ By default, the API key is held in `chrome.storage.session` and disappears when 
 
 ## Develop
 
+This project uses [Bun](https://bun.sh/). Run:
+
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Load the development output shown by CRXJS in `chrome://extensions`. For a production bundle:
 
 ```bash
-npm run check
-npm test
-npm run eval
-OPENAI_API_KEY=sk-... npm run eval:live
-npm run build
+bun run check
+bun run test
+bun run eval
+OPENAI_API_KEY=sk-... bun run eval:live
+bun run build
 ```
 
-- `npm run eval` — deterministic judges (no network)
-- `npm run eval:live` — optional live OpenAI Responses run of the fixture pack (skipped without `OPENAI_API_KEY`)
+- `bun run eval` — deterministic judges (no network)
+- `bun run eval:live` — optional live OpenAI Responses run of the fixture pack (skipped without `OPENAI_API_KEY`)
 
 Live eval options (env):
 
@@ -60,9 +62,9 @@ Live eval options (env):
 | `FIELDCRAFT_EVAL_RESEARCH` | off | Set to `1` to enable company web research |
 
 ```bash
-OPENAI_API_KEY=sk-... npm run eval:live
-OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> npm run eval:live
-OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high npm run eval:live
+OPENAI_API_KEY=sk-... bun run eval:live
+OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> bun run eval:live
+OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high bun run eval:live
 ```
 
 Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or reasoning strings.
@@ -71,6 +73,7 @@ Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or r
 
 - `src/content.ts` reads the active page and applies reviewed values.
 - `src/background.ts` owns API calls and the tab-scoped analysis sessions, so the API key never enters page code and switching tabs never shows or redirects another tab's work.
+- `src/lib/chrome-events.ts` and `src/lib/chrome-tabs.ts` provide small Chrome extension event/active-tab helpers.
 - `src/lib/page.ts` performs generic ATS/form extraction and browser-compatible filling.
 - `src/lib/prompt.ts` defines the truthfulness, prompt-injection, writing, and field-action contract.
 - `src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, model IDs, judge IDs).
@@ -78,7 +81,9 @@ Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or r
 - `src/lib/fit.ts` enforces fit-score invariants after model output.
 - `src/lib/openai.ts` calls the Responses API with structured outputs, configured web search, response storage disabled, and a privacy-preserving installation identifier.
 - `src/lib/eval/` holds fixtures, deterministic judges, and golden samples for analysis quality gates.
-- `src/components/` contains onboarding, candidate settings, analysis, research, and field-review UI.
+- `src/lib/tab-sessions.ts` guards session identity and run matching for background/sidepanel state.
+- `src/lib/dashboard-review.ts` builds review drafts and the default auto-selection of safe fills.
+- `src/components/` contains the sidepanel UI, split into `Dashboard.tsx`, `DashboardViews.tsx`, `ProfileEditor.tsx`, `ProfileEditorForm.tsx`, and the `useDashboardBinding` hook.
 
 ## Deliberate safety boundaries
 
