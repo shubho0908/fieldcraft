@@ -146,7 +146,7 @@ export default function ProfileEditor({
       !apiKeyExists &&
       !apiKey.trim()
     ) {
-      setError("An OpenAI API key is required to analyze jobs and draft answers.");
+      setError("An AI provider API key is required to analyze jobs and draft answers.");
       return false;
     }
     return true;
@@ -207,7 +207,7 @@ export default function ProfileEditor({
         model: settings.model,
       });
       if (!response?.ok) throw new Error(response?.error || "Connection failed");
-      // Background performs a real OpenAI Responses API call; surface the model used.
+      // Background performs a real provider connection test; surface the model used.
       setTestStatus(
         response.model
           ? `Live API OK · ${response.model}`

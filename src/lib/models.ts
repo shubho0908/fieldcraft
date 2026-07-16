@@ -1,5 +1,5 @@
 /**
- * OpenAI Responses API model catalog.
+ * AI model catalog (multi-provider).
  * Effort / search enums live in ./enums (single source of truth).
  */
 
@@ -7,7 +7,6 @@ import {
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
-  isOpenAiModelId,
   isReasoningEffortSetting,
   type OpenAiModelId as OpenAiModelIdType,
   type ReasoningEffort as ReasoningEffortType,
@@ -22,22 +21,33 @@ export {
   isReasoningEffortSetting,
 };
 
+export const Provider = {
+  OpenAI: "openai",
+  Anthropic: "anthropic",
+} as const;
+
+export type Provider = (typeof Provider)[keyof typeof Provider];
+
 export interface ReasoningEffortOption {
   id: ReasoningEffortSetting;
   label: string;
   description: string;
 }
 
-export interface OpenAiModelOption {
-  id: OpenAiModelIdType;
+export interface ModelOption {
+  id: string;
+  provider: Provider;
   label: string;
   description: string;
   defaultReasoningEffort: ReasoningEffortType;
   supportedReasoningEfforts: readonly ReasoningEffortType[];
 }
 
+/** @deprecated Use ModelOption */
+export type OpenAiModelOption = ModelOption;
+
 export interface ResolvedAnalysisConfig {
-  modelId: OpenAiModelIdType;
+  modelId: string;
   reasoning: {
     effort: ReasoningEffortType;
   };
@@ -126,8 +136,9 @@ const REASONING_EFFORTS = [
 ] as const satisfies readonly ReasoningEffortType[];
 
 /** Supported OpenAI Responses models and per-tier analysis defaults. */
-export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
+export const OPENAI_MODELS: readonly ModelOption[] = [
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Terra,
     label: "GPT-5.6 Terra",
     description: "Balanced quality and cost",
@@ -135,6 +146,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Sol,
     label: "GPT-5.6 Sol",
     description: "Best quality",
@@ -142,6 +154,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Luna,
     label: "GPT-5.6 Luna",
     description: "Lowest cost",
@@ -149,6 +162,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt55,
     label: "GPT-5.5",
     description: "Prior frontier, stable fallback",
@@ -159,6 +173,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
   // ── Free tier — best reasoning (250K tokens/day) ─────────────────
 
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt54,
     label: "GPT-5.4",
     description: "Latest flagship, excellent reasoning",
@@ -166,6 +181,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_4_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt52,
     label: "GPT-5.2",
     description: "Strong reasoning, good value",
@@ -173,6 +189,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_4_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt41,
     label: "GPT-4.1",
     description: "Reliable reasoning, strong generalist",
@@ -180,6 +197,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: GPT_5_4_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.O3,
     label: "o3",
     description: "Dedicated deep reasoning model",
@@ -187,6 +205,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: REASONING_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.O1,
     label: "o1",
     description: "Reasoning specialist, deliberate analysis",
@@ -197,6 +216,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
   // ── Free tier — best reasoning mini/nano (2.5M tokens/day) ───────
 
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.O4Mini,
     label: "o4-mini",
     description: "Latest reasoning mini, best in class",
@@ -204,6 +224,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: REASONING_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.O3Mini,
     label: "o3-mini",
     description: "Efficient reasoning at scale",
@@ -211,6 +232,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: REASONING_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.O1Mini,
     label: "o1-mini",
     description: "Budget reasoning, good for quick analysis",
@@ -218,6 +240,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: REASONING_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt54Mini,
     label: "GPT-5.4 Mini",
     description: "Strong quality at lower cost",
@@ -225,6 +248,7 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
     supportedReasoningEfforts: MINI_EFFORTS,
   },
   {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt54Nano,
     label: "GPT-5.4 Nano",
     description: "Lowest cost, fast everyday analysis",
@@ -233,15 +257,49 @@ export const OPENAI_MODELS: readonly OpenAiModelOption[] = [
   },
 ] as const;
 
+/** Anthropic models via the Vercel AI SDK provider. */
+export const ANTHROPIC_MODELS: readonly ModelOption[] = [
+  {
+    provider: Provider.Anthropic,
+    id: "claude-opus-4-20250514",
+    label: "Claude 4 Opus",
+    description: "Deep reasoning, best for complex analysis",
+    defaultReasoningEffort: ReasoningEffort.High,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+  },
+  {
+    provider: Provider.Anthropic,
+    id: "claude-sonnet-4-20250514",
+    label: "Claude 4 Sonnet",
+    description: "Balanced quality and speed",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+  },
+  {
+    provider: Provider.Anthropic,
+    id: "claude-sonnet-4-5-20251001",
+    label: "Claude 4.5 Sonnet",
+    description: "Fast, capable, cost-effective",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: REASONING_EFFORTS,
+  },
+] as const;
+
+/** Combined catalog used by the UI and runtime. */
+export const AI_MODELS: readonly ModelOption[] = [
+  ...OPENAI_MODELS,
+  ...ANTHROPIC_MODELS,
+] as const;
+
 /** Single default model for Analyze + Evals when nothing is saved yet. */
-export const DEFAULT_MODEL_ID: OpenAiModelIdType = OPENAI_MODELS[0].id;
+export const DEFAULT_MODEL_ID: string = AI_MODELS[0].id;
 
 /** Analyze UI default: Auto → model.defaultReasoningEffort. */
 export const DEFAULT_REASONING_EFFORT: ReasoningEffortSetting =
   ReasoningEffortSettingAuto;
 
 /** Live fixture evals default to the same catalog model. */
-export const DEFAULT_EVAL_MODEL_ID: OpenAiModelIdType = DEFAULT_MODEL_ID;
+export const DEFAULT_EVAL_MODEL_ID: string = DEFAULT_MODEL_ID;
 
 /**
  * Live fixture evals prefer high reasoning. Prefer this over hardcoding
@@ -255,12 +313,12 @@ export const DEFAULT_EVAL_REASONING_EFFORT: ReasoningEffortSetting =
 export const CONNECTION_TEST_REASONING_EFFORT: ReasoningEffortType =
   ReasoningEffort.None;
 
-export function isKnownModel(modelId: string): modelId is OpenAiModelIdType {
-  return isOpenAiModelId(modelId);
+export function isKnownModel(modelId: string): boolean {
+  return AI_MODELS.some((model) => model.id === modelId);
 }
 
-export function resolveModel(modelId: string): OpenAiModelOption {
-  return OPENAI_MODELS.find((model) => model.id === modelId) ?? OPENAI_MODELS[0];
+export function resolveModel(modelId: string): ModelOption {
+  return AI_MODELS.find((model) => model.id === modelId) ?? AI_MODELS[0];
 }
 
 /** Effort options valid for the selected model, always including Auto. */
@@ -303,7 +361,7 @@ export function preferredEvalReasoningEffort(
 }
 
 /**
- * Build the Responses API reasoning payload for an analysis call.
+ * Resolve the model and reasoning effort for an analysis call.
  * Invalid user choices are clamped to the model's supported set.
  */
 export function resolveAnalysisConfig(input: {

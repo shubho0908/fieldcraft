@@ -1,4 +1,6 @@
+import { generateText, Output } from "ai";
 import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
+import { createAiModel } from "./ai-provider";
 import {
   Confidence,
   PageFieldKind,
@@ -10,6 +12,7 @@ import { isChoiceField, optionMatches } from "./fields";
 import { isThinCompanyResearch, sanitizeFit } from "./fit";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
+  Provider,
   resolveAnalysisConfig,
   resolveModel,
 } from "./models";
@@ -31,7 +34,7 @@ export interface OpenAiAuth {
   exaApiKey?: string;
 }
 
-/** Live OpenAI Responses endpoint. Connection tests and analysis both use this. */
+/** Legacy endpoint constant — kept for connection-test request parity. */
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 /** Minimal prompt used only by the live connection probe. */
@@ -81,7 +84,8 @@ export async function analyzeJob(
 
 /**
  * Core analysis path with injectable auth.
- * Used by the extension (chrome storage key) and by live eval (env key).
+ * Uses the Vercel AI SDK so the same code can drive OpenAI, Anthropic,
+ * and any other supported provider.
  */
 export async function runJobAnalysis(
   snapshot: PageSnapshot,
@@ -89,12 +93,14 @@ export async function runJobAnalysis(
   settings: ExtensionSettings,
   auth: OpenAiAuth,
 ): Promise<JobAnalysis> {
+  const model = resolveModel(settings.model);
+  const aiModel = createAiModel(model, auth.apiKey);
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
   let researchSources: Array<{ title: string; url: string }> = [];
 
   if (settings.researchCompany) {
-    const exaKey = auth.exaApiKey || await getExaApiKey();
+    const exaKey = auth.exaApiKey || (await getExaApiKey());
     if (!exaKey) {
       throw new Error(
         "Add an Exa API key in Settings or disable 'Research the company'.",
@@ -110,70 +116,38 @@ export async function runJobAnalysis(
     }
   }
 
-  const body: Record<string, unknown> = {
-    model: config.modelId,
-    store: false,
-    safety_identifier: auth.installId,
-    reasoning: config.reasoning,
+  const result = await generateText({
+    model: aiModel,
+    prompt: input,
     instructions: ANALYSIS_INSTRUCTIONS,
-    input,
-    text: {
-      format: {
-        type: "json_schema",
-        name: "fieldcraft_job_analysis",
-        strict: true,
-        schema: JOB_ANALYSIS_SCHEMA,
-      },
-    },
-    max_output_tokens: 14_000,
-  };
-
-  const response = await fetch(OPENAI_RESPONSES_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.apiKey}`,
-    },
-    body: JSON.stringify(body),
+    maxOutputTokens: 14_000,
+    output: Output.object({
+      schema: JOB_ANALYSIS_SCHEMA as never,
+      name: "fieldcraft_job_analysis",
+    }),
+    providerOptions:
+      model.provider === Provider.OpenAI
+        ? {
+            openai: {
+              store: false,
+              user: auth.installId,
+              reasoningEffort: config.reasoning.effort,
+            },
+          }
+        : undefined,
   });
 
-  const payload = (await response.json().catch(() => ({}))) as ResponsesApiResult;
-  if (!response.ok) {
-    const message = payload.error?.message || `OpenAI request failed (${response.status})`;
-    throw new Error(message);
+  const parsed = result.output as Omit<JobAnalysis, "generatedAt" | "research">;
+  if (!parsed) {
+    throw new Error("The model returned no analysis.");
   }
 
-  if (payload.status === "incomplete") {
-    throw new Error(
-      `Analysis stopped before completion${payload.incomplete_details?.reason ? `: ${payload.incomplete_details.reason}` : ""}. Try again.`,
-    );
-  }
-
-  const refusal = findRefusal(payload);
-  if (refusal) throw new Error(refusal);
-
-  const outputText = extractOutputText(payload);
-  if (!outputText) throw new Error("The model returned no analysis.");
-
-  let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
-  try {
-    parsed = JSON.parse(outputText) as Omit<JobAnalysis, "generatedAt" | "research">;
-  } catch {
-    throw new Error("The model returned an unreadable analysis. Try again.");
-  }
-
-  return sanitizeAnalysis(
-    parsed,
-    snapshot,
-    researchSources,
-    settings.researchCompany,
-  );
+  return sanitizeAnalysis(parsed, snapshot, researchSources, settings.researchCompany);
 }
 
 /**
- * Live OpenAI probe — not mocked in production.
- * Hits the real Responses API with the saved key and selected model, then
- * requires a non-empty model text response (HTTP 200 alone is not enough).
+ * Live connection probe — hits the selected provider with a tiny prompt.
+ * Requires a non-empty text response (HTTP 200 alone is not enough).
  */
 export async function testOpenAiConnection(
   modelId: string,
@@ -181,29 +155,39 @@ export async function testOpenAiConnection(
   const apiKey = await getApiKey();
   if (!apiKey) throw new Error("Enter and save an API key first.");
 
-  const request = buildConnectionTestRequest(modelId, await getInstallId());
-  const response = await fetch(request.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(request.body),
+  const model = resolveModel(modelId);
+  const aiModel = createAiModel(model, apiKey);
+
+  const result = await generateText({
+    model: aiModel,
+    prompt: CONNECTION_TEST_PROMPT,
+    maxOutputTokens: 24,
+    providerOptions:
+      model.provider === Provider.OpenAI
+        ? {
+            openai: {
+              store: false,
+              user: await getInstallId(),
+              reasoningEffort: CONNECTION_TEST_REASONING_EFFORT,
+            },
+          }
+        : undefined,
   });
 
-  const payload = (await response.json().catch(() => ({}))) as ResponsesApiResult;
-  assertLiveConnectionResult(
-    { ok: response.ok, status: response.status },
-    payload,
-  );
+  const text = result.text.trim();
+  if (!text) {
+    throw new Error(
+      "The provider accepted the key but the selected model returned no text. Check that this model is enabled on your account.",
+    );
+  }
 
   return {
-    model: request.body.model,
-    responseId: payload.id,
+    model: model.id,
+    responseId: result.response?.id,
   };
 }
 
-/** Pure request builder for the live connection probe. */
+/** Pure request builder for the live connection probe — retained for tests. */
 export function buildConnectionTestRequest(
   modelId: string,
   installId: string,
@@ -460,5 +444,3 @@ function dedupeSources(
     return true;
   });
 }
-
-

@@ -13,7 +13,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { OPENAI_MODELS } from "../lib/models";
+import { AI_MODELS } from "../lib/models";
 import { AutofillMode } from "../lib/enums";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
@@ -444,7 +444,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             <div className="api-heading">
               <div className="api-icon"><KeyRound size={18} /></div>
               <div>
-                <h3>OpenAI connection</h3>
+                <h3>AI provider connection</h3>
                 <p>Used for analysis, company research, and answer drafting.</p>
               </div>
             </div>
@@ -454,7 +454,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                   type={showApiKey ? "text" : "password"}
                   value={apiKey}
                   onChange={(event) => setApiKeyState(event.target.value)}
-                  placeholder={apiKeyExists ? "•••••••••••••••• (replace key)" : "sk-proj-…"}
+                  placeholder={apiKeyExists ? "•••••••••••••••• (replace key)" : "Provider API key"}
                   autoComplete="off"
                 />
                 <button type="button" onClick={() => setShowApiKey(!showApiKey)}>
@@ -467,16 +467,16 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 value={settings.model}
                 onChange={(event) => updateModel(event.target.value)}
               >
-                {OPENAI_MODELS.map((model) => (
+                {AI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
-                    {model.label} · {model.description}
+                    {model.provider} · {model.label} · {model.description}
                   </option>
                 ))}
               </select>
             </Field>
             <Field
               label="Reasoning effort"
-              hint="OpenAI reasoning.effort · Auto uses the model default"
+              hint="Reasoning effort · Auto uses the model default"
             >
               <select
                 value={settings.reasoningEffort}
@@ -510,9 +510,9 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 value={settings.evalModel}
                 onChange={(event) => updateEvalModel(event.target.value)}
               >
-                {OPENAI_MODELS.map((model) => (
+                {AI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
-                    {model.label} · {model.description}
+                    {model.provider} · {model.label} · {model.description}
                   </option>
                 ))}
               </select>
@@ -608,7 +608,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             <div className="privacy-note">
               <ShieldCheck size={17} />
               <p>
-                Your profile is stored in this extension. Profile and job context are sent to OpenAI only when you press Analyze, with API response storage disabled.
+                Your profile is stored in this extension. Profile and job context are sent to your selected AI provider only when you press Analyze, with API response storage disabled.
               </p>
             </div>
           </div>

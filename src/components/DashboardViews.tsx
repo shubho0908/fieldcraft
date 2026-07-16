@@ -130,7 +130,7 @@ export function EmptyDashboard({
         <button type="button" className="setup-callout" onClick={onOpenSettings}>
           <KeyStatus />
           <span>
-            <strong>Connect OpenAI first</strong>
+            <strong>Connect AI provider first</strong>
             <small>Add an API key to run private, on-demand analysis.</small>
           </span>
           <ArrowRight size={17} />
@@ -695,7 +695,7 @@ function ErrorBox({
   message: string;
   onSettings: () => void;
 }) {
-  const keyRelated = /api key|model|openai|quota|billing|401|403/i.test(message);
+  const keyRelated = /api key|model|provider|quota|billing|401|403/i.test(message);
   return (
     <div className="error-box" role="alert">
       <AlertCircle size={17} />
