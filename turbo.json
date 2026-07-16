@@ -15,7 +15,9 @@
     "check": {},
     "test": {},
     "eval": {},
-    "eval:live": {},
+    "eval:live": {
+      "cache": false
+    },
     "doctor": {},
     "dev": {
       "cache": false,
