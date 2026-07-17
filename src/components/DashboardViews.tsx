@@ -547,10 +547,10 @@ function ResearchView({ analysis, snapshot }: { analysis: JobAnalysis; snapshot:
           <h2>{analysis.job.company}</h2>
         </div>
       </section>
-      {researchThin && (
+      {(researchThin || analysis.research?.issue) && (
         <div className="answer-warning" role="status">
           <AlertCircle size={14} />
-          Live research returned little public signal. Treat company facts as incomplete.
+          {analysis.research?.issue ?? "Live research returned little public signal. Treat company facts as incomplete."}
         </div>
       )}
       <p className="research-summary">{company.summary}</p>

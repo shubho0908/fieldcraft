@@ -9,31 +9,35 @@ const ProfileEditor = lazy(() => import("./components/ProfileEditor"));
 
 type View = "dashboard" | "profile";
 
+interface BootState {
+  profile: CandidateProfile;
+  settings: ExtensionSettings;
+  apiKeyExists: boolean;
+  exaApiKeyExists: boolean;
+}
+
 export default function App() {
-  const [profile, setProfile] = useState<CandidateProfile | null>(null);
-  const [settings, setSettings] = useState<ExtensionSettings | null>(null);
-  const [apiKeyExists, setApiKeyExists] = useState(false);
-  const [exaApiKeyExists, setExaApiKeyExists] = useState(false);
+  const [boot, setBoot] = useState<BootState | null>(null);
   const [view, setView] = useState<View>("dashboard");
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const boot = getBootData();
+    const bootPromise = getBootData();
     // Preload lazy chunks during boot so Suspense never needs to show a
     // fallback when the main UI transitions in — the chunks arrive before
     // React attempts to render them.
-    const preloadDashboard = import("./components/Dashboard");
-    const preloadProfileEditor = import("./components/ProfileEditor");
-    void boot.then((data) => {
-      setProfile(data.profile);
-      setSettings(data.settings);
-      setApiKeyExists(data.apiKeyExists);
-      setExaApiKeyExists(data.exaApiKeyExists);
-      setLoading(false);
+    void import("./components/Dashboard");
+    void import("./components/ProfileEditor");
+    void bootPromise.then((data) => {
+      setBoot({
+        profile: data.profile,
+        settings: data.settings,
+        apiKeyExists: data.apiKeyExists,
+        exaApiKeyExists: data.exaApiKeyExists,
+      });
     });
   }, []);
 
-  if (loading || !profile || !settings) {
+  if (!boot) {
     return (
       <main className="boot-screen">
         <BrandMark />
@@ -42,6 +46,7 @@ export default function App() {
     );
   }
 
+  const { profile, settings, apiKeyExists, exaApiKeyExists } = boot;
   const onboarding = !profile.onboardingComplete;
 
   return (
@@ -88,10 +93,19 @@ export default function App() {
             onboarding={onboarding}
             onCancel={onboarding ? undefined : () => setView("dashboard")}
             onSaved={(nextProfile, nextSettings, hasKey) => {
-              setProfile(nextProfile);
-              setSettings(nextSettings);
-              setApiKeyExists(hasKey);
-              void hasExaApiKey().then(setExaApiKeyExists);
+              setBoot((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      profile: nextProfile,
+                      settings: nextSettings,
+                      apiKeyExists: hasKey,
+                    }
+                  : prev,
+              );
+              void hasExaApiKey().then((exists) => {
+                setBoot((prev) => (prev ? { ...prev, exaApiKeyExists: exists } : prev));
+              });
               setView("dashboard");
             }}
           />
@@ -99,7 +113,11 @@ export default function App() {
           <Dashboard
             apiKeyExists={apiKeyExists}
             settings={settings}
-            setSettings={setSettings}
+            setSettings={(nextSettings) => {
+              setBoot((prev) =>
+                prev ? { ...prev, settings: nextSettings } : prev,
+              );
+            }}
             onOpenSettings={() => setView("profile")}
           />
         )}

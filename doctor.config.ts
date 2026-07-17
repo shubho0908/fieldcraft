@@ -23,6 +23,11 @@ export default {
         files: ["src/components/ProfileEditorForm.tsx"],
         rules: ["react-doctor/no-giant-component"],
       },
+      // Reachable from content.ts (CRX entry ignored above — not in import graph).
+      {
+        files: ["src/lib/direct-fill.ts"],
+        rules: ["deslop/unused-file"],
+      },
     ],
     // Chrome addListener/removeListener is not DOM addEventListener.
     rules: ["react-doctor/effect-needs-cleanup"],

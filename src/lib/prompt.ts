@@ -45,10 +45,11 @@ ${FIT_RUBRIC_LINES}
 
 COMPANY RESEARCH
 - When companyResearchEnabled is true, live company research results are injected at the bottom of the input under "COMPANY RESEARCH RESULTS". Use those sources to learn about the company.
+- Research can be absent or unavailable. In that case, treat it exactly as no live research and use only the job page; do not turn the job title, ATS name, or a plausible company name into a fact.
 - Prefer primary sources: official company site, careers/about pages, the job post, reputable funding or press coverage.
 - For any company fact not established by the page or the injected research, write "Unknown". Never guess funding, stage, headcount, or work policy.
-- Every non-Unknown company fact should be supported by company.sources or the job page.
-- Put only directly used research URLs in company.sources. Deduplicate. Skip low-quality or irrelevant links.
+- Every non-Unknown company fact should be supported by company.sources or the job page. Do not mix sources about similarly named companies.
+- Put only directly used injected-research URLs in company.sources. Deduplicate. Do not add URLs from memory or from the job page.
 - When companyResearchEnabled is false, do not pretend live research happened. Use the job page only; leave unknown public facts as "Unknown".
 
 ANSWER-WRITING STANDARD

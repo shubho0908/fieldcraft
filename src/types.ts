@@ -98,6 +98,19 @@ export interface PageField {
   options: FieldOption[];
 }
 
+/**
+ * Company identity facts read directly from the job page's structured data or
+ * metadata. These are hints, never inferred company facts.
+ */
+export interface CompanyResearchHints {
+  /** Names declared by a JobPosting hiringOrganization object. */
+  structuredNames: string[];
+  /** Names declared in page metadata such as og:site_name. */
+  metadataNames: string[];
+  /** Public company domains declared by the hiring organization's own URL. */
+  officialDomains: string[];
+}
+
 export interface PageSnapshot {
   title: string;
   url: string;
@@ -107,6 +120,8 @@ export interface PageSnapshot {
   pageText: string;
   fields: PageField[];
   capturedAt: string;
+  /** Optional because saved sessions and eval fixtures predate this signal. */
+  companyHints?: CompanyResearchHints;
 }
 
 export interface FieldSuggestion {
@@ -157,6 +172,8 @@ export interface JobAnalysis {
   research: {
     attempted: boolean;
     thin: boolean;
+    /** Why external research was safely skipped or could not complete. */
+    issue?: string;
   };
   generatedAt: string;
 }

@@ -1,5 +1,6 @@
 import { PageFieldKind, SuggestionAction } from "./enums";
 import type {
+  CompanyResearchHints,
   FieldOption,
   FieldSuggestion,
   FillResult,
@@ -46,6 +47,63 @@ export function collectPageSnapshot(doc: Document = document): PageSnapshot {
     pageText: extractRelevantPageText(doc),
     fields,
     capturedAt: new Date().toISOString(),
+    companyHints: extractCompanyResearchHints(doc),
+  };
+}
+
+/**
+ * Read only explicit organization metadata from the current document. This
+ * gives research a reliable identity anchor without sending the whole DOM or
+ * guessing from an ATS hostname. Malformed or oversized JSON-LD is ignored.
+ */
+export function extractCompanyResearchHints(
+  doc: Document = document,
+): CompanyResearchHints {
+  const structuredNames = new Set<string>();
+  const metadataNames = new Set<string>();
+  const officialDomains = new Set<string>();
+
+  for (const script of Array.from(
+    doc.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]'),
+  ).slice(0, 20)) {
+    const raw = script.textContent?.trim() ?? "";
+    if (!raw || raw.length > 100_000) continue;
+
+    try {
+      for (const item of findJsonLdObjects(JSON.parse(raw))) {
+        if (!isJobPosting(item)) continue;
+        const organization = item.hiringOrganization;
+        if (!isRecord(organization)) continue;
+
+        const name = cleanCompanyHint(organization.name);
+        if (name) structuredNames.add(name);
+
+        // `sameAs` often points to LinkedIn or other third parties. Only the
+        // declared organization URL can safely scope an official-site query.
+        for (const rawUrl of asStringList(organization.url)) {
+          const domain = publicHttpHostname(rawUrl);
+          if (domain) officialDomains.add(domain);
+        }
+      }
+    } catch {
+      // Third-party job pages often ship malformed JSON-LD. It is optional.
+    }
+  }
+
+  for (const selector of [
+    'meta[property="og:site_name"]',
+    'meta[name="application-name"]',
+  ]) {
+    const name = cleanCompanyHint(
+      doc.querySelector<HTMLMetaElement>(selector)?.content ?? "",
+    );
+    if (name) metadataNames.add(name);
+  }
+
+  return {
+    structuredNames: [...structuredNames],
+    metadataNames: [...metadataNames],
+    officialDomains: [...officialDomains],
   };
 }
 
@@ -258,6 +316,86 @@ export function extractRelevantPageText(doc: Document = document): string {
     .filter(unique)
     .join("\n\n--- PAGE SECTION ---\n\n");
   return combined.slice(0, 60_000);
+}
+
+function findJsonLdObjects(value: unknown): Array<Record<string, unknown>> {
+  const found: Array<Record<string, unknown>> = [];
+  const pending: unknown[] = [value];
+  const seen = new Set<object>();
+
+  while (pending.length > 0 && found.length < 200) {
+    const current = pending.pop();
+    if (Array.isArray(current)) {
+      pending.push(...current.slice(0, 200));
+      continue;
+    }
+    if (!isRecord(current) || seen.has(current)) continue;
+    seen.add(current);
+    found.push(current);
+
+    const graph = current["@graph"];
+    if (Array.isArray(graph)) pending.push(...graph.slice(0, 200));
+  }
+
+  return found;
+}
+
+function isJobPosting(value: Record<string, unknown>): boolean {
+  return asStringList(value["@type"]).some(
+    (type) => type.toLocaleLowerCase() === "jobposting",
+  );
+}
+
+function asStringList(...values: unknown[]): string[] {
+  const strings: string[] = [];
+  const pending = [...values];
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (Array.isArray(value)) {
+      pending.push(...value);
+    } else if (typeof value === "string") {
+      strings.push(value);
+    }
+  }
+  return strings;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cleanCompanyHint(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = cleanText(value).replace(/\s+(?:careers|jobs)$/iu, "");
+  if (
+    cleaned.length < 2 ||
+    cleaned.length > 100 ||
+    /^(?:careers|jobs|job application|apply|the company)$/iu.test(cleaned)
+  ) {
+    return null;
+  }
+  return cleaned;
+}
+
+function publicHttpHostname(value: string): string | null {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLocaleLowerCase().replace(/^www\./u, "");
+    if (
+      !/^https?:$/iu.test(url.protocol) ||
+      !hostname ||
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      /^127\./u.test(hostname) ||
+      /^10\./u.test(hostname) ||
+      /^192\.168\./u.test(hostname)
+    ) {
+      return null;
+    }
+    return hostname;
+  } catch {
+    return null;
+  }
 }
 
 export const ATS_HOSTNAME_PATTERNS: Array<[RegExp, string]> = [

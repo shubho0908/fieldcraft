@@ -119,6 +119,7 @@ export async function runJobAnalysis(
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
   let researchSources: Array<{ title: string; url: string }> = [];
+  let researchIssue: string | undefined;
 
   if (settings.researchCompany) {
     const exaKey = auth.exaApiKey || (await getExaApiKey());
@@ -128,12 +129,15 @@ export async function runJobAnalysis(
       );
     }
     try {
-      const research = await researchCompany(exaKey, snapshot.title, snapshot.hostname);
-      input += research.context;
+      const research = await researchCompany(exaKey, snapshot);
+      if (research.context) input += `\n\n${research.context}`;
       researchSources = research.sources;
+      researchIssue = research.issue;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Exa research failed";
-      throw new Error(`Company research failed. ${message}`);
+      // Company research is optional. A transient search or crawl failure must
+      // not prevent a user from reviewing their job application; the model gets
+      // no research context and the dashboard makes that limitation explicit.
+      researchIssue = "Live company research was unavailable for this run. The company brief uses the job page only.";
     }
   }
 
@@ -161,7 +165,13 @@ export async function runJobAnalysis(
     throw new Error("The model returned no analysis.");
   }
 
-  return sanitizeAnalysis(parsed, snapshot, researchSources, settings.researchCompany);
+  return sanitizeAnalysis(
+    parsed,
+    snapshot,
+    researchSources,
+    settings.researchCompany,
+    researchIssue,
+  );
 }
 
 /**
@@ -205,9 +215,6 @@ export async function testAiConnection(
     responseId: result.response?.id,
   };
 }
-
-/** @deprecated Use testAiConnection. */
-export const testOpenAiConnection = testAiConnection;
 
 function providerLabel(provider: Provider): string {
   return provider === Provider.Gemini ? "Gemini" : "OpenAI";
@@ -301,6 +308,7 @@ export function sanitizeAnalysis(
   snapshot: PageSnapshot,
   citedSources: Array<{ title: string; url: string }>,
   researchAttempted: boolean,
+  researchIssue?: string,
 ): JobAnalysis {
   const knownFields = new Map(snapshot.fields.map((field) => [field.id, field]));
   const seenSuggestions = new Set<string>();
@@ -353,10 +361,10 @@ export function sanitizeAnalysis(
     );
   }
 
-  const sources = dedupeSources([
-    ...(parsed.company?.sources ?? []),
-    ...citedSources,
-  ]).filter((source) => /^https?:\/\//i.test(source.url));
+  // The model may only cite a URL that was actually retrieved in this run.
+  // Never append every fetched URL: the model's source list represents the
+  // subset it directly used for the company brief.
+  const sources = selectRetrievedSources(parsed.company?.sources ?? [], citedSources);
 
   const company = {
     summary: parsed.company?.summary ?? "",
@@ -378,6 +386,7 @@ export function sanitizeAnalysis(
     research: {
       attempted: researchAttempted,
       thin: isThinCompanyResearch(company, researchAttempted),
+      ...(researchIssue ? { issue: researchIssue } : {}),
     },
     generatedAt: new Date().toISOString(),
   };
@@ -472,4 +481,40 @@ function dedupeSources(
     seen.add(key);
     return true;
   });
+}
+
+function selectRetrievedSources(
+  requestedSources: Array<{ title: string; url: string }>,
+  retrievedSources: Array<{ title: string; url: string }>,
+): Array<{ title: string; url: string }> {
+  const retrievedByUrl = new Map<string, { title: string; url: string }>();
+  for (const source of retrievedSources) {
+    const key = canonicalSourceUrl(source.url);
+    if (key && !retrievedByUrl.has(key)) {
+      retrievedByUrl.set(key, { title: source.title, url: source.url });
+    }
+  }
+
+  const selected: Array<{ title: string; url: string }> = [];
+  for (const source of requestedSources) {
+    const retrieved = retrievedByUrl.get(canonicalSourceUrl(source.url));
+    if (retrieved) selected.push(retrieved);
+  }
+  return dedupeSources(selected);
+}
+
+function canonicalSourceUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/i.test(parsed.protocol)) return "";
+    parsed.hash = "";
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/^(?:utm_[^=]*|fbclid|gclid|ref)$/i.test(key)) {
+        parsed.searchParams.delete(key);
+      }
+    }
+    return parsed.href.replace(/\/$/, "").toLocaleLowerCase();
+  } catch {
+    return "";
+  }
 }

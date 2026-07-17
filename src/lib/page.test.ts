@@ -37,6 +37,7 @@ describe("tab URL gates", () => {
 
 describe("job application page engine", () => {
   beforeEach(() => {
+    document.head.innerHTML = "";
     document.body.innerHTML = "";
     document.title = "Product Engineer — Acme";
   });
@@ -87,6 +88,33 @@ describe("job application page engine", () => {
     const snapshot = collectPageSnapshot(document);
     expect(snapshot.title).toBe("Product Engineer — Acme");
     expect(snapshot.pageText).toContain("Build reliable AI workflows");
+  });
+
+  it("captures explicit hiring-organization metadata for company research", () => {
+    document.head.innerHTML = `
+      <meta property="og:site_name" content="Acme Careers" />
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "JobPosting",
+          "title": "Product Engineer",
+          "hiringOrganization": {
+            "@type": "Organization",
+            "name": "Acme, Inc.",
+            "url": "https://www.acme.com",
+            "sameAs": ["https://www.linkedin.com/company/acme"]
+          }
+        }
+      </script>
+    `;
+    document.body.innerHTML = "<main><h1>Product Engineer</h1></main>";
+
+    const hints = collectPageSnapshot(document).companyHints;
+    expect(hints).toEqual({
+      structuredNames: ["Acme, Inc."],
+      metadataNames: ["Acme"],
+      officialDomains: ["acme.com"],
+    });
   });
 
   it("fills text, native select, radio, and checkbox controls with browser events", async () => {
