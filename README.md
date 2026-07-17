@@ -4,6 +4,7 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 
 ## What it does
 
+- Toggle the Fieldcraft side panel with **⌥F** (macOS) or **Alt+F** (Windows/Linux). Same gesture opens and closes it. Rebind under `chrome://extensions/shortcuts` if the default conflicts.
 - Keeps a structured candidate profile, full resume text, proof points, work-authorization defaults, compensation/notice-period facts, canonical answers, and an optional resume attachment in Chrome extension storage.
 - Extracts visible JD content and up to 100 application controls from Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Jobvite, iCIMS, BambooHR, Wellfound, LinkedIn, and generic forms.
 - Uses the Vercel AI SDK with structured output, supporting OpenAI (Responses API, GPT-5.5/5.6) and Gemini providers, with optional Exa company research.
@@ -18,7 +19,7 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 2. Turn on **Developer mode**.
 3. Click **Load unpacked**.
 4. Select the `dist` directory.
-5. Pin Fieldcraft, open a job page, and click its toolbar icon.
+5. Pin Fieldcraft, open a job page, and click its toolbar icon — or press **⌥F** / **Alt+F** to open the side panel.
 
 Chrome may ask for access to pages you visit. Fieldcraft needs this to read visible job forms and insert only the answers you approve. It does not analyze a page until you press **Analyze this job**.
 

@@ -22,7 +22,7 @@ const manifest: ManifestV3Export = {
     type: "module",
   },
   action: {
-    default_title: "Open Fieldcraft",
+    default_title: "Open Fieldcraft (Alt+F / ⌥F)",
     default_icon: {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -35,6 +35,16 @@ const manifest: ManifestV3Export = {
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png",
+  },
+  // Alt+F is Option+F on macOS in Chrome's command mapping.
+  commands: {
+    "toggle-side-panel": {
+      suggested_key: {
+        default: "Alt+F",
+        mac: "Alt+F",
+      },
+      description: "Toggle the Fieldcraft side panel",
+    },
   },
   side_panel: {
     default_path: "sidepanel.html",

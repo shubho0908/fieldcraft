@@ -2,6 +2,14 @@ import { isAnalyzableTabUrl } from "./lib/page";
 import { analyzeJob, testAiConnection } from "./lib/openai";
 import { testExaConnection } from "./lib/exa";
 import {
+  SIDE_PANEL_PORT,
+  SIDE_PANEL_TOGGLE_COMMAND,
+  type SidePanelHostMessage,
+  closeSidePanel,
+  openSidePanel,
+  toggleSidePanel,
+} from "./lib/side-panel";
+import {
   getExaApiKey,
   getProfile,
   getSettings,
@@ -22,6 +30,9 @@ import type {
   TabAnalysisSession,
 } from "./types";
 
+/** Live side-panel ports keyed by browser windowId. */
+const sidePanelPorts = new Map<number, chrome.runtime.Port>();
+
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 // An MV3 worker can be terminated only when no event is keeping it alive. If
 // that happens, an in-flight network/DOM operation cannot be resumed safely;
@@ -30,6 +41,64 @@ void recoverInterruptedTabRuns();
 
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+});
+
+// --- last-focused window cache for toggle-side-panel ---
+//
+// chrome.sidePanel.open() must be called from a SYNCHRONOUS (non-async)
+// context — Chrome drops the user-gesture flag across async function
+// boundaries.  Caching the windowId lets us call openSidePanel() directly
+// in the command listener, preserving the gesture.
+let _lastFocusedWindowId: number | undefined;
+
+chrome.windows.getLastFocused({ populate: false }).then((win) => {
+  _lastFocusedWindowId = win.id;
+});
+
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+    _lastFocusedWindowId = windowId;
+  }
+});
+
+// Alt+F / Option+F — open or close the Fieldcraft side panel.
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== SIDE_PANEL_TOGGLE_COMMAND) return;
+
+  const windowId = _lastFocusedWindowId;
+  if (windowId == null) {
+    // Cache not ready — try async toggle (close still works via port fallback).
+    void toggleSidePanel(sidePanelPorts);
+    return;
+  }
+
+  const openPort = sidePanelPorts.get(windowId);
+  if (openPort) {
+    void closeSidePanel(windowId, openPort);
+  } else {
+    // Synchronous call preserves the keyboard-command user gesture.
+    openSidePanel(windowId);
+  }
+});
+
+// Side panel documents check in while open so we can close them on toggle.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== SIDE_PANEL_PORT) return;
+
+  let windowId: number | undefined;
+
+  port.onMessage.addListener((message: SidePanelHostMessage) => {
+    if (message?.type !== "FIELDCRAFT_SIDEPANEL_READY") return;
+    if (!Number.isInteger(message.windowId)) return;
+    windowId = message.windowId;
+    sidePanelPorts.set(windowId, port);
+  });
+
+  port.onDisconnect.addListener(() => {
+    if (windowId != null && sidePanelPorts.get(windowId) === port) {
+      sidePanelPorts.delete(windowId);
+    }
+  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
