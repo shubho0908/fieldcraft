@@ -6,6 +6,7 @@ import {
   DEFAULT_EVAL_MODEL_ID,
   DEFAULT_EVAL_REASONING_EFFORT,
   Provider,
+  isCustomModelId,
   preferredEvalReasoningEffort,
   resolveModel,
   resolveReasoningEffort,
@@ -71,9 +72,19 @@ export function resolveLiveEvalConfig(
     "model" | "reasoningEffort" | "researchCompany" | "provider" | "customBaseUrl"
   >,
 ): ResolvedLiveEvalConfig {
-  const modelId = options.model ?? DEFAULT_EVAL_MODEL_ID;
+  let modelId = options.model ?? DEFAULT_EVAL_MODEL_ID;
+  let provider = options.provider ?? resolveModel(modelId).provider;
+
+  // If the caller explicitly wants a custom provider, the model id must carry
+  // the `custom:` prefix so downstream resolver/API key/base URL logic treats
+  // it as a custom endpoint — even when a plain model string is passed.
+  if (provider === Provider.Custom && !isCustomModelId(modelId)) {
+    modelId = `${CUSTOM_MODEL_PREFIX}${modelId}`;
+  }
+
   const model = resolveModel(modelId);
-  const provider = options.provider ?? model.provider;
+  provider = options.provider ?? model.provider;
+
   const reasoningEffort =
     options.reasoningEffort ?? preferredEvalReasoningEffort(model.id);
   return {

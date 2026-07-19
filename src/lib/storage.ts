@@ -131,7 +131,8 @@ function isValidCustomSettings(settings: ExtensionSettings): boolean {
   return (
     settings.provider === Provider.Custom &&
     settings.customBaseUrl.trim().length > 0 &&
-    customModelId(settings.model).trim().length > 0
+    customModelId(settings.model).trim().length > 0 &&
+    customModelId(settings.evalModel).trim().length > 0
   );
 }
 
@@ -164,9 +165,10 @@ function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSe
   }
 
   // Custom models encode the real model id after `custom:`; normalize and keep it.
+  // The UI only exposes one custom model ID, so analyze/eval stay in sync.
   if (settings.provider === Provider.Custom) {
     settings.model = normalizeCustomModelId(settings.provider, settings.model);
-    settings.evalModel = normalizeCustomModelId(settings.provider, settings.evalModel);
+    settings.evalModel = settings.model;
     if (!isValidCustomSettings(settings)) {
       settings.model = defaultModelForProvider(Provider.Custom).id;
       settings.evalModel = settings.model;

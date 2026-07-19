@@ -246,12 +246,9 @@ export const CONNECTION_TEST_REASONING_EFFORT: ReasoningEffortType =
 
 function createCustomModelOption(actualModelId: string): ModelOption {
   return {
-    provider: Provider.Custom,
+    ...CUSTOM_MODEL_PLACEHOLDER,
     id: `${CUSTOM_MODEL_PREFIX}${actualModelId}`,
-    label: "Custom model",
     description: actualModelId || "Enter a model ID",
-    defaultReasoningEffort: ReasoningEffort.None,
-    supportedReasoningEfforts: [ReasoningEffort.None],
   };
 }
 

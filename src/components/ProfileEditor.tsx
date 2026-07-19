@@ -202,7 +202,10 @@ export default function ProfileEditor({
         setError("An AI provider API key is required to analyze jobs and draft answers.");
         return false;
       }
-      if (settings.provider === Provider.Custom) {
+      if (
+        settings.autofillMode === AutofillMode.AI &&
+        settings.provider === Provider.Custom
+      ) {
         if (!customModelId(settings.model).trim()) {
           setError("Enter a custom model ID (e.g. accounts/fireworks/models/llama-v3p1-405b-instruct).");
           return false;
