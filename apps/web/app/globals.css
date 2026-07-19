@@ -33,6 +33,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hero { min-height: calc(100svh - 72px); padding: clamp(88px, 12vw, 176px) max(24px, calc((100vw - 1240px) / 2)) clamp(88px, 10vw, 142px); display: flex; align-items: end; border-bottom: 1px solid var(--line); }
 .hero-copy { max-width: 980px; }
 .hero-kicker, .section-heading > p, .closing-section > p { margin: 0 0 18px; color: var(--accent-deep); font-size: 11px; font-weight: 790; letter-spacing: .1em; text-transform: uppercase; }
+.kicker-mark { display: inline-flex; align-items: center; gap: 10px; }
+.kicker-mark .site-brand-mark { width: 22px; height: 22px; border-radius: 6px; transform: scale(1); }
+.kicker-mark .site-brand-mark span:nth-child(1) { top: 5px; left: 6px; width: 9px; height: 3px; }
+.kicker-mark .site-brand-mark span:nth-child(2) { top: 5px; left: 6px; width: 3px; height: 12px; }
+.kicker-mark .site-brand-mark span:nth-child(3) { top: 10px; left: 6px; width: 8px; height: 3px; }
 .hero h1, .section-heading h2, .closing-section h2 { margin: 0; font-weight: 590; letter-spacing: -.065em; }
 .hero h1 { max-width: 20ch; font-size: clamp(3.25rem, 6.8vw, 7.5rem); line-height: .91; }
 .hero-summary { max-width: 510px; margin: 30px 0 0; color: var(--muted); font-size: clamp(16px, 1.6vw, 20px); line-height: 1.45; letter-spacing: -.018em; }

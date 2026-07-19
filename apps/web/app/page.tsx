@@ -41,7 +41,7 @@ export default function Home() {
         <main id="top">
           <section className="hero">
             <div className="hero-copy">
-              <p className="hero-kicker">A careful copilot for job applications</p>
+              <p className="hero-kicker"><span className="kicker-mark"><BrandMark />A careful copilot for job applications</span></p>
               <h1>Read it clearly.<br />Apply truthfully.</h1>
               <p className="hero-summary">
                 Fieldcraft reads the open job tab, checks it against your real experience, and leaves every decision with you.
@@ -57,7 +57,7 @@ export default function Home() {
 
           <section className="demo-section" id="demo" aria-labelledby="demo-heading">
             <div className="section-heading">
-              <p>Inside the side panel</p>
+              <p><span className="kicker-mark"><BrandMark />Inside the side panel</span></p>
               <h2 id="demo-heading">One tab. Clearer next move.</h2>
             </div>
             <ProductDemo />
@@ -65,7 +65,7 @@ export default function Home() {
 
           <section className="workflow-section" id="workflow" aria-labelledby="workflow-heading">
             <div className="section-heading workflow-heading">
-              <p>Built around review</p>
+              <p><span className="kicker-mark"><BrandMark />Built around review</span></p>
               <h2 id="workflow-heading">Useful context, kept honest.</h2>
             </div>
             <ol className="workflow-list">
@@ -85,7 +85,7 @@ export default function Home() {
           </section>
 
           <section className="closing-section" id="get-fieldcraft">
-            <p>Apply with the full picture.</p>
+            <p><span className="kicker-mark"><BrandMark />Apply with the full picture.</span></p>
             <h2>The decision stays with you.</h2>
             <LazyDownloadExtensionDialog
               triggerClassName="button button-primary"
