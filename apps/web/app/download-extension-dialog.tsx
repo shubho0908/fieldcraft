@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Download, FolderOpen, Puzzle, X } from "lucide-react";
+import { Check, Chrome, Download, FolderOpen, X } from "lucide-react";
 import { useState } from "react";
 
 const DOWNLOAD_ENDPOINT = "/api/extension/download";
@@ -18,7 +18,7 @@ const installationSteps = [
     body: "Open the ZIP so it becomes a normal folder. Chrome needs the folder, not the compressed file.",
   },
   {
-    icon: Puzzle,
+    icon: Chrome,
     title: "Load it in Chrome",
     body: "Open chrome://extensions, enable Developer mode, choose Load unpacked, then select the unzipped folder containing manifest.json.",
   },
