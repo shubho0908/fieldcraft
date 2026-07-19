@@ -5,6 +5,7 @@ import {
   Provider,
   customModelId,
   isCustomModelId,
+  sanitizeCustomBaseUrl,
   type ModelOption,
 } from "./models";
 
@@ -32,7 +33,7 @@ export function createAiModel(options: CreateAiModelOptions): LanguageModel {
     if (!baseURL?.trim()) {
       throw new Error("Enter a custom base URL before analyzing.");
     }
-    const trimmedBaseURL = baseURL.trim();
+    const trimmedBaseURL = sanitizeCustomBaseUrl(baseURL);
     console.info(
       `[fieldcraft ai-provider] custom provider: baseURL=${trimmedBaseURL} model=${actualModelId}`,
     );

@@ -15,6 +15,7 @@ import {
   isProvider,
   isReasoningEffortSetting,
   resolveModel,
+  sanitizeCustomBaseUrl,
 } from "./models";
 
 const KEYS = {
@@ -146,7 +147,7 @@ function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSe
   if (typeof settings.customBaseUrl !== "string") {
     settings.customBaseUrl = DEFAULT_SETTINGS.customBaseUrl;
   } else {
-    settings.customBaseUrl = settings.customBaseUrl.trim();
+    settings.customBaseUrl = sanitizeCustomBaseUrl(settings.customBaseUrl);
   }
 
   // Any stored `custom:` model id forces the provider to Custom so the model

@@ -29,7 +29,7 @@ Chrome may ask for access to pages you visit. Fieldcraft needs this to read visi
 2. Paste the full text version of the resume. This is the source-of-truth boundary for candidate claims.
 3. Optionally attach the actual resume file for file-upload fields.
 4. Add explicit work authorization, sponsorship, notice period, compensation, relocation, and reusable answers. Blank means “ask me during review.”
-5. Add an OpenAI, Gemini, or custom OpenAI-compatible API key and choose the provider, model, and quality/cost tier. For a custom provider, enter the base URL (e.g. `https://api.fireworks.ai/inference/v1`), the provider's model ID, and the API key. Add a separate Exa API key if you enable company research.
+5. Add an OpenAI, Gemini, or custom OpenAI-compatible API key and choose the provider, model, and quality/cost tier. For a custom provider, enter the API **root** URL (e.g. `https://api.fireworks.ai/inference/v1` or `https://openrouter.ai/api/v1`), the provider's model ID, and the API key. Do not include `/chat/completions`; the SDK adds it automatically. Add a separate Exa API key if you enable company research.
 
 By default, the AI provider API key is held in `chrome.storage.session` and disappears when the browser session ends. “Remember API key” stores it in Chrome local extension storage instead. Exa and AI provider keys are stored separately.
 

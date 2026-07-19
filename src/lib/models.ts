@@ -265,6 +265,18 @@ export function isCustomModelId(modelId: string): boolean {
   return modelId.startsWith(CUSTOM_MODEL_PREFIX);
 }
 
+/**
+ * Normalizes a user-pasted OpenAI-compatible base URL.
+ * Many providers document the full `/chat/completions` endpoint, but the SDK
+ * appends that path itself, so strip it here to avoid `.../chat/completions/chat/completions`.
+ */
+export function sanitizeCustomBaseUrl(baseUrl: string): string {
+  return baseUrl
+    .trim()
+    .replace(/\/chat\/completions\/?$/i, "")
+    .replace(/\/+$/, "");
+}
+
 export function isKnownModel(modelId: string): boolean {
   return (
     AI_MODELS.some((model) => model.id === modelId) || isCustomModelId(modelId)

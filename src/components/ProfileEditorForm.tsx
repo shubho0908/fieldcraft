@@ -491,7 +491,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                     autoComplete="off"
                   />
                 </Field>
-                <Field label="Custom base URL" hint="OpenAI-compatible endpoint">
+                <Field label="Custom base URL" hint="Provider API root, e.g. https://openrouter.ai/api/v1 (without /chat/completions)">
                   <input
                     type="url"
                     value={settings.customBaseUrl}
