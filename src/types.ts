@@ -71,6 +71,8 @@ export interface ExtensionSettings {
   evalModel: string;
   /** Reasoning effort for live evals. Defaults to high. */
   evalReasoningEffort: ReasoningEffortSetting;
+  /** Base URL for an OpenAI-compatible custom provider (e.g. Fireworks, Together, Groq, OpenRouter). */
+  customBaseUrl: string;
   researchCompany: boolean;
   rememberApiKey: boolean;
   /** Whether to analyze with AI or fill fields directly from the profile. */

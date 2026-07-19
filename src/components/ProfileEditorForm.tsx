@@ -13,7 +13,13 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { modelsForProvider, Provider } from "../lib/models";
+import {
+  CUSTOM_MODEL_PREFIX,
+  Provider,
+  customModelId,
+  isCustomModelId,
+  modelsForProvider,
+} from "../lib/models";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
@@ -48,6 +54,8 @@ export type ProfileEditorFormProps = {
   updateDefault: (key: keyof CandidateProfile["defaults"], value: string) => void;
   updateVoice: (key: keyof CandidateProfile["voice"], value: string | number) => void;
   updateModel: (modelId: string) => void;
+  updateCustomModelId: (actualModelId: string) => void;
+  updateCustomBaseUrl: (baseUrl: string) => void;
   updateEvalModel: (modelId: string) => void;
   updateProvider: (provider: Provider) => void;
   setResearchCompany: (researchCompany: boolean) => void;
@@ -90,6 +98,8 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     updateDefault,
     updateVoice,
     updateModel,
+    updateCustomModelId,
+    updateCustomBaseUrl,
     updateEvalModel,
     updateProvider,
     setResearchCompany,
@@ -101,7 +111,12 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     setStep,
   } = props;
   const providerModels = modelsForProvider(settings.provider);
-  const providerName = settings.provider === Provider.Gemini ? "Gemini" : "OpenAI";
+  const isCustom = settings.provider === Provider.Custom;
+  const providerName = isCustom
+    ? "Custom"
+    : settings.provider === Provider.Gemini
+      ? "Gemini"
+      : "OpenAI";
 
   return (
     <main className={`profile-editor ${onboarding ? "onboarding" : "editing"}`}>
@@ -446,6 +461,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               >
                 <option value={Provider.OpenAI}>OpenAI</option>
                 <option value={Provider.Gemini}>Gemini</option>
+                <option value={Provider.Custom}>Custom (OpenAI-compatible)</option>
               </select>
             </Field>
             <Field
@@ -465,18 +481,40 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 </button>
               </div>
             </Field>
-            <Field label="Model">
-              <select
-                value={settings.model}
-                onChange={(event) => updateModel(event.target.value)}
-              >
-                {providerModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.label} · {model.description}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {isCustom ? (
+              <>
+                <Field label="Custom model ID" hint="The provider-specific model string">
+                  <input
+                    value={customModelId(settings.model)}
+                    onChange={(event) => updateCustomModelId(event.target.value)}
+                    placeholder="accounts/fireworks/models/llama-v3p1-405b-instruct"
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label="Custom base URL" hint="OpenAI-compatible endpoint">
+                  <input
+                    type="url"
+                    value={settings.customBaseUrl}
+                    onChange={(event) => updateCustomBaseUrl(event.target.value)}
+                    placeholder="https://api.fireworks.ai/inference/v1"
+                    autoComplete="off"
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field label="Model">
+                <select
+                  value={settings.model}
+                  onChange={(event) => updateModel(event.target.value)}
+                >
+                  {providerModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.label} · {model.description}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             {settings.provider === Provider.OpenAI && <Field
               label="Reasoning effort"
               hint="Reasoning effort · Auto uses the model default"
@@ -508,18 +546,20 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 <p>Verifies that job evaluations are accurate during automated testing. Uses deeper thinking by default.</p>
               </div>
             </div>
-            <Field label="Eval model" hint="Separate from Analyze model above">
-              <select
-                value={settings.evalModel}
-                onChange={(event) => updateEvalModel(event.target.value)}
-              >
-                {providerModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.label} · {model.description}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {!isCustom && (
+              <Field label="Eval model" hint="Separate from Analyze model above">
+                <select
+                  value={settings.evalModel}
+                  onChange={(event) => updateEvalModel(event.target.value)}
+                >
+                  {providerModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.label} · {model.description}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             {settings.provider === Provider.OpenAI && <Field
               label="Eval reasoning"
               hint="Default high · clamped if the model cannot use that effort"

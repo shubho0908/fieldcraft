@@ -23,9 +23,15 @@ export {
 export const Provider = {
   OpenAI: "openai",
   Gemini: "gemini",
+  Custom: "custom",
 } as const;
 
 export type Provider = (typeof Provider)[keyof typeof Provider];
+
+/** Custom model ids are encoded as `custom:<actual-model-id>` so settings.model stays a single source of truth. */
+export const CUSTOM_MODEL_PREFIX = "custom:" as const;
+
+export type CustomModelId = `${typeof CUSTOM_MODEL_PREFIX}${string}`;
 
 export interface ReasoningEffortOption {
   id: ReasoningEffortSetting;
@@ -185,10 +191,21 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
   },
 ] as const;
 
+/** OpenAI-compatible custom provider placeholder. The real model id lives after `custom:` in settings.model. */
+const CUSTOM_MODEL_PLACEHOLDER: ModelOption = {
+  provider: Provider.Custom,
+  id: `${CUSTOM_MODEL_PREFIX}`,
+  label: "Custom model",
+  description: "Any OpenAI-compatible endpoint (Fireworks, Together, Groq, OpenRouter…)",
+  defaultReasoningEffort: ReasoningEffort.None,
+  supportedReasoningEfforts: [ReasoningEffort.None],
+} as const;
+
 /** Combined catalog used by the UI and runtime. */
 export const AI_MODELS: readonly ModelOption[] = [
   ...OPENAI_MODELS,
   ...GEMINI_MODELS,
+  CUSTOM_MODEL_PLACEHOLDER,
 ] as const;
 
 export function isProvider(value: string): value is Provider {
@@ -196,10 +213,12 @@ export function isProvider(value: string): value is Provider {
 }
 
 export function modelsForProvider(provider: Provider): readonly ModelOption[] {
+  if (provider === Provider.Custom) return [CUSTOM_MODEL_PLACEHOLDER];
   return AI_MODELS.filter((model) => model.provider === provider);
 }
 
 export function defaultModelForProvider(provider: Provider): ModelOption {
+  if (provider === Provider.Custom) return CUSTOM_MODEL_PLACEHOLDER;
   return modelsForProvider(provider)[0] ?? AI_MODELS[0];
 }
 
@@ -225,12 +244,40 @@ export const DEFAULT_EVAL_REASONING_EFFORT: ReasoningEffortSetting =
 export const CONNECTION_TEST_REASONING_EFFORT: ReasoningEffortType =
   ReasoningEffort.None;
 
+function createCustomModelOption(actualModelId: string): ModelOption {
+  return {
+    provider: Provider.Custom,
+    id: `${CUSTOM_MODEL_PREFIX}${actualModelId}`,
+    label: "Custom model",
+    description: actualModelId || "Enter a model ID",
+    defaultReasoningEffort: ReasoningEffort.None,
+    supportedReasoningEfforts: [ReasoningEffort.None],
+  };
+}
+
+export function customModelId(modelId: string): string {
+  return modelId.startsWith(CUSTOM_MODEL_PREFIX)
+    ? modelId.slice(CUSTOM_MODEL_PREFIX.length)
+    : "";
+}
+
+export function isCustomModelId(modelId: string): boolean {
+  return modelId.startsWith(CUSTOM_MODEL_PREFIX);
+}
+
 export function isKnownModel(modelId: string): boolean {
-  return AI_MODELS.some((model) => model.id === modelId);
+  return (
+    AI_MODELS.some((model) => model.id === modelId) || isCustomModelId(modelId)
+  );
 }
 
 export function resolveModel(modelId: string): ModelOption {
-  return AI_MODELS.find((model) => model.id === modelId) ?? AI_MODELS[0];
+  const catalog = AI_MODELS.find((model) => model.id === modelId);
+  if (catalog) return catalog;
+  if (isCustomModelId(modelId)) {
+    return createCustomModelOption(customModelId(modelId));
+  }
+  return AI_MODELS[0];
 }
 
 /** Effort options valid for the selected model, always including Auto. */

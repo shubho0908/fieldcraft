@@ -18,7 +18,7 @@ import {
   resolveModel,
 } from "./models";
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
-import { getApiKey, getExaApiKey, getInstallId } from "./storage";
+import { getApiKey, getExaApiKey, getInstallId, getSettings } from "./storage";
 import { researchCompany } from "./exa";
 import type {
   CandidateProfile,
@@ -115,7 +115,12 @@ export async function runJobAnalysis(
   auth: OpenAiAuth,
 ): Promise<JobAnalysis> {
   const model = resolveModel(settings.model);
-  const aiModel = createAiModel(model, auth.apiKey);
+  const aiModel = createAiModel({
+    model,
+    apiKey: auth.apiKey,
+    baseURL:
+      model.provider === Provider.Custom ? settings.customBaseUrl : undefined,
+  });
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
   let researchSources: Array<{ title: string; url: string }> = [];
@@ -185,7 +190,14 @@ export async function testAiConnection(
   const model = resolveModel(modelId);
   const apiKey = await getApiKey(model.provider);
   if (!apiKey) throw new Error(`Enter and save a ${providerLabel(model.provider)} API key first.`);
-  const aiModel = createAiModel(model, apiKey);
+
+  const settings = await getSettings();
+  const aiModel = createAiModel({
+    model,
+    apiKey,
+    baseURL:
+      model.provider === Provider.Custom ? settings.customBaseUrl : undefined,
+  });
 
   const result = await generateText({
     model: aiModel,
@@ -217,7 +229,9 @@ export async function testAiConnection(
 }
 
 function providerLabel(provider: Provider): string {
-  return provider === Provider.Gemini ? "Gemini" : "OpenAI";
+  if (provider === Provider.Gemini) return "Gemini";
+  if (provider === Provider.Custom) return "Custom";
+  return "OpenAI";
 }
 
 /** Pure request builder for the live connection probe — retained for tests. */

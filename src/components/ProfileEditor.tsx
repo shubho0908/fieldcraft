@@ -26,13 +26,16 @@ import {
   saveProfile,
   saveSettings,
 } from "../lib/storage";
+import { DEFAULT_SETTINGS } from "../lib/defaults";
 import { AutofillMode, ReasoningEffortSettingAuto } from "../lib/enums";
 import {
-  preferredEvalReasoningEffort,
-  defaultModelForProvider,
+  CUSTOM_MODEL_PREFIX,
   Provider,
-  resolveModel,
+  customModelId,
+  defaultModelForProvider,
+  preferredEvalReasoningEffort,
   reasoningEffortsForModel,
+  resolveModel,
 } from "../lib/models";
 import type { CandidateProfile, ExtensionSettings } from "../types";
 
@@ -94,6 +97,10 @@ export default function ProfileEditor({
       ...current,
       provider,
       model: model.id,
+      customBaseUrl:
+        provider === Provider.Custom
+          ? current.customBaseUrl
+          : DEFAULT_SETTINGS.customBaseUrl,
       reasoningEffort: ReasoningEffortSettingAuto,
       evalModel: model.id,
       evalReasoningEffort: ReasoningEffortSettingAuto,
@@ -114,6 +121,15 @@ export default function ProfileEditor({
       }
       return next;
     });
+  }
+
+  function updateCustomModelId(actualModelId: string) {
+    const prefixed = `${CUSTOM_MODEL_PREFIX}${actualModelId}`;
+    setSettings((current) => ({ ...current, model: prefixed, evalModel: prefixed }));
+  }
+
+  function updateCustomBaseUrl(customBaseUrl: string) {
+    setSettings((current) => ({ ...current, customBaseUrl: customBaseUrl.trim() }));
   }
 
   function updateEvalModel(modelId: string) {
@@ -171,14 +187,25 @@ export default function ProfileEditor({
       setError("Paste the full text of your resume so answers can stay grounded.");
       return false;
     }
-    if (
-      step === 3 &&
-      settings.autofillMode === AutofillMode.AI &&
-      !activeApiKeyExists &&
-      !apiKey.trim()
-    ) {
-      setError("An AI provider API key is required to analyze jobs and draft answers.");
-      return false;
+    if (step === 3) {
+      if (
+        settings.autofillMode === AutofillMode.AI &&
+        !activeApiKeyExists &&
+        !apiKey.trim()
+      ) {
+        setError("An AI provider API key is required to analyze jobs and draft answers.");
+        return false;
+      }
+      if (settings.provider === Provider.Custom) {
+        if (!customModelId(settings.model).trim()) {
+          setError("Enter a custom model ID (e.g. accounts/fireworks/models/llama-v3p1-405b-instruct).");
+          return false;
+        }
+        if (!settings.customBaseUrl.trim()) {
+          setError("Enter a custom base URL (e.g. https://api.fireworks.ai/inference/v1).");
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -236,8 +263,24 @@ export default function ProfileEditor({
       await saveExaApiKey(exaApiKey);
     }
     if (!apiKey.trim() && !activeApiKeyExists) {
-      setError(`Enter a ${settings.provider === Provider.Gemini ? "Gemini" : "OpenAI"} API key first.`);
+      const providerName =
+        settings.provider === Provider.Gemini
+          ? "Gemini"
+          : settings.provider === Provider.Custom
+            ? "Custom"
+            : "OpenAI";
+      setError(`Enter a ${providerName} API key first.`);
       return;
+    }
+    if (settings.provider === Provider.Custom) {
+      if (!customModelId(settings.model).trim()) {
+        setError("Enter a custom model ID before testing.");
+        return;
+      }
+      if (!settings.customBaseUrl.trim()) {
+        setError("Enter a custom base URL before testing.");
+        return;
+      }
     }
     setTesting(true);
     try {
@@ -324,6 +367,8 @@ export default function ProfileEditor({
       updateDefault={updateDefault}
       updateVoice={updateVoice}
       updateModel={updateModel}
+      updateCustomModelId={updateCustomModelId}
+      updateCustomBaseUrl={updateCustomBaseUrl}
       updateEvalModel={updateEvalModel}
       updateProvider={updateProvider}
       setResearchCompany={setResearchCompany}
