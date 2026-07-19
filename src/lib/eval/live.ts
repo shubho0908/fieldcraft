@@ -2,8 +2,11 @@ import { DEFAULT_SETTINGS } from "../defaults";
 import { JudgeId } from "../enums";
 import type { ReasoningEffortSetting } from "../enums";
 import {
+  CUSTOM_MODEL_PREFIX,
   DEFAULT_EVAL_MODEL_ID,
   DEFAULT_EVAL_REASONING_EFFORT,
+  Provider,
+  isCustomModelId,
   preferredEvalReasoningEffort,
   resolveModel,
   resolveReasoningEffort,
@@ -23,7 +26,7 @@ export interface LiveEvalOptions {
   apiKey: string;
   /** Exa API key for company research in eval runs. */
   exaApiKey?: string;
-  /** Model id from the Fieldcraft catalog (defaults to DEFAULT_EVAL_MODEL_ID). */
+  /** Model id from the Fieldcraft catalog or a `custom:<id>` value (defaults to DEFAULT_EVAL_MODEL_ID). */
   model?: string;
   /**
    * Reasoning effort for the eval run.
@@ -33,6 +36,10 @@ export interface LiveEvalOptions {
   researchCompany?: boolean;
   /** Limit fixtures for cheaper smoke runs. */
   fixtureIds?: string[];
+  /** Override provider detection. Required for custom OpenAI-compatible endpoints. */
+  provider?: Provider;
+  /** Base URL for {@link Provider.Custom}. */
+  customBaseUrl?: string;
 }
 
 export interface LiveEvalCaseResult {
@@ -51,6 +58,8 @@ export interface ResolvedLiveEvalConfig {
   /** Concrete OpenAI effort after the model-specific clamp. */
   resolvedReasoningEffort: ReturnType<typeof resolveReasoningEffort>;
   researchCompany: boolean;
+  provider: Provider;
+  customBaseUrl?: string;
 }
 
 /**
@@ -58,17 +67,34 @@ export interface ResolvedLiveEvalConfig {
  * All defaults come from the model catalog — nothing hardcoded here.
  */
 export function resolveLiveEvalConfig(
-  options: Pick<LiveEvalOptions, "model" | "reasoningEffort" | "researchCompany">,
+  options: Pick<
+    LiveEvalOptions,
+    "model" | "reasoningEffort" | "researchCompany" | "provider" | "customBaseUrl"
+  >,
 ): ResolvedLiveEvalConfig {
-  const model = resolveModel(options.model ?? DEFAULT_EVAL_MODEL_ID);
+  let modelId = options.model ?? DEFAULT_EVAL_MODEL_ID;
+  let provider = options.provider ?? resolveModel(modelId).provider;
+
+  // If the caller explicitly wants a custom provider, the model id must carry
+  // the `custom:` prefix so downstream resolver/API key/base URL logic treats
+  // it as a custom endpoint — even when a plain model string is passed.
+  if (provider === Provider.Custom && !isCustomModelId(modelId)) {
+    modelId = `${CUSTOM_MODEL_PREFIX}${modelId}`;
+  }
+
+  const model = resolveModel(modelId);
+  provider = options.provider ?? model.provider;
+
   const reasoningEffort =
     options.reasoningEffort ?? preferredEvalReasoningEffort(model.id);
   return {
-    model: model.id,
+    model: modelId,
     modelLabel: model.label,
     reasoningEffort,
     resolvedReasoningEffort: resolveReasoningEffort(model.id, reasoningEffort),
     researchCompany: options.researchCompany ?? false,
+    provider,
+    customBaseUrl: options.customBaseUrl,
   };
 }
 
@@ -82,8 +108,9 @@ export async function runLiveEval(
   const resolved = resolveLiveEvalConfig(options);
   const settings: ExtensionSettings = {
     ...DEFAULT_SETTINGS,
-    provider: resolveModel(resolved.model).provider,
+    provider: resolved.provider,
     model: resolved.model,
+    customBaseUrl: resolved.customBaseUrl ?? DEFAULT_SETTINGS.customBaseUrl,
     reasoningEffort: resolved.reasoningEffort,
     evalModel: resolved.model,
     evalReasoningEffort: resolved.reasoningEffort,

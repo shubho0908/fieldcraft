@@ -3,15 +3,20 @@ import type {
   ExtensionSettings,
   TabAnalysisSession,
 } from "../types";
+import { normalizeSession } from "./tab-sessions";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
 import { ReasoningEffortSettingAuto, isAutofillMode } from "./enums";
 import {
-  defaultModelForProvider,
-  isProvider,
-  isKnownModel,
+  CUSTOM_MODEL_PREFIX,
   Provider,
+  customModelId,
+  defaultModelForProvider,
+  isCustomModelId,
+  isKnownModel,
+  isProvider,
   isReasoningEffortSetting,
   resolveModel,
+  sanitizeCustomBaseUrl,
 } from "./models";
 
 const KEYS = {
@@ -21,6 +26,7 @@ const KEYS = {
   apiKey: "fieldcraft.apiKey",
   openAiApiKey: "fieldcraft.openAiApiKey",
   geminiApiKey: "fieldcraft.geminiApiKey",
+  customApiKey: "fieldcraft.customApiKey",
   exaApiKey: "fieldcraft.exaApiKey",
   tabSessions: "fieldcraft.tabAnalysisSessions",
   installId: "fieldcraft.installId",
@@ -54,12 +60,14 @@ export async function getBootData(): Promise<{
       KEYS.settings,
       KEYS.openAiApiKey,
       KEYS.geminiApiKey,
+      KEYS.customApiKey,
       KEYS.apiKey,
       KEYS.exaApiKey,
     ]),
     chrome.storage.session.get([
       KEYS.openAiApiKey,
       KEYS.geminiApiKey,
+      KEYS.customApiKey,
       KEYS.apiKey,
     ]),
   ]);
@@ -108,6 +116,26 @@ export async function getSettings(): Promise<ExtensionSettings> {
   return settings;
 }
 
+function normalizeCustomModelId(
+  provider: Provider,
+  modelId: string,
+): string {
+  if (provider !== Provider.Custom) return modelId;
+  const actual = modelId.startsWith(CUSTOM_MODEL_PREFIX)
+    ? customModelId(modelId)
+    : modelId;
+  return `${CUSTOM_MODEL_PREFIX}${actual.trim()}`;
+}
+
+function isValidCustomSettings(settings: ExtensionSettings): boolean {
+  return (
+    settings.provider === Provider.Custom &&
+    settings.customBaseUrl.trim().length > 0 &&
+    customModelId(settings.model).trim().length > 0 &&
+    customModelId(settings.evalModel).trim().length > 0
+  );
+}
+
 /** Synchronous settings validation — shared by getSettings() and getBootData(). */
 function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSettings {
   const settings = {
@@ -118,19 +146,47 @@ function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSe
   settings.model = LEGACY_MODEL_ALIASES[settings.model] ?? settings.model;
   settings.evalModel = LEGACY_MODEL_ALIASES[settings.evalModel] ?? settings.evalModel;
 
+  if (typeof settings.customBaseUrl !== "string") {
+    settings.customBaseUrl = DEFAULT_SETTINGS.customBaseUrl;
+  } else {
+    settings.customBaseUrl = sanitizeCustomBaseUrl(settings.customBaseUrl);
+  }
+
+  // Any stored `custom:` model id forces the provider to Custom so the model
+  // is not silently dropped/replaced with a built-in default.
+  if (isCustomModelId(settings.model) || isCustomModelId(settings.evalModel)) {
+    settings.provider = Provider.Custom;
+  }
+
   if (!isProvider(settings.provider)) {
     settings.provider = isKnownModel(settings.model)
       ? resolveModel(settings.model).provider
       : DEFAULT_SETTINGS.provider;
   }
-  if (!isKnownModel(settings.model) || resolveModel(settings.model).provider !== settings.provider) {
+
+  // Custom models encode the real model id after `custom:`; normalize and keep it.
+  // The UI only exposes one custom model ID, so analyze/eval stay in sync.
+  if (settings.provider === Provider.Custom) {
+    settings.model = normalizeCustomModelId(settings.provider, settings.model);
+    settings.evalModel = settings.model;
+    if (!isValidCustomSettings(settings)) {
+      settings.model = defaultModelForProvider(Provider.Custom).id;
+      settings.evalModel = settings.model;
+      settings.customBaseUrl = DEFAULT_SETTINGS.customBaseUrl;
+    }
+  } else if (
+    !isKnownModel(settings.model) ||
+    resolveModel(settings.model).provider !== settings.provider
+  ) {
     settings.model = defaultModelForProvider(settings.provider).id;
   }
-  if (!isReasoningEffortSetting(settings.reasoningEffort)) {
-    settings.reasoningEffort = DEFAULT_SETTINGS.reasoningEffort;
-  }
+
   if (!isKnownModel(settings.evalModel)) {
     settings.evalModel = DEFAULT_SETTINGS.evalModel;
+  }
+
+  if (!isReasoningEffortSetting(settings.reasoningEffort)) {
+    settings.reasoningEffort = DEFAULT_SETTINGS.reasoningEffort;
   }
   if (!isReasoningEffortSetting(settings.evalReasoningEffort)) {
     settings.evalReasoningEffort = DEFAULT_SETTINGS.evalReasoningEffort;
@@ -213,7 +269,9 @@ export async function clearApiKey(provider: Provider): Promise<void> {
 }
 
 function apiKeyStorageKey(provider: Provider): string {
-  return provider === Provider.Gemini ? KEYS.geminiApiKey : KEYS.openAiApiKey;
+  if (provider === Provider.Gemini) return KEYS.geminiApiKey;
+  if (provider === Provider.Custom) return KEYS.customApiKey;
+  return KEYS.openAiApiKey;
 }
 
 export async function saveExaApiKey(apiKey: string): Promise<void> {
@@ -248,7 +306,7 @@ export async function getTabAnalysisSession(
 ): Promise<TabAnalysisSession | null> {
   await tabSessionMutation;
   const sessions = await readTabAnalysisSessions();
-  return sessions[String(tabId)] ?? null;
+  return normalizeSession(sessions[String(tabId)] ?? null);
 }
 
 export async function mutateTabAnalysisSessions<T>(

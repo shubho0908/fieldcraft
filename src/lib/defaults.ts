@@ -52,6 +52,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   reasoningEffort: DEFAULT_REASONING_EFFORT,
   evalModel: DEFAULT_EVAL_MODEL_ID,
   evalReasoningEffort: DEFAULT_EVAL_REASONING_EFFORT,
+  // Base URL for an OpenAI-compatible custom provider.
+  customBaseUrl: "",
   // Research is opt-in because it requires a separate Exa API key.
   researchCompany: false,
   rememberApiKey: false,

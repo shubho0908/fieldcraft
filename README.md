@@ -7,7 +7,7 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 - Toggle the Fieldcraft side panel with **⌥F** (macOS) or **Alt+F** (Windows/Linux). Same gesture opens and closes it. Rebind under `chrome://extensions/shortcuts` if the default conflicts.
 - Keeps a structured candidate profile, full resume text, proof points, work-authorization defaults, compensation/notice-period facts, canonical answers, and an optional resume attachment in Chrome extension storage.
 - Extracts visible JD content and up to 100 application controls from Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Jobvite, iCIMS, BambooHR, Wellfound, LinkedIn, and generic forms.
-- Uses the Vercel AI SDK with structured output, supporting OpenAI (Responses API, GPT-5.5/5.6) and Gemini providers, with optional Exa company research.
+- Uses the Vercel AI SDK with structured output, supporting OpenAI (Responses API, GPT-5.5/5.6), Gemini, and any OpenAI-compatible custom provider (Fireworks, Together, Groq, OpenRouter, etc.) with a configurable base URL, model ID, and API key, with optional Exa company research.
 - Produces an honest fit score, hard blockers, company brief with clickable sources, missing-fact list, and one reviewed suggestion per detected field.
 - Handles textareas, native selects, radio groups, checkboxes, contenteditable controls, and resume file inputs.
 - Supports two autofill modes: **Analyze with AI** (research, fit score, drafted answers) and **Direct-fill** (instant profile-to-form mapping without an AI call).
@@ -29,7 +29,7 @@ Chrome may ask for access to pages you visit. Fieldcraft needs this to read visi
 2. Paste the full text version of the resume. This is the source-of-truth boundary for candidate claims.
 3. Optionally attach the actual resume file for file-upload fields.
 4. Add explicit work authorization, sponsorship, notice period, compensation, relocation, and reusable answers. Blank means “ask me during review.”
-5. Add an OpenAI or Gemini API key and choose the provider, model, and quality/cost tier. Add a separate Exa API key if you enable company research.
+5. Add an OpenAI, Gemini, or custom OpenAI-compatible API key and choose the provider, model, and quality/cost tier. For a custom provider, enter the API **root** URL (e.g. `https://api.fireworks.ai/inference/v1` or `https://openrouter.ai/api/v1`), the provider's model ID, and the API key. Do not include `/chat/completions`; the SDK adds it automatically. Add a separate Exa API key if you enable company research.
 
 By default, the AI provider API key is held in `chrome.storage.session` and disappears when the browser session ends. “Remember API key” stores it in Chrome local extension storage instead. Exa and AI provider keys are stored separately.
 
@@ -60,14 +60,25 @@ Live eval options (env):
 
 | Env | Default | Description |
 |-----|---------|-------------|
-| `FIELDCRAFT_EVAL_MODEL` | catalog default (`DEFAULT_EVAL_MODEL_ID`) | Any id from the multi-provider model catalog |
+| `FIELDCRAFT_EVAL_PROVIDER` | `openai` | `openai` \| `gemini` \| `custom` |
+| `FIELDCRAFT_EVAL_MODEL` | catalog default (`DEFAULT_EVAL_MODEL_ID`) | Any id from the multi-provider model catalog; for `custom`, the provider model ID |
 | `FIELDCRAFT_EVAL_REASONING` | catalog default (`DEFAULT_EVAL_REASONING_EFFORT`) | `none` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` \| `auto` |
 | `FIELDCRAFT_EVAL_RESEARCH` | off | Set to `1` to enable company research via Exa |
+| `FIELDCRAFT_CUSTOM_BASE_URL` | — | Required when `FIELDCRAFT_EVAL_PROVIDER=custom` |
+| `FIELDCRAFT_CUSTOM_MODEL_ID` | — | Shorthand for `FIELDCRAFT_EVAL_MODEL` when `provider=custom` |
+| `FIELDCRAFT_CUSTOM_API_KEY` | — | Custom provider API key (falls back to `OPENAI_API_KEY` for evals) |
 
 ```bash
 OPENAI_API_KEY=sk-... bun run eval:live
 OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> bun run eval:live
 OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high bun run eval:live
+
+# Custom OpenAI-compatible provider (e.g. Fireworks)
+FIELDCRAFT_EVAL_PROVIDER=custom \
+FIELDCRAFT_CUSTOM_BASE_URL=https://api.fireworks.ai/inference/v1 \
+FIELDCRAFT_CUSTOM_MODEL_ID=accounts/fireworks/models/llama-v3p1-405b-instruct \
+FIELDCRAFT_CUSTOM_API_KEY=<fireworks-key> \
+  bun run eval:live
 ```
 
 Use `GEMINI_API_KEY=...` instead when running live evals against a Gemini model.
