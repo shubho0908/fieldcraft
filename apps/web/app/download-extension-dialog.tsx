@@ -24,7 +24,7 @@ const installationSteps = [
   },
 ] as const;
 
-type DownloadExtensionDialogProps = {
+export type DownloadExtensionDialogProps = {
   triggerClassName: string;
   triggerLabel?: string;
 };
@@ -94,7 +94,7 @@ export function DownloadExtensionDialog({
 
           <div className="download-dialog-footer">
             <p aria-live="polite">
-              {downloadStarted ? <><Check size={15} /> Download started — follow the steps above.</> : "Need the ZIP again?"}
+              {downloadStarted ? <><Check size={15} /> Download started - follow the steps above.</> : "Need the ZIP again?"}
             </p>
             <button type="button" className="download-dialog-retry" onClick={startDownload}>
               <Download size={16} /> Download again

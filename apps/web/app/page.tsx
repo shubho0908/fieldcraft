@@ -1,5 +1,5 @@
-import { DownloadExtensionDialog } from "./download-extension-dialog";
-import ProductDemo from "./product-demo";
+import { LazyDownloadExtensionDialog } from "./download-extension-dialog-lazy";
+import ProductDemo from "./product-demo-lazy";
 
 function BrandMark() {
   return (
@@ -18,7 +18,7 @@ export default function Home() {
         <div className="desktop-required-content">
           <BrandMark />
           <p>Desktop view</p>
-          <h1 id="desktop-required-heading">Open this website on a desktop.</h1>
+          <p id="desktop-required-heading" className="desktop-required-heading" role="heading" aria-level={2}>Open this website on a desktop.</p>
           <p className="desktop-required-description">Fieldcraft’s product walkthrough is designed for a larger screen.</p>
         </div>
       </main>
@@ -33,7 +33,7 @@ export default function Home() {
             <a href="#demo">Product</a>
             <a href="#workflow">How it works</a>
           </nav>
-          <DownloadExtensionDialog
+          <LazyDownloadExtensionDialog
             triggerClassName="nav-action"
           />
         </header>
@@ -47,7 +47,7 @@ export default function Home() {
                 Fieldcraft reads the open job tab, checks it against your real experience, and leaves every decision with you.
               </p>
               <div className="hero-actions">
-                <DownloadExtensionDialog
+                <LazyDownloadExtensionDialog
                   triggerClassName="button button-primary"
                 />
                 <a className="button button-secondary" href="#demo">Watch the workflow</a>
@@ -87,7 +87,7 @@ export default function Home() {
           <section className="closing-section" id="get-fieldcraft">
             <p>Apply with the full picture.</p>
             <h2>The decision stays with you.</h2>
-            <DownloadExtensionDialog
+            <LazyDownloadExtensionDialog
               triggerClassName="button button-primary"
             />
           </section>
@@ -98,7 +98,12 @@ export default function Home() {
             <BrandMark />
             <span>Fieldcraft</span>
           </a>
-          <span>Local-first job application copilot</span>
+          <span className="site-footer-credit">
+            Created by{" "}
+            <a href="https://shubhojeet.me" target="_blank" rel="noopener noreferrer">
+              Shubhojeet
+            </a>
+          </span>
         </footer>
       </div>
     </>

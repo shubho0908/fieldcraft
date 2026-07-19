@@ -194,7 +194,7 @@ export function useProductDemoAnimation(refs: DemoRefs, setters: DemoSetters, ex
 
       const entrance = gsap.fromTo(
         root.current,
-        { y: 54, autoAlpha: 0.2, scale: 0.985 },
+        { y: 54, scale: 0.985 },
         {
           y: 0,
           autoAlpha: 1,
