@@ -1,10 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Download, FolderOpen, Puzzle, X } from "lucide-react";
-import { useState } from "react";
-
-const DOWNLOAD_ENDPOINT = "/api/extension/download";
+import { Check, Chrome, Download, FolderOpen, X } from "lucide-react";
 
 const installationSteps = [
   {
@@ -18,53 +15,35 @@ const installationSteps = [
     body: "Open the ZIP so it becomes a normal folder. Chrome needs the folder, not the compressed file.",
   },
   {
-    icon: Puzzle,
+    icon: Chrome,
     title: "Load it in Chrome",
     body: "Open chrome://extensions, enable Developer mode, choose Load unpacked, then select the unzipped folder containing manifest.json.",
   },
 ] as const;
 
-type DownloadExtensionDialogProps = {
-  triggerClassName: string;
-  triggerLabel?: string;
-};
+export interface DownloadExtensionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  downloadStarted: boolean;
+  startDownload: () => void;
+}
 
 export function DownloadExtensionDialog({
-  triggerClassName,
-  triggerLabel = "Download extension",
+  open,
+  onOpenChange,
+  downloadStarted,
+  startDownload,
 }: DownloadExtensionDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [downloadStarted, setDownloadStarted] = useState(false);
-
-  const startDownload = () => {
-    const link = document.createElement("a");
-    link.href = DOWNLOAD_ENDPOINT;
-    link.download = "fieldcraft-extension.zip";
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setDownloadStarted(true);
-  };
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (!nextOpen) setDownloadStarted(false);
-  };
-
   return (
-    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
-      <Dialog.Trigger asChild>
-        <button type="button" className={triggerClassName} onClick={startDownload}>
-          {triggerLabel}
-        </button>
-      </Dialog.Trigger>
-
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="download-dialog-overlay" />
         <Dialog.Content className="download-dialog-content">
           <div className="download-dialog-header">
             <div className="download-dialog-heading">
-              <span className="download-dialog-icon" aria-hidden="true"><Download size={20} /></span>
+              <span className="download-dialog-icon" aria-hidden="true">
+                <Chrome size={20} />
+              </span>
               <div>
                 <p>Developer install</p>
                 <Dialog.Title>Install Fieldcraft in Chrome</Dialog.Title>
@@ -94,7 +73,13 @@ export function DownloadExtensionDialog({
 
           <div className="download-dialog-footer">
             <p aria-live="polite">
-              {downloadStarted ? <><Check size={15} /> Download started — follow the steps above.</> : "Need the ZIP again?"}
+              {downloadStarted ? (
+                <>
+                  <Check size={15} /> Download started - follow the steps above.
+                </>
+              ) : (
+                "Need the ZIP again?"
+              )}
             </p>
             <button type="button" className="download-dialog-retry" onClick={startDownload}>
               <Download size={16} /> Download again

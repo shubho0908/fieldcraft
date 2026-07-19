@@ -33,6 +33,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hero { min-height: calc(100svh - 72px); padding: clamp(88px, 12vw, 176px) max(24px, calc((100vw - 1240px) / 2)) clamp(88px, 10vw, 142px); display: flex; align-items: end; border-bottom: 1px solid var(--line); }
 .hero-copy { max-width: 980px; }
 .hero-kicker, .section-heading > p, .closing-section > p { margin: 0 0 18px; color: var(--accent-deep); font-size: 11px; font-weight: 790; letter-spacing: .1em; text-transform: uppercase; }
+.kicker-mark { display: inline-flex; align-items: center; gap: 10px; }
+.kicker-mark .site-brand-mark { width: 22px; height: 22px; border-radius: 6px; transform: scale(1); }
+.kicker-mark .site-brand-mark span:nth-child(1) { top: 5px; left: 6px; width: 9px; height: 3px; }
+.kicker-mark .site-brand-mark span:nth-child(2) { top: 5px; left: 6px; width: 3px; height: 12px; }
+.kicker-mark .site-brand-mark span:nth-child(3) { top: 10px; left: 6px; width: 8px; height: 3px; }
 .hero h1, .section-heading h2, .closing-section h2 { margin: 0; font-weight: 590; letter-spacing: -.065em; }
 .hero h1 { max-width: 20ch; font-size: clamp(3.25rem, 6.8vw, 7.5rem); line-height: .91; }
 .hero-summary { max-width: 510px; margin: 30px 0 0; color: var(--muted); font-size: clamp(16px, 1.6vw, 20px); line-height: 1.45; letter-spacing: -.018em; }
@@ -56,6 +61,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .closing-section { width: min(100% - 48px, 1240px); margin: 0 auto; padding: clamp(110px, 16vw, 230px) 0 clamp(100px, 13vw, 170px); border-top: 1px solid var(--line); }
 .closing-section .button { margin-top: 34px; }
 .site-footer { width: min(100% - 48px, 1360px); margin: 0 auto; padding: 22px 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.site-footer a { color: inherit; text-decoration: none; }
+.site-footer-credit a { color: var(--ink); font-weight: 500; }
 
 .download-dialog-overlay { position: fixed; z-index: 80; inset: 0; background: rgba(28, 27, 32, .36); backdrop-filter: blur(5px); }
 .download-dialog-overlay[data-state="open"] { animation: dialog-fade-in .18s ease-out; }
@@ -109,7 +116,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .desktop-required .site-brand-mark span:nth-child(2) { top: 9px; left: 10px; width: 4px; height: 18px; }
   .desktop-required .site-brand-mark span:nth-child(3) { top: 16px; left: 10px; width: 11px; height: 4px; }
   .desktop-required p { margin: 26px 0 13px; color: var(--accent-deep); font-size: 11px; font-weight: 790; letter-spacing: .1em; text-transform: uppercase; }
-  .desktop-required h1 { margin: 0; font-size: clamp(2rem, 10vw, 2.7rem); font-weight: 590; letter-spacing: -.06em; line-height: .96; }
+  .desktop-required .desktop-required-heading { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: clamp(2rem, 10vw, 2.7rem); font-weight: 590; letter-spacing: -.06em; line-height: .96; }
   .desktop-required .desktop-required-description { margin: 18px 0 0; color: var(--muted); font-size: 14px; font-weight: 400; letter-spacing: 0; line-height: 1.5; text-transform: none; }
 }
 

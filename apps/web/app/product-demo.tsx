@@ -182,7 +182,7 @@ export default function ProductDemo() {
               <section className="empty-hero">
                 <div className="hero-orbit"><span className="orbit orbit-one" /><span className="orbit orbit-two" /><span className="hero-glyph"><FileSearch size={27} /></span></div>
                 <span className="eyebrow">Current tab → grounded application</span>
-                <h1>Read the role.<br />Cut through the noise.</h1>
+                <h2>Read the role.<br />Cut through the noise.</h2>
                 <p>Fieldcraft reads the full job page, researches the company, checks the role against your actual work, then drafts only what the form needs.</p>
               </section>
               <section className="workflow-card">
@@ -203,7 +203,7 @@ export default function ProductDemo() {
             <main className="analysis-loader demo-screen" ref={loader}>
               <div className="scanner"><div className="scanner-sheet"><span /><span /><span /><span /><span /><i /></div><div className="scanner-badge"><ScanSearch size={18} /></div></div>
               <span className="eyebrow">Building the application brief</span>
-              <h1>Researching, matching, drafting…</h1>
+              <h2>Researching, matching, drafting…</h2>
               <p>This can take a minute when live company research is enabled.</p>
               <div className="loader-steps"><span className="done"><Check size={13} /> Candidate context</span><span className="done"><Check size={13} /> Page scan</span><span className="active"><LoaderCircle className="demo-spin" size={13} /> Judgment</span></div>
             </main>
@@ -211,7 +211,7 @@ export default function ProductDemo() {
             <main className="dashboard results-dashboard demo-screen" ref={results}>
               <section className="job-strip">
                 <div className="company-avatar">{item.initials}</div>
-                <div className="job-strip-copy"><span>{item.company}</span><h1>{item.role}</h1><div><span><MapPin size={12} /> {item.location}</span><span><BriefcaseBusiness size={12} /> {item.ats}</span></div></div>
+                <div className="job-strip-copy"><span>{item.company}</span><h2>{item.role}</h2><div><span><MapPin size={12} /> {item.location}</span><span><BriefcaseBusiness size={12} /> {item.ats}</span></div></div>
                 <button type="button" className="icon-button quiet" tabIndex={-1} aria-label="Re-analyze"><RefreshCw size={16} /></button>
               </section>
               <nav className="result-tabs">
