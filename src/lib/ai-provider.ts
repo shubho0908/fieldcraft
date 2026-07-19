@@ -32,7 +32,11 @@ export function createAiModel(options: CreateAiModelOptions): LanguageModel {
     if (!baseURL?.trim()) {
       throw new Error("Enter a custom base URL before analyzing.");
     }
-    const openai = createOpenAI({ apiKey, baseURL: baseURL.trim() });
+    const trimmedBaseURL = baseURL.trim();
+    console.info(
+      `[fieldcraft ai-provider] custom provider: baseURL=${trimmedBaseURL} model=${actualModelId}`,
+    );
+    const openai = createOpenAI({ apiKey, baseURL: trimmedBaseURL });
     return openai.chat(actualModelId);
   }
 

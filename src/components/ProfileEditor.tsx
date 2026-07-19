@@ -124,8 +124,14 @@ export default function ProfileEditor({
   }
 
   function updateCustomModelId(actualModelId: string) {
-    const prefixed = `${CUSTOM_MODEL_PREFIX}${actualModelId}`;
-    setSettings((current) => ({ ...current, model: prefixed, evalModel: prefixed }));
+    const trimmed = actualModelId.trim();
+    const prefixed = trimmed ? `${CUSTOM_MODEL_PREFIX}${trimmed}` : `${CUSTOM_MODEL_PREFIX}`;
+    setSettings((current) => ({
+      ...current,
+      provider: Provider.Custom,
+      model: prefixed,
+      evalModel: prefixed,
+    }));
   }
 
   function updateCustomBaseUrl(customBaseUrl: string) {

@@ -10,6 +10,7 @@ import {
   Provider,
   customModelId,
   defaultModelForProvider,
+  isCustomModelId,
   isKnownModel,
   isProvider,
   isReasoningEffortSetting,
@@ -121,7 +122,7 @@ function normalizeCustomModelId(
   const actual = modelId.startsWith(CUSTOM_MODEL_PREFIX)
     ? customModelId(modelId)
     : modelId;
-  return `${CUSTOM_MODEL_PREFIX}${actual}`;
+  return `${CUSTOM_MODEL_PREFIX}${actual.trim()}`;
 }
 
 function isValidCustomSettings(settings: ExtensionSettings): boolean {
@@ -144,6 +145,14 @@ function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSe
 
   if (typeof settings.customBaseUrl !== "string") {
     settings.customBaseUrl = DEFAULT_SETTINGS.customBaseUrl;
+  } else {
+    settings.customBaseUrl = settings.customBaseUrl.trim();
+  }
+
+  // Any stored `custom:` model id forces the provider to Custom so the model
+  // is not silently dropped/replaced with a built-in default.
+  if (isCustomModelId(settings.model) || isCustomModelId(settings.evalModel)) {
+    settings.provider = Provider.Custom;
   }
 
   if (!isProvider(settings.provider)) {
