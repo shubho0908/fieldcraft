@@ -6,6 +6,9 @@ fieldcraft-extension.zip
 fieldcraft-source.zip
 release/
 .turbo/
+.next/
 *.zip
 * 2.*
 .react-doctor/
+
+*.tsbuildinfo
