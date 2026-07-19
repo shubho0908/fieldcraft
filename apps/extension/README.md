@@ -15,13 +15,18 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 
 ## Install the ready build
 
-1. Open `chrome://extensions`.
-2. Turn on **Developer mode**.
-3. Click **Load unpacked**.
-4. Select the `dist` directory.
-5. Pin Fieldcraft, open a job page, and click its toolbar icon — or press **⌥F** / **Alt+F** to open the side panel.
+From a published ZIP (GitHub Releases / product site download) or a local production build:
+
+1. Unzip if needed so you have a folder whose root contains `manifest.json`.
+2. Open `chrome://extensions`.
+3. Turn on **Developer mode**.
+4. Click **Load unpacked**.
+5. Select that folder (`apps/extension/dist` after a local build, or the unzipped release folder).
+6. Pin Fieldcraft, open a job page, and click its toolbar icon — or press **⌥F** / **Alt+F** to open the side panel.
 
 Chrome may ask for access to pages you visit. Fieldcraft needs this to read visible job forms and insert only the answers you approve. It does not analyze a page until you press **Analyze this job**.
+
+Product-site downloads are documented in the [monorepo root README](../../README.md#extension-download-delivery).
 
 ## First setup
 
@@ -35,16 +40,29 @@ By default, the AI provider API key is held in `chrome.storage.session` and disa
 
 ## Develop
 
-This project uses [Bun](https://bun.sh/). Run:
+This package lives in a [Bun](https://bun.sh/) + Turborepo monorepo. Install once from the **repository root**:
 
 ```bash
+cd ../..          # monorepo root
 bun install
-bun run dev
 ```
 
-Load the development output shown by CRXJS in `chrome://extensions`. For a production bundle:
+### From the monorepo root
 
 ```bash
+bun run extension:dev
+bun run extension:build
+
+bun run --filter fieldcraft-extension check
+bun run --filter fieldcraft-extension test
+bun run --filter fieldcraft-extension eval
+OPENAI_API_KEY=sk-... bun run --filter fieldcraft-extension eval:live
+```
+
+### From this directory (`apps/extension`)
+
+```bash
+bun run dev
 bun run check
 bun run test
 bun run eval
@@ -52,6 +70,8 @@ OPENAI_API_KEY=sk-... bun run eval:live
 bun run build
 bun run doctor
 ```
+
+Load the development output shown by CRXJS in `chrome://extensions` (usually `apps/extension/dist` relative to the monorepo root).
 
 - `bun run eval` — deterministic judges (no network)
 - `bun run eval:live` — optional live AI-provider run of the fixture pack (skipped without a configured API key)
@@ -69,6 +89,7 @@ Live eval options (env):
 | `FIELDCRAFT_CUSTOM_API_KEY` | — | Custom provider API key (falls back to `OPENAI_API_KEY` for evals) |
 
 ```bash
+# from apps/extension, or prefix with: bun run --filter fieldcraft-extension
 OPENAI_API_KEY=sk-... bun run eval:live
 OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> bun run eval:live
 OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high bun run eval:live
@@ -84,6 +105,8 @@ FIELDCRAFT_CUSTOM_API_KEY=<fireworks-key> \
 Use `GEMINI_API_KEY=...` instead when running live evals against a Gemini model.
 
 Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or reasoning strings.
+
+Monorepo overview, web app, and release packaging: [../../README.md](../../README.md).
 
 ## Architecture
 
