@@ -3,6 +3,7 @@ import type {
   ExtensionSettings,
   TabAnalysisSession,
 } from "../types";
+import { normalizeSession } from "./tab-sessions";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
 import { ReasoningEffortSettingAuto, isAutofillMode } from "./enums";
 import {
@@ -303,7 +304,7 @@ export async function getTabAnalysisSession(
 ): Promise<TabAnalysisSession | null> {
   await tabSessionMutation;
   const sessions = await readTabAnalysisSessions();
-  return sessions[String(tabId)] ?? null;
+  return normalizeSession(sessions[String(tabId)] ?? null);
 }
 
 export async function mutateTabAnalysisSessions<T>(

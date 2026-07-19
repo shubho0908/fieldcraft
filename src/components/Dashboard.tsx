@@ -7,6 +7,7 @@ import {
 } from "../lib/dashboard-review";
 import { AutofillMode, SuggestionAction } from "../lib/enums";
 import { saveSettings } from "../lib/storage";
+import { toSafeAnalysis } from "../lib/analysis";
 import type {
   ExtensionSettings,
   FieldSuggestion,
@@ -51,7 +52,8 @@ export default function Dashboard({
     setReview(null);
   }
 
-  const analysis = review && review.runId === session?.runId ? review.analysis : session?.analysis;
+  const rawAnalysis = review && review.runId === session?.runId ? review.analysis : session?.analysis;
+  const analysis = rawAnalysis ? toSafeAnalysis(rawAnalysis, session?.snapshot ?? undefined) : undefined;
   const snapshot = session?.snapshot ?? null;
   const status = session?.status ?? "idle";
   const error = session?.error ?? "";

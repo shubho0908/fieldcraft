@@ -1,3 +1,4 @@
+import { toSafeAnalysis } from "./analysis";
 import type { JobAnalysis, PageSnapshot, TabAnalysisSession } from "../types";
 
 export function isSessionCurrentFor(
@@ -46,5 +47,20 @@ export function withCompletedAnalysis(
     analysis,
     error: "",
     updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Coerce a persisted tab session into a crash-safe shape. Tab sessions may be
+ * read by the side panel or the service worker, and older/malformed analyses
+ * must not crash either side.
+ */
+export function normalizeSession(
+  session: TabAnalysisSession | null,
+): TabAnalysisSession | null {
+  if (!session?.analysis || !session.snapshot) return session;
+  return {
+    ...session,
+    analysis: toSafeAnalysis(session.analysis, session.snapshot),
   };
 }

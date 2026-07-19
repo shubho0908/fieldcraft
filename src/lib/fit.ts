@@ -21,9 +21,11 @@ export function verdictForScore(score: number): FitVerdictType {
  * Clamp score, enforce hard-blocker ceiling, and force verdict to match score band.
  * Model output is untrusted on consistency; this is the product invariant layer.
  */
-export function sanitizeFit(fit: JobAnalysis["fit"]): JobAnalysis["fit"] {
-  const hardBlockers = cleanStringList(fit.hardBlockers);
-  let score = Math.max(0, Math.min(100, Math.round(Number(fit.score) || 0)));
+export function sanitizeFit(
+  fit: Partial<JobAnalysis["fit"]> | undefined,
+): JobAnalysis["fit"] {
+  const hardBlockers = cleanStringList(fit?.hardBlockers);
+  let score = Math.max(0, Math.min(100, Math.round(Number(fit?.score) || 0)));
 
   if (hardBlockers.length > 0 && score > HARD_BLOCKER_SCORE_CAP) {
     score = HARD_BLOCKER_SCORE_CAP;
@@ -32,10 +34,10 @@ export function sanitizeFit(fit: JobAnalysis["fit"]): JobAnalysis["fit"] {
   return {
     score,
     verdict: verdictForScore(score),
-    strongestMatches: cleanStringList(fit.strongestMatches),
-    gaps: cleanStringList(fit.gaps),
+    strongestMatches: cleanStringList(fit?.strongestMatches),
+    gaps: cleanStringList(fit?.gaps),
     hardBlockers,
-    recommendation: (fit.recommendation ?? "").trim(),
+    recommendation: (fit?.recommendation ?? "").trim(),
   };
 }
 
@@ -60,7 +62,7 @@ export function isThinCompanyResearch(
   return unknownCount >= 3;
 }
 
-function cleanStringList(values: string[] | undefined): string[] {
+export function cleanStringList(values: string[] | undefined): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
   for (const value of values ?? []) {

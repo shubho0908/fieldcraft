@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { subscribeChromeEvent } from "../lib/chrome-events";
 import { getActiveTab, tabBindingKey } from "../lib/chrome-tabs";
 import { isAnalyzableTabUrl } from "../lib/page";
+import { normalizeSession } from "../lib/tab-sessions";
 import type { ResolvedActiveTab, RuntimeRequest, TabAnalysisSession } from "../types";
 
 type TabBinding = { id: number; url: string };
@@ -45,7 +46,7 @@ export function useDashboardBinding() {
         .then((response) => {
           if (bindingKeyRef.current !== key) return;
           if (!response?.ok) throw new Error(response?.error || "Could not read tab state");
-          setSession((response.session as TabAnalysisSession | null) ?? null);
+          setSession(normalizeSession((response.session as TabAnalysisSession | null) ?? null));
         })
         .catch(() => {
           if (bindingKeyRef.current === key) setSession(null);
@@ -115,7 +116,7 @@ export function useDashboardBinding() {
       const sessions = changes["fieldcraft.tabAnalysisSessions"].newValue as
         | Record<string, TabAnalysisSession>
         | undefined;
-      const next = sessions?.[String(binding.id)] ?? null;
+      const next = normalizeSession(sessions?.[String(binding.id)] ?? null);
       setSession(next?.url === binding.url ? next : null);
     };
     return subscribeChromeEvent(chrome.storage.onChanged, onChanged);

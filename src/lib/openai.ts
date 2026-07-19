@@ -10,7 +10,8 @@ import {
   isSuggestionAction,
 } from "./enums";
 import { isChoiceField, optionMatches } from "./fields";
-import { isThinCompanyResearch, sanitizeFit } from "./fit";
+import { isThinCompanyResearch } from "./fit";
+import { toSafeAnalysis } from "./analysis";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
   Provider,
@@ -391,19 +392,22 @@ export function sanitizeAnalysis(
     sources,
   };
 
-  return {
-    ...parsed,
-    fit: sanitizeFit(parsed.fit),
-    company,
-    suggestions,
-    missingFacts: parsed.missingFacts ?? [],
-    research: {
-      attempted: researchAttempted,
-      thin: isThinCompanyResearch(company, researchAttempted),
-      ...(researchIssue ? { issue: researchIssue } : {}),
-    },
-    generatedAt: new Date().toISOString(),
+  const research = {
+    attempted: researchAttempted,
+    thin: isThinCompanyResearch(company, researchAttempted),
+    ...(researchIssue ? { issue: researchIssue } : {}),
   };
+  return toSafeAnalysis(
+    {
+      ...parsed,
+      company,
+      suggestions,
+      missingFacts: parsed.missingFacts ?? [],
+      research,
+      generatedAt: new Date().toISOString(),
+    },
+    snapshot,
+  );
 }
 
 /**
