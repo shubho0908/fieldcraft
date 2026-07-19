@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "next build",
+    "prebuild": "cd ../extension && bun run build && cd dist && rm -f ../../web/public/fieldcraft-extension.zip && zip -r ../../web/public/fieldcraft-extension.zip . -x '*.map'",
     "check": "tsc --noEmit",
     "dev": "next dev",
     "start": "next start"
