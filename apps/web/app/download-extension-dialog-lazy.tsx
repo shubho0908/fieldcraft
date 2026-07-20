@@ -1,5 +1,6 @@
 "use client";
 
+import { Chrome } from "lucide-react";
 import * as React from "react";
 
 const DownloadExtensionDialog = React.lazy(
@@ -41,6 +42,7 @@ export function LazyDownloadExtensionDialog({
   return (
     <>
       <button type="button" className={triggerClassName} onClick={handleClick}>
+        <Chrome size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />
         {triggerLabel}
       </button>
       {open && (
