@@ -35,6 +35,7 @@ import {
   defaultModelForProvider,
   preferredEvalReasoningEffort,
   reasoningEffortsForModel,
+  resolveMaxOutputTokens,
   resolveModel,
 } from "../lib/models";
 import type { CandidateProfile, ExtensionSettings } from "../types";
@@ -104,6 +105,7 @@ export default function ProfileEditor({
       reasoningEffort: ReasoningEffortSettingAuto,
       evalModel: model.id,
       evalReasoningEffort: ReasoningEffortSettingAuto,
+      maxOutputTokens: undefined,
     }));
     setApiKeyState("");
     setTestStatus("");
@@ -112,7 +114,7 @@ export default function ProfileEditor({
   function updateModel(modelId: string) {
     const model = resolveModel(modelId);
     setSettings((current) => {
-      const next = { ...current, model: model.id };
+      const next = { ...current, model: model.id, maxOutputTokens: undefined };
       if (
         next.reasoningEffort !== ReasoningEffortSettingAuto &&
         !model.supportedReasoningEfforts.includes(next.reasoningEffort)
@@ -131,6 +133,7 @@ export default function ProfileEditor({
       provider: Provider.Custom,
       model: prefixed,
       evalModel: prefixed,
+      maxOutputTokens: undefined,
     }));
   }
 
@@ -170,6 +173,17 @@ export default function ProfileEditor({
     setProfile((current) => ({
       ...current,
       voice: { ...current.voice, [key]: value },
+    }));
+  }
+
+  function updateMaxOutputTokens(value: string) {
+    const parsed = Number(value);
+    setSettings((current) => ({
+      ...current,
+      maxOutputTokens:
+        value.trim() === "" || Number.isNaN(parsed) || parsed <= 0
+          ? undefined
+          : Math.round(parsed),
     }));
   }
 
@@ -380,6 +394,7 @@ export default function ProfileEditor({
       updateCustomBaseUrl={updateCustomBaseUrl}
       updateEvalModel={updateEvalModel}
       updateProvider={updateProvider}
+      updateMaxOutputTokens={updateMaxOutputTokens}
       setResearchCompany={setResearchCompany}
       attachResume={(file) => void attachResume(file)}
       testConnection={() => void testConnection()}

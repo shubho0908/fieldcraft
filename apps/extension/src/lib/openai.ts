@@ -18,6 +18,7 @@ import {
   CONNECTION_TEST_REASONING_EFFORT,
   Provider,
   resolveAnalysisConfig,
+  resolveMaxOutputTokens,
   resolveModel,
 } from "./models";
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
@@ -388,7 +389,7 @@ export async function runJobAnalysis(
         prompt: input,
         instructions: customInstructions,
         tools: NO_MODEL_TOOLS,
-        maxOutputTokens: 14_000,
+        maxOutputTokens: resolveMaxOutputTokens(model.id, settings.maxOutputTokens),
         providerOptions,
       });
 
@@ -399,7 +400,7 @@ export async function runJobAnalysis(
         prompt: input,
         instructions: ANALYSIS_INSTRUCTIONS,
         tools: NO_MODEL_TOOLS,
-        maxOutputTokens: 14_000,
+        maxOutputTokens: resolveMaxOutputTokens(model.id, settings.maxOutputTokens),
         output: JOB_ANALYSIS_OUTPUT,
         providerOptions,
       });
