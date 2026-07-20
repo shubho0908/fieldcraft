@@ -68,7 +68,7 @@ const JOB_ANALYSIS_OUTPUT = Output.object({
  * This extractor looks for a fenced JSON block, then falls back to the
  * first balanced `{...}` object in the response.
  */
-function extractJsonObject(text: string): unknown {
+export function extractJsonObject(text: string): unknown {
   const trimmed = text.trim();
 
   // 1. Fenced JSON block, e.g. ```json\n{...}\n```

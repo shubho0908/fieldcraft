@@ -4,6 +4,7 @@ import {
   buildConnectionTestRequest,
   CONNECTION_TEST_MAX_OUTPUT_TOKENS,
   CONNECTION_TEST_PROMPT,
+  extractJsonObject,
   extractOutputText,
   normalizeSuggestion,
   OPENAI_RESPONSES_URL,
@@ -266,5 +267,25 @@ describe("sanitizeAnalysis", () => {
     expect(analysis.company.sources).toEqual([]);
     expect(analysis.research).toEqual({ attempted: true, thin: true });
     expect(analysis.suggestions).toHaveLength(1);
+  });
+});
+
+describe("extractJsonObject", () => {
+  it("parses a JSON object wrapped in a markdown code fence", () => {
+    const text = `Some reasoning text.\n\`\`\`json\n{"score": 75, "verdict": "Good fit"}\n\`\`\``;
+    const parsed = extractJsonObject(text) as { score: number; verdict: string };
+    expect(parsed.score).toBe(75);
+    expect(parsed.verdict).toBe("Good fit");
+  });
+
+  it("parses an inline JSON object surrounded by explanatory text", () => {
+    const text = `Let me analyze this job posting carefully.\n\n{"score": 42, "verdict": "Poor fit"}\n\nHope this helps!`;
+    const parsed = extractJsonObject(text) as { score: number; verdict: string };
+    expect(parsed.score).toBe(42);
+    expect(parsed.verdict).toBe("Poor fit");
+  });
+
+  it("throws when no JSON object is present", () => {
+    expect(() => extractJsonObject("No JSON here.")).toThrow(/No JSON object/);
   });
 });
