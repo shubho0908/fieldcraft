@@ -209,6 +209,16 @@ function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSe
     }
   }
 
+  // Drop bogus maxOutputTokens overrides; the call site resolves a safe default.
+  if (
+    typeof settings.maxOutputTokens !== "undefined" &&
+    (typeof settings.maxOutputTokens !== "number" ||
+      !Number.isFinite(settings.maxOutputTokens) ||
+      settings.maxOutputTokens <= 0)
+  ) {
+    settings.maxOutputTokens = undefined;
+  }
+
   return settings;
 }
 

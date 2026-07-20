@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { generateText } from "ai";
 import {
   assertLiveConnectionResult,
   buildConnectionTestRequest,
@@ -10,9 +11,24 @@ import {
   formatAnalysisError,
   normalizeSuggestion,
   OPENAI_RESPONSES_URL,
+  runJobAnalysis,
   sanitizeAnalysis,
 } from "./openai";
-import type { PageField, PageSnapshot } from "../types";
+import { createAiModel } from "./ai-provider";
+import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
+import type { ExtensionSettings, PageSnapshot } from "../types";
+import { Provider } from "./models";
+
+vi.mock("ai", () => ({
+  generateText: vi.fn(),
+  jsonSchema: (schema: unknown) => schema,
+  Output: { object: (config: { schema: unknown }) => config.schema },
+}));
+
+vi.mock("./ai-provider", () => ({
+  createAiModel: vi.fn(() => ({ id: "fake-model" })),
+}));
+import type { PageField } from "../types";
 import {
   Confidence,
   FitVerdict,
@@ -23,7 +39,6 @@ import {
 import {
   CONNECTION_TEST_REASONING_EFFORT,
   DEFAULT_MODEL_ID,
-  Provider,
 } from "./models";
 
 describe("live connection probe", () => {
@@ -403,5 +418,146 @@ describe("formatAnalysisError", () => {
       Provider.OpenAI,
     );
     expect(message).toMatch(/API key was rejected/i);
+  });
+});
+
+const baseSnapshot: PageSnapshot = {
+  title: "Engineer",
+  url: "https://jobs.example.com/1",
+  hostname: "jobs.example.com",
+  ats: "Generic",
+  headings: [],
+  pageText: "Build product.",
+  fields: [],
+  capturedAt: new Date().toISOString(),
+};
+
+const baseProfile = DEFAULT_PROFILE;
+
+const baseSettings: ExtensionSettings = {
+  ...DEFAULT_SETTINGS,
+  provider: Provider.OpenAI,
+  model: DEFAULT_MODEL_ID,
+  researchCompany: false,
+};
+
+const validAnalysisOutput = {
+  job: {
+    company: "Acme",
+    role: "Engineer",
+    location: "",
+    employmentType: "",
+    seniority: "",
+    summary: "",
+    requirements: [],
+    responsibilities: [],
+    keywords: [],
+    compensation: "",
+    remotePolicy: "",
+  },
+  fit: {
+    score: 75,
+    verdict: "strong",
+    strongestMatches: [],
+    gaps: [],
+    hardBlockers: [],
+    recommendation: "Good fit.",
+  },
+  company: {
+    summary: "",
+    product: "",
+    stage: "",
+    size: "",
+    funding: "",
+    engineeringSignals: [],
+    risks: [],
+    sources: [],
+  },
+  suggestions: [],
+  missingFacts: [],
+};
+
+describe("runJobAnalysis max output tokens", () => {
+  it("uses the model catalog default for built-in providers", async () => {
+    const generate = vi.mocked(generateText);
+    generate.mockResolvedValueOnce({
+      output: validAnalysisOutput,
+      finishReason: "stop",
+      response: { id: "resp-1" },
+    } as never);
+
+    await runJobAnalysis(baseSnapshot, baseProfile, baseSettings, {
+      apiKey: "sk-test",
+      installId: "install-1",
+    });
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
+    expect(call.maxOutputTokens).toBe(16_384);
+    expect(createAiModel).toHaveBeenCalledWith(
+      expect.objectContaining({ model: expect.objectContaining({ id: DEFAULT_MODEL_ID }) }),
+    );
+  });
+
+  it("uses the user override when provided", async () => {
+    const generate = vi.mocked(generateText);
+    generate.mockResolvedValueOnce({
+      output: validAnalysisOutput,
+      finishReason: "stop",
+      response: { id: "resp-2" },
+    } as never);
+
+    await runJobAnalysis(baseSnapshot, baseProfile, {
+      ...baseSettings,
+      maxOutputTokens: 4_096,
+    }, {
+      apiKey: "sk-test",
+      installId: "install-1",
+    });
+
+    const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
+    expect(call.maxOutputTokens).toBe(4_096);
+  });
+
+  it("defaults custom providers to 4096", async () => {
+    const generate = vi.mocked(generateText);
+    generate.mockResolvedValueOnce({
+      text: JSON.stringify(validAnalysisOutput),
+      finishReason: "stop",
+      response: { id: "resp-3" },
+    } as never);
+
+    await runJobAnalysis(baseSnapshot, baseProfile, {
+      ...baseSettings,
+      provider: Provider.Custom,
+      model: "custom:sarvam-105b",
+      customBaseUrl: "https://api.sarvam.ai/v1",
+    }, {
+      apiKey: "sk-test",
+      installId: "install-1",
+    });
+
+    const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
+    expect(call.maxOutputTokens).toBe(4_096);
+  });
+
+  it("clamps built-in overrides to the catalog maximum", async () => {
+    const generate = vi.mocked(generateText);
+    generate.mockResolvedValueOnce({
+      output: validAnalysisOutput,
+      finishReason: "stop",
+      response: { id: "resp-4" },
+    } as never);
+
+    await runJobAnalysis(baseSnapshot, baseProfile, {
+      ...baseSettings,
+      maxOutputTokens: 1_000_000,
+    }, {
+      apiKey: "sk-test",
+      installId: "install-1",
+    });
+
+    const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
+    expect(call.maxOutputTokens).toBe(16_384);
   });
 });

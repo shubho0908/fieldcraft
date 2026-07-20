@@ -5,11 +5,13 @@ import {
   ReasoningEffortSettingAuto,
 } from "./enums";
 import {
+  CUSTOM_MODEL_PREFIX,
   DEFAULT_MODEL_ID,
   GEMINI_MODELS,
   isKnownModel,
   OPENAI_MODELS,
   resolveAnalysisConfig,
+  resolveMaxOutputTokens,
   resolveModel,
   resolveReasoningEffort,
   reasoningEffortsForModel,
@@ -122,5 +124,31 @@ describe("reasoning resolution", () => {
     expect(isKnownModel(OpenAiModelId.Gpt56Terra)).toBe(true);
     expect(isKnownModel("gpt-5.5-pro")).toBe(true);
     expect(isKnownModel("gpt-5.4")).toBe(false);
+  });
+});
+
+describe("max output token resolution", () => {
+  it("uses the model catalog default when no override is provided", () => {
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra)).toBe(16_384);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt55)).toBe(8_192);
+    expect(resolveMaxOutputTokens("gemini-3.5-flash")).toBe(8_192);
+  });
+
+  it("clamps built-in model overrides to the catalog maximum", () => {
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, 100_000)).toBe(16_384);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, 4_096)).toBe(4_096);
+  });
+
+  it("defaults custom models to 4096 and allows user overrides", () => {
+    const customId = `${CUSTOM_MODEL_PREFIX}sarvam-105b` as const;
+    expect(resolveMaxOutputTokens(customId)).toBe(4_096);
+    expect(resolveMaxOutputTokens(customId, 8_192)).toBe(8_192);
+    expect(resolveMaxOutputTokens(customId, 2_000_000)).toBe(1_000_000);
+  });
+
+  it("ignores invalid overrides and falls back to the default", () => {
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, -1)).toBe(16_384);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, NaN)).toBe(16_384);
+    expect(resolveMaxOutputTokens("not-a-model")).toBe(16_384);
   });
 });

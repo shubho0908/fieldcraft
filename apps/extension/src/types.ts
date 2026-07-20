@@ -73,6 +73,8 @@ export interface ExtensionSettings {
   evalReasoningEffort: ReasoningEffortSetting;
   /** Base URL for an OpenAI-compatible custom provider (e.g. Fireworks, Together, Groq, OpenRouter). */
   customBaseUrl: string;
+  /** Optional per-model override for the maximum output tokens. Falls back to the model catalog default. */
+  maxOutputTokens?: number;
   researchCompany: boolean;
   rememberApiKey: boolean;
   /** Whether to analyze with AI or fill fields directly from the profile. */

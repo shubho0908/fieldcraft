@@ -46,6 +46,8 @@ export interface ModelOption {
   description: string;
   defaultReasoningEffort: ReasoningEffortType;
   supportedReasoningEfforts: readonly ReasoningEffortType[];
+  /** Default max output tokens for this model. Used when the user has not set an override. */
+  maxOutputTokens: number;
 }
 
 /** @deprecated Use ModelOption */
@@ -128,6 +130,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     description: "Balanced quality and cost",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
+    maxOutputTokens: 16_384,
   },
   {
     provider: Provider.OpenAI,
@@ -136,6 +139,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     description: "Best quality",
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
+    maxOutputTokens: 16_384,
   },
   {
     provider: Provider.OpenAI,
@@ -144,6 +148,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     description: "Lowest cost",
     defaultReasoningEffort: ReasoningEffort.Low,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
+    maxOutputTokens: 16_384,
   },
   {
     provider: Provider.OpenAI,
@@ -152,6 +157,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     description: "Prior frontier, stable fallback",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_5_EFFORTS,
+    maxOutputTokens: 8_192,
   },
   {
     provider: Provider.OpenAI,
@@ -160,6 +166,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     description: "Highest-quality GPT-5.5 analysis",
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: GPT_5_5_PRO_EFFORTS,
+    maxOutputTokens: 8_192,
   },
 ] as const;
 
@@ -172,6 +179,7 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
     description: "Most capable Gemini reasoning model",
     defaultReasoningEffort: ReasoningEffort.None,
     supportedReasoningEfforts: [],
+    maxOutputTokens: 8_192,
   },
   {
     provider: Provider.Gemini,
@@ -180,6 +188,7 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
     description: "Frontier performance at higher speed",
     defaultReasoningEffort: ReasoningEffort.None,
     supportedReasoningEfforts: [],
+    maxOutputTokens: 8_192,
   },
   {
     provider: Provider.Gemini,
@@ -188,6 +197,7 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
     description: "Fast, economical high-volume analysis",
     defaultReasoningEffort: ReasoningEffort.None,
     supportedReasoningEfforts: [],
+    maxOutputTokens: 8_192,
   },
 ] as const;
 
@@ -199,6 +209,7 @@ const CUSTOM_MODEL_PLACEHOLDER: ModelOption = {
   description: "Any OpenAI-compatible endpoint (Fireworks, Together, Groq, OpenRouter…)",
   defaultReasoningEffort: ReasoningEffort.None,
   supportedReasoningEfforts: [ReasoningEffort.None],
+  maxOutputTokens: 4_096,
 } as const;
 
 /** Combined catalog used by the UI and runtime. */
@@ -326,6 +337,41 @@ export function preferredEvalReasoningEffort(
     return DEFAULT_EVAL_REASONING_EFFORT;
   }
   return model.defaultReasoningEffort;
+}
+
+/** Hard sanity ceiling for any user-supplied max output tokens value. */
+const MAX_OUTPUT_TOKENS_SANITY = 1_000_000;
+
+/**
+ * Resolve the maximum output tokens for a model.
+ *
+ * Built-in models are capped to their catalog default so users cannot accidentally
+ * exceed a known provider limit. Custom providers are unknown and subscription-tier
+ * dependent, so we default to a conservative value (4096) and allow the user to
+ * raise it if their endpoint supports more.
+ */
+export function resolveMaxOutputTokens(
+  modelId: string,
+  userValue?: number,
+): number {
+  const model = resolveModel(modelId);
+  const userMax =
+    typeof userValue === "number" && Number.isFinite(userValue) && userValue > 0
+      ? Math.round(userValue)
+      : undefined;
+
+  if (model.provider === Provider.Custom) {
+    return Math.min(
+      userMax ?? model.maxOutputTokens,
+      MAX_OUTPUT_TOKENS_SANITY,
+    );
+  }
+
+  return Math.min(
+    userMax ?? model.maxOutputTokens,
+    model.maxOutputTokens,
+    MAX_OUTPUT_TOKENS_SANITY,
+  );
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   customModelId,
   isCustomModelId,
   modelsForProvider,
+  resolveMaxOutputTokens,
 } from "../lib/models";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
@@ -58,6 +59,7 @@ export type ProfileEditorFormProps = {
   updateCustomBaseUrl: (baseUrl: string) => void;
   updateEvalModel: (modelId: string) => void;
   updateProvider: (provider: Provider) => void;
+  updateMaxOutputTokens: (value: string) => void;
   setResearchCompany: (researchCompany: boolean) => void;
   attachResume: (file?: File) => void;
   testConnection: () => void;
@@ -102,6 +104,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     updateCustomBaseUrl,
     updateEvalModel,
     updateProvider,
+    updateMaxOutputTokens,
     setResearchCompany,
     attachResume,
     testConnection,
@@ -117,6 +120,10 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     : settings.provider === Provider.Gemini
       ? "Gemini"
       : "OpenAI";
+  const resolvedMaxOutputTokens = resolveMaxOutputTokens(
+    settings.model,
+    settings.maxOutputTokens,
+  );
 
   return (
     <main className={`profile-editor ${onboarding ? "onboarding" : "editing"}`}>
@@ -515,6 +522,19 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 </select>
               </Field>
             )}
+            <Field
+              label="Max output tokens"
+              hint={`Default for this model: ${resolvedMaxOutputTokens.toLocaleString()}. Lower values reduce cost; higher values allow longer outputs.`}
+            >
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={settings.maxOutputTokens ?? ""}
+                placeholder={String(resolvedMaxOutputTokens)}
+                onChange={(event) => updateMaxOutputTokens(event.target.value)}
+              />
+            </Field>
             {settings.provider === Provider.OpenAI && <Field
               label="Reasoning effort"
               hint="Reasoning effort · Auto uses the model default"
