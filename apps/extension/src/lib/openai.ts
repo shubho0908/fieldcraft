@@ -62,6 +62,57 @@ const JOB_ANALYSIS_OUTPUT = Output.object({
   name: "fieldcraft_job_analysis",
 });
 
+/**
+ * Many OpenAI-compatible providers do not support structured outputs or
+ * response_format, so they return the JSON as markdown or inline text.
+ * This extractor looks for a fenced JSON block, then falls back to the
+ * first balanced `{...}` object in the response.
+ */
+function extractJsonObject(text: string): unknown {
+  const trimmed = text.trim();
+
+  // 1. Fenced JSON block, e.g. ```json\n{...}\n```
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch?.[1]) {
+    return JSON.parse(fenceMatch[1].trim());
+  }
+
+  // 2. First balanced JSON object, respecting string boundaries.
+  const start = trimmed.indexOf("{");
+  if (start === -1) {
+    throw new Error("No JSON object found in the model response.");
+  }
+
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+  for (let i = start; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (c === "\\") {
+        escaped = true;
+      } else if (c === '"') {
+        inString = false;
+      }
+    } else {
+      if (c === '"') {
+        inString = true;
+      } else if (c === "{") {
+        depth++;
+      } else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          return JSON.parse(trimmed.slice(start, i + 1));
+        }
+      }
+    }
+  }
+
+  throw new Error("No complete JSON object found in the model response.");
+}
+
 export interface ConnectionTestResult {
   model: string;
   responseId?: string;
@@ -147,26 +198,47 @@ export async function runJobAnalysis(
     }
   }
 
-  const result = await generateText({
-    model: aiModel,
-    prompt: input,
-    instructions: ANALYSIS_INSTRUCTIONS,
-    tools: NO_MODEL_TOOLS,
-    maxOutputTokens: 14_000,
-    output: JOB_ANALYSIS_OUTPUT,
-    providerOptions:
-      model.provider === Provider.OpenAI
-        ? {
-            openai: {
-              store: false,
-              user: auth.installId,
-              reasoningEffort: config.reasoning.effort,
-            },
-          }
-        : undefined,
-  });
+  const providerOptions =
+    model.provider === Provider.OpenAI
+      ? {
+          openai: {
+            store: false,
+            user: auth.installId,
+            reasoningEffort: config.reasoning.effort,
+          },
+        }
+      : undefined;
 
-  const parsed = result.output as Omit<JobAnalysis, "generatedAt" | "research">;
+  let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
+
+  if (model.provider === Provider.Custom) {
+    // OpenAI-compatible providers often do not support response_format or
+    // structured outputs, so we ask for plain text and parse the JSON ourselves.
+    const customInstructions = `${ANALYSIS_INSTRUCTIONS}\n\nReturn your entire response as a single JSON object matching the following JSON Schema. Do not wrap it in markdown code fences and do not add any commentary before or after the JSON object.\n\n${JSON.stringify(JOB_ANALYSIS_SCHEMA, null, 2)}`;
+    const result = await generateText({
+      model: aiModel,
+      prompt: input,
+      instructions: customInstructions,
+      tools: NO_MODEL_TOOLS,
+      maxOutputTokens: 14_000,
+      providerOptions,
+    });
+
+    parsed = extractJsonObject(result.text) as Omit<JobAnalysis, "generatedAt" | "research">;
+  } else {
+    const result = await generateText({
+      model: aiModel,
+      prompt: input,
+      instructions: ANALYSIS_INSTRUCTIONS,
+      tools: NO_MODEL_TOOLS,
+      maxOutputTokens: 14_000,
+      output: JOB_ANALYSIS_OUTPUT,
+      providerOptions,
+    });
+
+    parsed = result.output as Omit<JobAnalysis, "generatedAt" | "research">;
+  }
+
   if (!parsed) {
     throw new Error("The model returned no analysis.");
   }
