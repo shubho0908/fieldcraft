@@ -52,6 +52,14 @@ export const metadata: Metadata = {
   },
 };
 
+function escapeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/'/g, "\\u0027");
+}
+
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
@@ -85,7 +93,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: escapeJsonLd(jsonLd) }}
         />
       </head>
       <body className={geist.variable}>{children}</body>
