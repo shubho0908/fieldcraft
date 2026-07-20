@@ -39,7 +39,7 @@ bun run --filter fieldcraft-web check
 
 - `bun run extension:dev` or `bun run --filter fieldcraft-extension dev`
 - Load `apps/extension/dist` in `chrome://extensions` (Developer mode, Load unpacked).
-- The side panel opens with `Alt+F` / `Option+F` or the toolbar icon.
+- The side panel opens with `Ctrl+Shift+F` (Windows) / `Option+F` (macOS) or the toolbar icon.
 - Tests/evals: `bun run --filter fieldcraft-extension eval` or `OPENAI_API_KEY=... bun run --filter fieldcraft-extension eval:live`.
 
 ## Web app

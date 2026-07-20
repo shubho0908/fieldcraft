@@ -66,7 +66,7 @@ You can also `cd apps/extension` or `cd apps/web` and run that package’s scrip
 1. `bun run extension:dev`
 2. Open `chrome://extensions`, enable **Developer mode**, **Load unpacked**
 3. Select the CRXJS / Vite output directory shown in the terminal (typically `apps/extension/dist`)
-4. Open a job page and use **⌥F** / **Alt+F** (or the toolbar icon) to open the side panel
+4. Open a job page and use **⌥F** (macOS) / **Ctrl+Shift+F** (Windows) (or the toolbar icon) to open the side panel
 
 ### Production build
 
