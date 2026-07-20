@@ -2,7 +2,7 @@
 
 > Fieldcraft is a local-first Chrome extension and the careful application copilot. It reads the open job tab, evaluates fit against your profile, researches the company, and drafts truthful answers for you to review before any form is filled.
 
-This single-page site describes the product, shows a walkthrough, and links to the Chrome extension download.
+This single-page site describes the product, shows a walkthrough, and links to the Chrome extension download on GitHub Releases.
 
 ## Pages
 
