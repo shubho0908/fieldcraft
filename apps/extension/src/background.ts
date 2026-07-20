@@ -61,7 +61,7 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
   }
 });
 
-// Alt+F / Option+F — open or close the Fieldcraft side panel.
+// Ctrl+Shift+F (Windows) / Option+F (macOS) — open or close the Fieldcraft side panel.
 chrome.commands.onCommand.addListener((command) => {
   if (command !== SIDE_PANEL_TOGGLE_COMMAND) return;
 
