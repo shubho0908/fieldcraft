@@ -4,9 +4,11 @@ import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
 import { createAiModel } from "./ai-provider";
 import {
   Confidence,
+  FitVerdict,
   PageFieldKind,
   SuggestionAction,
   isConfidence,
+  isFitVerdict,
   isSuggestionAction,
 } from "./enums";
 import { isChoiceField, optionMatches } from "./fields";
@@ -61,6 +63,222 @@ const JOB_ANALYSIS_OUTPUT = Output.object({
   schema: jsonSchema(JOB_ANALYSIS_SCHEMA as unknown as JSONSchema7),
   name: "fieldcraft_job_analysis",
 });
+
+/**
+ * Many OpenAI-compatible providers do not support structured outputs or
+ * response_format, so they return the JSON as markdown or inline text.
+ * This extractor looks for a fenced JSON block, then falls back to the
+ * first balanced `{...}` object in the response.
+ */
+export function extractJsonObject(text: string): unknown {
+  const trimmed = text.trim();
+
+  // 1. Fenced JSON block, e.g. ```json\n{...}\n```
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch?.[1]) {
+    return JSON.parse(fenceMatch[1].trim());
+  }
+
+  // 2. First balanced JSON object, respecting string boundaries.
+  const start = trimmed.indexOf("{");
+  if (start === -1) {
+    throw new Error("No JSON object found in the model response.");
+  }
+
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+  for (let i = start; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (c === "\\") {
+        escaped = true;
+      } else if (c === '"') {
+        inString = false;
+      }
+    } else {
+      if (c === '"') {
+        inString = true;
+      } else if (c === "{") {
+        depth++;
+      } else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          return JSON.parse(trimmed.slice(start, i + 1));
+        }
+      }
+    }
+  }
+
+  throw new Error("No complete JSON object found in the model response.");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+/**
+ * Some models (especially custom OpenAI-compatible ones) return a JSON object
+ * with the same semantic content but different key names or a flattened shape.
+ * Coerce the most common variants into the canonical JobAnalysis schema before
+ * sanitization so a malformed-but-correct model still produces a usable result.
+ */
+export function coerceAnalysisOutput(
+  raw: unknown,
+): Omit<JobAnalysis, "generatedAt" | "research"> {
+  if (!isRecord(raw)) {
+    throw new Error("The model response was not a JSON object.");
+  }
+
+  const fitRaw = isRecord(raw.fit) ? raw.fit : raw;
+  const fit: JobAnalysis["fit"] = {
+    score:
+      typeof fitRaw.score === "number"
+        ? fitRaw.score
+        : typeof fitRaw.fitScore === "number"
+          ? fitRaw.fitScore
+          : 0,
+    verdict:
+      typeof fitRaw.verdict === "string" && isFitVerdict(fitRaw.verdict)
+        ? fitRaw.verdict
+        : FitVerdict.Weak,
+    strongestMatches: asStringList(fitRaw.strongestMatches),
+    gaps: asStringList(fitRaw.gaps),
+    hardBlockers: asStringList(fitRaw.hardBlockers),
+    recommendation: String(
+      fitRaw.recommendation ??
+        (!isRecord(raw.fit) ? raw.summary : undefined) ??
+        "",
+    ),
+  };
+
+  const rawCompany = isRecord(raw.company) ? raw.company : undefined;
+  const company: JobAnalysis["company"] = {
+    summary: String(rawCompany?.summary ?? rawCompany?.industry ?? ""),
+    product: String(rawCompany?.product ?? rawCompany?.locationPolicy ?? ""),
+    stage: String(rawCompany?.stage ?? ""),
+    size: String(rawCompany?.size ?? ""),
+    funding: String(rawCompany?.funding ?? rawCompany?.compensation ?? ""),
+    engineeringSignals: asStringList(rawCompany?.engineeringSignals),
+    risks: asStringList(rawCompany?.risks),
+    sources: Array.isArray(rawCompany?.sources)
+      ? (rawCompany.sources as unknown[]).filter(
+          (source): source is { title: string; url: string } =>
+            isRecord(source) &&
+            typeof source.title === "string" &&
+            typeof source.url === "string",
+        )
+      : [],
+  };
+
+  const suggestions = Array.isArray(raw.suggestions)
+    ? raw.suggestions
+    : Array.isArray(raw.fieldSuggestions)
+      ? raw.fieldSuggestions
+      : [];
+
+  const rawJob = isRecord(raw.job) ? raw.job : undefined;
+  const job: JobAnalysis["job"] = {
+    company: String(
+      rawJob?.company ??
+        (rawCompany?.name ? String(rawCompany.name) : undefined) ??
+        "",
+    ),
+    role: String(rawJob?.role ?? ""),
+    location: String(rawJob?.location ?? ""),
+    employmentType: String(rawJob?.employmentType ?? ""),
+    seniority: String(rawJob?.seniority ?? ""),
+    summary: String(rawJob?.summary ?? ""),
+    requirements: asStringList(rawJob?.requirements),
+    responsibilities: asStringList(rawJob?.responsibilities),
+    keywords: asStringList(rawJob?.keywords),
+    compensation: String(
+      rawJob?.compensation ?? rawCompany?.compensation ?? "",
+    ),
+    remotePolicy: String(rawJob?.remotePolicy ?? ""),
+  };
+
+  return {
+    fit,
+    job,
+    company,
+    suggestions: suggestions as FieldSuggestion[],
+    missingFacts: asStringList(raw.missingFacts),
+  };
+}
+
+/**
+ * Turn SDK and parser errors into actionable user-facing messages. Preserves
+ * the original message when it already explains a clear provider failure.
+ */
+export function formatAnalysisError(error: unknown, provider: Provider): string {
+  const base = error instanceof Error ? error.message : String(error);
+  const isCustom = provider === Provider.Custom;
+
+  if (
+    base.includes("No JSON object") ||
+    base.includes("No complete JSON object") ||
+    base.includes("JSON Parse") ||
+    base.includes("Unexpected token") ||
+    base.includes("is not valid JSON") ||
+    base.includes("No object generated")
+  ) {
+    return isCustom
+      ? "The custom model did not return a valid JSON object. Make sure the model supports JSON output and is not adding commentary outside the JSON, then try again."
+      : "The model did not return a valid JSON response. Try again or switch to a model that supports structured outputs.";
+  }
+
+  if (
+    base.includes("was not a JSON object") ||
+    base.includes("does not match") ||
+    base.includes("response shape")
+  ) {
+    return isCustom
+      ? "The custom model returned JSON, but it does not match the expected Fieldcraft output shape. Try a model that follows the requested JSON schema, or use the OpenAI/Gemini provider."
+      : "The model returned an unexpected response shape. Try again or switch models.";
+  }
+
+  if (
+    base.includes("401") ||
+    base.includes("Unauthorized") ||
+    base.includes("Incorrect API key")
+  ) {
+    return isCustom
+      ? "The custom provider rejected the API key. Check your key in Settings."
+      : `The ${providerLabel(provider)} API key was rejected. Check your key in Settings.`;
+  }
+
+  if (
+    base.includes("fetch failed") ||
+    base.includes("ECONNREFUSED") ||
+    base.includes("ENOTFOUND") ||
+    base.includes("getaddrinfo") ||
+    base.includes("Connection refused")
+  ) {
+    return isCustom
+      ? "Could not reach the custom provider endpoint. Check the Base URL in Settings and make sure the service is online."
+      : "Could not reach the provider. Check your network and try again.";
+  }
+
+  if (base.includes("429") || base.includes("Too Many Requests") || base.includes("rate limit")) {
+    return isCustom
+      ? "The custom provider is rate-limiting requests. Wait a moment and try again."
+      : "The provider is rate-limiting requests. Wait a moment and try again.";
+  }
+
+  if (isCustom) {
+    return `The custom provider returned an error: ${base}`;
+  }
+
+  return `Analysis request failed: ${base}`;
+}
 
 export interface ConnectionTestResult {
   model: string;
@@ -147,26 +365,51 @@ export async function runJobAnalysis(
     }
   }
 
-  const result = await generateText({
-    model: aiModel,
-    prompt: input,
-    instructions: ANALYSIS_INSTRUCTIONS,
-    tools: NO_MODEL_TOOLS,
-    maxOutputTokens: 14_000,
-    output: JOB_ANALYSIS_OUTPUT,
-    providerOptions:
-      model.provider === Provider.OpenAI
-        ? {
-            openai: {
-              store: false,
-              user: auth.installId,
-              reasoningEffort: config.reasoning.effort,
-            },
-          }
-        : undefined,
-  });
+  const providerOptions =
+    model.provider === Provider.OpenAI
+      ? {
+          openai: {
+            store: false,
+            user: auth.installId,
+            reasoningEffort: config.reasoning.effort,
+          },
+        }
+      : undefined;
 
-  const parsed = result.output as Omit<JobAnalysis, "generatedAt" | "research">;
+  let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
+
+  try {
+    if (model.provider === Provider.Custom) {
+      // OpenAI-compatible providers often do not support response_format or
+      // structured outputs, so we ask for plain text and parse the JSON ourselves.
+      const customInstructions = `${ANALYSIS_INSTRUCTIONS}\n\nReturn your entire response as a single JSON object matching the following JSON Schema. Do not wrap it in markdown code fences and do not add any commentary before or after the JSON object.\n\n${JSON.stringify(JOB_ANALYSIS_SCHEMA, null, 2)}`;
+      const result = await generateText({
+        model: aiModel,
+        prompt: input,
+        instructions: customInstructions,
+        tools: NO_MODEL_TOOLS,
+        maxOutputTokens: 14_000,
+        providerOptions,
+      });
+
+      parsed = coerceAnalysisOutput(extractJsonObject(result.text));
+    } else {
+      const result = await generateText({
+        model: aiModel,
+        prompt: input,
+        instructions: ANALYSIS_INSTRUCTIONS,
+        tools: NO_MODEL_TOOLS,
+        maxOutputTokens: 14_000,
+        output: JOB_ANALYSIS_OUTPUT,
+        providerOptions,
+      });
+
+      parsed = coerceAnalysisOutput(result.output);
+    }
+  } catch (error) {
+    throw new Error(formatAnalysisError(error, model.provider));
+  }
+
   if (!parsed) {
     throw new Error("The model returned no analysis.");
   }
