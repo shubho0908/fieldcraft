@@ -214,6 +214,72 @@ export function coerceAnalysisOutput(
   };
 }
 
+/**
+ * Turn SDK and parser errors into actionable user-facing messages. Preserves
+ * the original message when it already explains a clear provider failure.
+ */
+export function formatAnalysisError(error: unknown, provider: Provider): string {
+  const base = error instanceof Error ? error.message : String(error);
+  const isCustom = provider === Provider.Custom;
+
+  if (
+    base.includes("No JSON object") ||
+    base.includes("No complete JSON object") ||
+    base.includes("JSON Parse") ||
+    base.includes("Unexpected token") ||
+    base.includes("is not valid JSON") ||
+    base.includes("No object generated")
+  ) {
+    return isCustom
+      ? "The custom model did not return a valid JSON object. Make sure the model supports JSON output and is not adding commentary outside the JSON, then try again."
+      : "The model did not return a valid JSON response. Try again or switch to a model that supports structured outputs.";
+  }
+
+  if (
+    base.includes("was not a JSON object") ||
+    base.includes("does not match") ||
+    base.includes("response shape")
+  ) {
+    return isCustom
+      ? "The custom model returned JSON, but it does not match the expected Fieldcraft output shape. Try a model that follows the requested JSON schema, or use the OpenAI/Gemini provider."
+      : "The model returned an unexpected response shape. Try again or switch models.";
+  }
+
+  if (
+    base.includes("401") ||
+    base.includes("Unauthorized") ||
+    base.includes("Incorrect API key")
+  ) {
+    return isCustom
+      ? "The custom provider rejected the API key. Check your key in Settings."
+      : `The ${providerLabel(provider)} API key was rejected. Check your key in Settings.`;
+  }
+
+  if (
+    base.includes("fetch failed") ||
+    base.includes("ECONNREFUSED") ||
+    base.includes("ENOTFOUND") ||
+    base.includes("getaddrinfo") ||
+    base.includes("Connection refused")
+  ) {
+    return isCustom
+      ? "Could not reach the custom provider endpoint. Check the Base URL in Settings and make sure the service is online."
+      : "Could not reach the provider. Check your network and try again.";
+  }
+
+  if (base.includes("429") || base.includes("Too Many Requests") || base.includes("rate limit")) {
+    return isCustom
+      ? "The custom provider is rate-limiting requests. Wait a moment and try again."
+      : "The provider is rate-limiting requests. Wait a moment and try again.";
+  }
+
+  if (isCustom) {
+    return `The custom provider returned an error: ${base}`;
+  }
+
+  return `Analysis request failed: ${base}`;
+}
+
 export interface ConnectionTestResult {
   model: string;
   responseId?: string;
@@ -312,32 +378,36 @@ export async function runJobAnalysis(
 
   let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
 
-  if (model.provider === Provider.Custom) {
-    // OpenAI-compatible providers often do not support response_format or
-    // structured outputs, so we ask for plain text and parse the JSON ourselves.
-    const customInstructions = `${ANALYSIS_INSTRUCTIONS}\n\nReturn your entire response as a single JSON object matching the following JSON Schema. Do not wrap it in markdown code fences and do not add any commentary before or after the JSON object.\n\n${JSON.stringify(JOB_ANALYSIS_SCHEMA, null, 2)}`;
-    const result = await generateText({
-      model: aiModel,
-      prompt: input,
-      instructions: customInstructions,
-      tools: NO_MODEL_TOOLS,
-      maxOutputTokens: 14_000,
-      providerOptions,
-    });
+  try {
+    if (model.provider === Provider.Custom) {
+      // OpenAI-compatible providers often do not support response_format or
+      // structured outputs, so we ask for plain text and parse the JSON ourselves.
+      const customInstructions = `${ANALYSIS_INSTRUCTIONS}\n\nReturn your entire response as a single JSON object matching the following JSON Schema. Do not wrap it in markdown code fences and do not add any commentary before or after the JSON object.\n\n${JSON.stringify(JOB_ANALYSIS_SCHEMA, null, 2)}`;
+      const result = await generateText({
+        model: aiModel,
+        prompt: input,
+        instructions: customInstructions,
+        tools: NO_MODEL_TOOLS,
+        maxOutputTokens: 14_000,
+        providerOptions,
+      });
 
-    parsed = coerceAnalysisOutput(extractJsonObject(result.text));
-  } else {
-    const result = await generateText({
-      model: aiModel,
-      prompt: input,
-      instructions: ANALYSIS_INSTRUCTIONS,
-      tools: NO_MODEL_TOOLS,
-      maxOutputTokens: 14_000,
-      output: JOB_ANALYSIS_OUTPUT,
-      providerOptions,
-    });
+      parsed = coerceAnalysisOutput(extractJsonObject(result.text));
+    } else {
+      const result = await generateText({
+        model: aiModel,
+        prompt: input,
+        instructions: ANALYSIS_INSTRUCTIONS,
+        tools: NO_MODEL_TOOLS,
+        maxOutputTokens: 14_000,
+        output: JOB_ANALYSIS_OUTPUT,
+        providerOptions,
+      });
 
-    parsed = coerceAnalysisOutput(result.output);
+      parsed = coerceAnalysisOutput(result.output);
+    }
+  } catch (error) {
+    throw new Error(formatAnalysisError(error, model.provider));
   }
 
   if (!parsed) {

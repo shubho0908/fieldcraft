@@ -7,6 +7,7 @@ import {
   coerceAnalysisOutput,
   extractJsonObject,
   extractOutputText,
+  formatAnalysisError,
   normalizeSuggestion,
   OPENAI_RESPONSES_URL,
   sanitizeAnalysis,
@@ -22,6 +23,7 @@ import {
 import {
   CONNECTION_TEST_REASONING_EFFORT,
   DEFAULT_MODEL_ID,
+  Provider,
 } from "./models";
 
 describe("live connection probe", () => {
@@ -375,5 +377,31 @@ describe("coerceAnalysisOutput", () => {
     expect(parsed.fit.score).toBe(75);
     expect(parsed.fit.verdict).toBe("strong");
     expect(parsed.job.company).toBe("Acme");
+  });
+});
+
+describe("formatAnalysisError", () => {
+  it("explains custom provider JSON parse failures", () => {
+    const message = formatAnalysisError(
+      new Error("No JSON object found in the model response."),
+      Provider.Custom,
+    );
+    expect(message).toMatch(/custom model did not return a valid JSON object/i);
+  });
+
+  it("explains custom provider endpoint errors", () => {
+    const message = formatAnalysisError(
+      new Error("fetch failed: ECONNREFUSED"),
+      Provider.Custom,
+    );
+    expect(message).toMatch(/could not reach the custom provider endpoint/i);
+  });
+
+  it("explains built-in provider authentication errors", () => {
+    const message = formatAnalysisError(
+      new Error("401 Unauthorized"),
+      Provider.OpenAI,
+    );
+    expect(message).toMatch(/API key was rejected/i);
   });
 });
