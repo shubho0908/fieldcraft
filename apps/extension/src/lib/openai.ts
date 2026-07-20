@@ -4,9 +4,11 @@ import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
 import { createAiModel } from "./ai-provider";
 import {
   Confidence,
+  FitVerdict,
   PageFieldKind,
   SuggestionAction,
   isConfidence,
+  isFitVerdict,
   isSuggestionAction,
 } from "./enums";
 import { isChoiceField, optionMatches } from "./fields";
@@ -111,6 +113,105 @@ export function extractJsonObject(text: string): unknown {
   }
 
   throw new Error("No complete JSON object found in the model response.");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+/**
+ * Some models (especially custom OpenAI-compatible ones) return a JSON object
+ * with the same semantic content but different key names or a flattened shape.
+ * Coerce the most common variants into the canonical JobAnalysis schema before
+ * sanitization so a malformed-but-correct model still produces a usable result.
+ */
+export function coerceAnalysisOutput(
+  raw: unknown,
+): Omit<JobAnalysis, "generatedAt" | "research"> {
+  if (!isRecord(raw)) {
+    throw new Error("The model response was not a JSON object.");
+  }
+
+  const fitRaw = isRecord(raw.fit) ? raw.fit : raw;
+  const fit: JobAnalysis["fit"] = {
+    score:
+      typeof fitRaw.score === "number"
+        ? fitRaw.score
+        : typeof fitRaw.fitScore === "number"
+          ? fitRaw.fitScore
+          : 0,
+    verdict:
+      typeof fitRaw.verdict === "string" && isFitVerdict(fitRaw.verdict)
+        ? fitRaw.verdict
+        : FitVerdict.Weak,
+    strongestMatches: asStringList(fitRaw.strongestMatches),
+    gaps: asStringList(fitRaw.gaps),
+    hardBlockers: asStringList(fitRaw.hardBlockers),
+    recommendation: String(
+      fitRaw.recommendation ??
+        (!isRecord(raw.fit) ? raw.summary : undefined) ??
+        "",
+    ),
+  };
+
+  const rawCompany = isRecord(raw.company) ? raw.company : undefined;
+  const company: JobAnalysis["company"] = {
+    summary: String(rawCompany?.summary ?? rawCompany?.industry ?? ""),
+    product: String(rawCompany?.product ?? rawCompany?.locationPolicy ?? ""),
+    stage: String(rawCompany?.stage ?? ""),
+    size: String(rawCompany?.size ?? ""),
+    funding: String(rawCompany?.funding ?? rawCompany?.compensation ?? ""),
+    engineeringSignals: asStringList(rawCompany?.engineeringSignals),
+    risks: asStringList(rawCompany?.risks),
+    sources: Array.isArray(rawCompany?.sources)
+      ? (rawCompany.sources as unknown[]).filter(
+          (source): source is { title: string; url: string } =>
+            isRecord(source) &&
+            typeof source.title === "string" &&
+            typeof source.url === "string",
+        )
+      : [],
+  };
+
+  const suggestions = Array.isArray(raw.suggestions)
+    ? raw.suggestions
+    : Array.isArray(raw.fieldSuggestions)
+      ? raw.fieldSuggestions
+      : [];
+
+  const rawJob = isRecord(raw.job) ? raw.job : undefined;
+  const job: JobAnalysis["job"] = {
+    company: String(
+      rawJob?.company ??
+        (rawCompany?.name ? String(rawCompany.name) : undefined) ??
+        "",
+    ),
+    role: String(rawJob?.role ?? ""),
+    location: String(rawJob?.location ?? ""),
+    employmentType: String(rawJob?.employmentType ?? ""),
+    seniority: String(rawJob?.seniority ?? ""),
+    summary: String(rawJob?.summary ?? ""),
+    requirements: asStringList(rawJob?.requirements),
+    responsibilities: asStringList(rawJob?.responsibilities),
+    keywords: asStringList(rawJob?.keywords),
+    compensation: String(
+      rawJob?.compensation ?? rawCompany?.compensation ?? "",
+    ),
+    remotePolicy: String(rawJob?.remotePolicy ?? ""),
+  };
+
+  return {
+    fit,
+    job,
+    company,
+    suggestions: suggestions as FieldSuggestion[],
+    missingFacts: asStringList(raw.missingFacts),
+  };
 }
 
 export interface ConnectionTestResult {
@@ -224,7 +325,7 @@ export async function runJobAnalysis(
       providerOptions,
     });
 
-    parsed = extractJsonObject(result.text) as Omit<JobAnalysis, "generatedAt" | "research">;
+    parsed = coerceAnalysisOutput(extractJsonObject(result.text));
   } else {
     const result = await generateText({
       model: aiModel,
@@ -236,7 +337,7 @@ export async function runJobAnalysis(
       providerOptions,
     });
 
-    parsed = result.output as Omit<JobAnalysis, "generatedAt" | "research">;
+    parsed = coerceAnalysisOutput(result.output);
   }
 
   if (!parsed) {

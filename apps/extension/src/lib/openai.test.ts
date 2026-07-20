@@ -4,6 +4,7 @@ import {
   buildConnectionTestRequest,
   CONNECTION_TEST_MAX_OUTPUT_TOKENS,
   CONNECTION_TEST_PROMPT,
+  coerceAnalysisOutput,
   extractJsonObject,
   extractOutputText,
   normalizeSuggestion,
@@ -287,5 +288,92 @@ describe("extractJsonObject", () => {
 
   it("throws when no JSON object is present", () => {
     expect(() => extractJsonObject("No JSON here.")).toThrow(/No JSON object/);
+  });
+});
+
+describe("coerceAnalysisOutput", () => {
+  it("normalizes a flattened MiniMax-style response into the canonical schema", () => {
+    const raw = {
+      fitScore: 48,
+      verdict: "mixed",
+      summary: "Technical fit is strong.",
+      strongestMatches: ["LLM experience"],
+      gaps: ["Intern compensation"],
+      company: {
+        name: "LedgersCFO",
+        industry: "Accounting / Fintech",
+        size: "Unknown",
+        stage: "Unknown",
+        locationPolicy: "Bengaluru, 3 days/week",
+        compensation: "INR 15,000-30,000/month",
+        sources: [],
+      },
+      fieldSuggestions: [
+        {
+          fieldId: "field-1",
+          action: "fill",
+          value: "answer",
+          evidence: "profile",
+          warning: "",
+        },
+      ],
+      missingFacts: ["Candidate intent"],
+    };
+
+    const parsed = coerceAnalysisOutput(raw);
+
+    expect(parsed.fit.score).toBe(48);
+    expect(parsed.fit.strongestMatches).toEqual(["LLM experience"]);
+    expect(parsed.fit.recommendation).toBe("Technical fit is strong.");
+    expect(parsed.company.summary).toBe("Accounting / Fintech");
+    expect(parsed.company.funding).toBe("INR 15,000-30,000/month");
+    expect(parsed.suggestions).toHaveLength(1);
+    expect(parsed.suggestions[0].fieldId).toBe("field-1");
+    expect(parsed.missingFacts).toEqual(["Candidate intent"]);
+    expect(parsed.job.company).toBe("LedgersCFO");
+  });
+
+  it("passes through a canonical schema-shaped response unchanged", () => {
+    const canonical = {
+      fit: {
+        score: 75,
+        verdict: "strong",
+        strongestMatches: [],
+        gaps: [],
+        hardBlockers: [],
+        recommendation: "Good fit.",
+      },
+      job: {
+        company: "Acme",
+        role: "Engineer",
+        location: "",
+        employmentType: "",
+        seniority: "",
+        summary: "",
+        requirements: [],
+        responsibilities: [],
+        keywords: [],
+        compensation: "",
+        remotePolicy: "",
+      },
+      company: {
+        summary: "",
+        product: "",
+        stage: "",
+        size: "",
+        funding: "",
+        engineeringSignals: [],
+        risks: [],
+        sources: [],
+      },
+      suggestions: [],
+      missingFacts: [],
+    };
+
+    const parsed = coerceAnalysisOutput(canonical);
+
+    expect(parsed.fit.score).toBe(75);
+    expect(parsed.fit.verdict).toBe("strong");
+    expect(parsed.job.company).toBe("Acme");
   });
 });
