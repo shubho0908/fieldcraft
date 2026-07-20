@@ -4,14 +4,12 @@
   "version": "0.1.0",
   "scripts": {
     "build": "next build",
-    "prebuild": "cd ../extension && bun run build && cd dist && rm -f ../../web/public/fieldcraft-extension.zip && zip -r ../../web/public/fieldcraft-extension.zip . -x '*.map'",
     "check": "tsc --noEmit",
     "dev": "next dev",
     "start": "next start"
   },
   "dependencies": {
     "@gsap/react": "latest",
-    "@radix-ui/react-dialog": "^1.1.19",
     "gsap": "latest",
     "lucide-react": "^0.468.0",
     "next": "latest",

@@ -105,23 +105,9 @@ bun run --filter fieldcraft-web dev
 The landing page includes:
 
 - Product walkthrough / GSAP demo (desktop-oriented; small screens show a desktop-required message)
-- **Download extension** dialog with Chrome install steps
-- Proxy download API at `GET /api/extension/download`
+- **Download extension** link to the latest GitHub Release
 
-### Extension download delivery
-
-By default the download route streams the latest CI-published asset:
-
-`https://github.com/shubho0908/fieldcraft/releases/download/latest/fieldcraft-extension-latest.zip`
-
-Optional server-side override (stable object URL in S3, Cloudflare R2, etc.):
-
-```bash
-# apps/web/.env.local  (see apps/web/.env.example)
-EXTENSION_DOWNLOAD_URL=https://downloads.example.com/fieldcraft/latest.zip
-```
-
-Users: download ZIP → unzip → Chrome **Load unpacked** → select the folder that contains `manifest.json`.
+The download CTA points to `https://github.com/shubho0908/fieldcraft/releases/tag/latest`. Users download `fieldcraft-extension-latest.zip` from the release, unzip it, then in Chrome use **Load unpacked** and select the folder that contains `manifest.json`.
 
 ## Releases & CI
 

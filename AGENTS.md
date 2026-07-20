@@ -46,7 +46,7 @@ bun run --filter fieldcraft-web check
 
 - `bun run --filter fieldcraft-web dev` runs the Next.js 16 marketing site on `http://localhost:3000`.
 - Static assets live in `apps/web/public/`.
-- The download route at `/api/extension/download` proxies the latest GitHub Release ZIP.
+- The extension download CTA links to `https://github.com/shubho0908/fieldcraft/releases/tag/latest`.
 
 ## Conventions
 

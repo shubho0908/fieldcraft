@@ -1,4 +1,4 @@
-import { LazyDownloadExtensionDialog } from "./download-extension-dialog-lazy";
+import { DownloadExtensionButton } from "./download-extension-button";
 import ProductDemo from "./product-demo-lazy";
 
 function BrandMark() {
@@ -37,7 +37,7 @@ export default function Home() {
             <a href="#demo">Product</a>
             <a href="#workflow">How it works</a>
           </nav>
-          <LazyDownloadExtensionDialog triggerClassName="nav-action" />
+          <DownloadExtensionButton className="nav-action" />
         </header>
 
         <main id="top">
@@ -58,7 +58,7 @@ export default function Home() {
                 Fieldcraft reads the open job tab, checks it against your real experience, and leaves every decision with you.
               </p>
               <div className="hero-actions">
-                <LazyDownloadExtensionDialog triggerClassName="button button-primary" />
+                <DownloadExtensionButton className="button button-primary" />
                 <a className="button button-secondary" href="#demo">
                   Watch the workflow
                 </a>
@@ -113,7 +113,7 @@ export default function Home() {
               </span>
             </p>
             <h2>The decision stays with you.</h2>
-            <LazyDownloadExtensionDialog triggerClassName="button button-primary" />
+            <DownloadExtensionButton className="button button-primary" />
           </section>
         </main>
 
