@@ -64,7 +64,7 @@ export default function Home() {
             <div className="hero-visual" aria-hidden="true">
               <video
                 className="hero-video"
-                src="https://res.cloudinary.com/duhbdm1sx/video/upload/v1784635596/demo_uh4kqh.mp4"
+                src="https://res.cloudinary.com/duhbdm1sx/video/upload/v1784636071/demo_ps6qzh.mp4"
                 autoPlay
                 muted
                 loop
