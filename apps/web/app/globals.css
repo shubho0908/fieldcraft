@@ -65,6 +65,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .workflow-list p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
 .closing-section { width: min(100% - 48px, 1240px); margin: 0 auto; padding: clamp(110px, 16vw, 230px) 0 clamp(100px, 13vw, 170px); border-top: 1px solid var(--line); }
 .closing-section .button { margin-top: 34px; }
+
+.install-section { width: min(100% - 48px, 1240px); margin: 0 auto; padding: clamp(110px, 16vw, 230px) 0 clamp(100px, 13vw, 170px); border-top: 1px solid var(--line); }
+.install-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 22px; margin: 0; padding: 0; list-style: none; counter-reset: install; }
+.install-list li { display: grid; gap: 14px; padding: 26px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.install-list li::before { counter-increment: install; content: counter(install, decimal-leading-zero); width: 32px; height: 32px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--accent-pale); color: var(--accent-deep); font-size: 12px; font-weight: 790; }
+.install-list strong { font-size: 15px; letter-spacing: -.02em; }
+.install-list p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+.install-list code { padding: 1px 4px; border-radius: 4px; background: var(--paper); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .9em; }
+
+@media (max-width: 1100px) {
+  .install-list { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+}
 .site-footer { width: min(100% - 48px, 1360px); margin: 0 auto; padding: 22px 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .site-footer a { color: inherit; text-decoration: none; }
 .site-footer-credit a { color: var(--ink); font-weight: 500; }

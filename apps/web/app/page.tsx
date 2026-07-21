@@ -36,6 +36,7 @@ export default function Home() {
           <nav aria-label="Primary navigation">
             <a href="#demo">Product</a>
             <a href="#workflow">How it works</a>
+            <a href="#install">Install</a>
           </nav>
           <DownloadExtensionButton className="nav-action" />
         </header>
@@ -114,6 +115,40 @@ export default function Home() {
             </p>
             <h2>The decision stays with you.</h2>
             <DownloadExtensionButton className="button button-primary" />
+          </section>
+
+          <section className="install-section" id="install" aria-labelledby="install-heading">
+            <div className="section-heading">
+              <p>
+                <span className="kicker-mark">
+                  <BrandMark />
+                  Get it running
+                </span>
+              </p>
+              <h2 id="install-heading">Load the extension in Chrome.</h2>
+            </div>
+            <ol className="install-list">
+              <li>
+                <strong>Download the build</strong>
+                <p>Click the Download button to get the latest <code>fieldcraft-extension-latest.zip</code>.</p>
+              </li>
+              <li>
+                <strong>Unzip the archive</strong>
+                <p>Extract the folder so you can select it in the next step.</p>
+              </li>
+              <li>
+                <strong>Enable developer mode</strong>
+                <p>Open <code>chrome://extensions</code> and toggle Developer mode in the top right.</p>
+              </li>
+              <li>
+                <strong>Load unpacked</strong>
+                <p>Click Load unpacked and choose the unzipped extension folder.</p>
+              </li>
+              <li>
+                <strong>Open a job page</strong>
+                <p>Pin the Fieldcraft icon, visit any job post, and click it to open the side panel.</p>
+              </li>
+            </ol>
           </section>
         </main>
 
