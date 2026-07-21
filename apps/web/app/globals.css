@@ -101,10 +101,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .site-footer-copy { color: var(--muted); }
 
 @keyframes reveal {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(24px); }
+  to { transform: translateY(0); }
 }
-.reveal { opacity: 0; animation: reveal .8s cubic-bezier(.2, .8, .2, 1) forwards; animation-timeline: view(); animation-range: entry 10% cover 35%; }
+.reveal { animation: reveal .8s cubic-bezier(.2, .8, .2, 1) both; animation-timeline: view(); animation-range: entry 10% cover 35%; }
 
 @media (max-width: 1100px) {
   .hero { grid-template-columns: 1fr; gap: 48px; }
