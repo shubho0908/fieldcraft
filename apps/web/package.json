@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@gsap/react": "latest",
-    "cal-sans": "^1.0.1",
     "gsap": "latest",
     "lucide-react": "^0.468.0",
     "next": "latest",

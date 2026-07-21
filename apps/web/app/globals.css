@@ -13,13 +13,12 @@
   --amber-pale: #fff3df;
   --radius-sm: 12px;
   --radius-lg: 20px;
-  --font-geist: "Space Grotesk", "Space Grotesk Fallback", "Cal Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; background: var(--paper); }
-body { margin: 0; min-width: 320px; color: var(--ink); background: var(--paper); font-family: var(--font-space-grotesk), "Cal Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-h1, h2, h3, .site-brand { font-family: "Cal Sans", var(--font-space-grotesk), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+body { margin: 0; min-width: 320px; color: var(--ink); background: var(--paper); font-family: var(--font-geist), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+h1, h2, h3, .site-brand { font-family: var(--font-geist), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 a { color: inherit; text-decoration: none; cursor: pointer; }
 button, [role="button"], select, summary { cursor: pointer; }
 button:disabled, button[aria-disabled="true"], [role="button"]:disabled, [role="button"][aria-disabled="true"] { cursor: not-allowed; }
