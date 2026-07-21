@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const geist = localFont({
@@ -96,7 +97,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           dangerouslySetInnerHTML={{ __html: escapeJsonLd(jsonLd) }}
         />
       </head>
-      <body className={geist.variable}>{children}</body>
+      <body className={geist.variable}>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
