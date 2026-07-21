@@ -65,6 +65,8 @@ export default function Home() {
               <video
                 className="hero-video"
                 src="https://res.cloudinary.com/duhbdm1sx/video/upload/v1784636071/demo_ps6qzh.mp4"
+                width={1440}
+                height={1080}
                 autoPlay
                 muted
                 loop
