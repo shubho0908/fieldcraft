@@ -44,7 +44,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hero { min-height: calc(100svh - 68px); display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(40px, 6vw, 100px); align-items: center; padding: clamp(48px, 6vw, 96px) max(24px, calc((100vw - 1280px) / 2)); border-bottom: 1px solid var(--line); }
 .hero-copy { max-width: 620px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 20px; color: var(--accent-deep); font-size: 11px; font-weight: 760; letter-spacing: .12em; text-transform: uppercase; }
-.hero h1 { margin: 0; max-width: 12ch; font-size: clamp(3rem, 6vw, 6rem); font-weight: 590; letter-spacing: -.055em; line-height: .95; }
+.hero h1 { margin: 0; max-width: 18ch; font-size: clamp(2.75rem, 5.2vw, 5.5rem); font-weight: 590; letter-spacing: -.055em; line-height: .95; }
 .hero-summary { max-width: 45ch; margin: 24px 0 0; color: var(--muted); font-size: clamp(16px, 1.4vw, 19px); line-height: 1.5; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
 
