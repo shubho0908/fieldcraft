@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Space_Grotesk } from "next/font/google";
+import "cal-sans";
 import "./globals.css";
 
-const geist = localFont({
-  src: "../../extension/public/fonts/Geist-Variable.woff2",
-  variable: "--font-geist",
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
   display: "swap",
 });
 
@@ -96,7 +97,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           dangerouslySetInnerHTML={{ __html: escapeJsonLd(jsonLd) }}
         />
       </head>
-      <body className={geist.variable}>{children}</body>
+      <body className={spaceGrotesk.variable}>{children}</body>
     </html>
   );
 }

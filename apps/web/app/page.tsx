@@ -155,12 +155,15 @@ export default function Home() {
             <BrandMark />
             <span>Fieldcraft</span>
           </a>
-          <span className="site-footer-credit">
-            Created by{" "}
-            <a href="https://shubhojeet.me" target="_blank" rel="noopener noreferrer">
-              Shubhojeet
-            </a>
-          </span>
+          <div className="site-footer-right">
+            <span className="site-footer-credit">
+              Created by{" "}
+              <a href="https://shubhojeet.me" target="_blank" rel="noopener noreferrer">
+                Shubhojeet
+              </a>
+            </span>
+            <span className="site-footer-copy">&copy; {new Date().getFullYear()} Fieldcraft</span>
+          </div>
         </footer>
       </div>
     </>
