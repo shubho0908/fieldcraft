@@ -91,56 +91,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .install-grid li span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-pale); color: var(--accent-deep); font-size: 12px; font-weight: 790; }
 .install-grid li strong { position: relative; font-size: 15px; letter-spacing: -.015em; }
 .install-grid li p { position: relative; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.install-step-visual { position: absolute; right: -60px; bottom: -60px; width: 140px; height: 140px; pointer-events: none; transform-origin: 100% 100%; transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
-.install-grid li:hover .install-step-visual { transform: scale(1.08); }
-.step-scene { position: relative; width: 100%; height: 100%; }
-
-.scene-browser { position: absolute; inset: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; box-shadow: 0 8px 24px rgba(22,22,26,.08); }
-.scene-browser-top { height: 20px; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); }
-.scene-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
-.scene-browser-body { position: relative; height: calc(100% - 21px); display: grid; place-items: center; }
-
-.scene-arrow { width: 18px; height: 18px; border-right: 3px solid var(--accent); border-bottom: 3px solid var(--accent); transform: rotate(45deg); animation: scene-arrow 1.6s ease-in-out infinite; opacity: .8; }
-.scene-progress { position: absolute; bottom: 10px; left: 14px; right: 14px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.scene-progress::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 40%; background: var(--accent); border-radius: 2px; animation: scene-progress 1.6s ease-in-out infinite; }
-
-.scene-unzip { position: absolute; inset: 24px; display: grid; place-items: center; }
-.scene-box { position: relative; width: 74px; height: 54px; }
-.scene-lid { position: absolute; top: 0; left: 0; right: 0; height: 18px; border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; background: var(--paper); transform-origin: 0 100%; animation: scene-lid 2s ease-in-out infinite; }
-.scene-folder-body { position: absolute; bottom: 0; left: 0; right: 0; height: 40px; border: 1px solid var(--line); border-radius: 0 0 8px 8px; background: var(--surface); }
-.scene-paper { position: absolute; bottom: 14px; left: 50%; width: 30px; height: 38px; margin-left: -15px; border: 1px solid var(--line); border-radius: 3px; background: white; animation: scene-paper 2s ease-in-out infinite; }
-.scene-paper--two { animation-delay: .25s; background: var(--accent-pale); }
-
-.scene-toggle { position: absolute; inset: 26px; display: grid; align-content: center; justify-items: center; gap: 10px; }
-.scene-toggle-label { font-size: 9px; font-weight: 720; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-.scene-toggle-track { position: relative; width: 56px; height: 28px; border-radius: 99px; background: var(--line); animation: scene-track 2.4s ease-in-out infinite; }
-.scene-toggle-knob { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(22,22,26,.12); animation: scene-knob 2.4s ease-in-out infinite; }
-
-.scene-load { position: absolute; inset: 24px; display: grid; place-items: center; }
-.scene-folder { position: relative; width: 74px; height: 52px; }
-.scene-folder-tab { position: absolute; top: 0; left: 0; width: 30px; height: 14px; border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; background: var(--paper); }
-.scene-folder-body { position: absolute; top: 12px; left: 0; right: 0; bottom: 0; border: 1px solid var(--line); border-radius: 0 8px 8px 8px; background: var(--surface); }
-.scene-plus { position: absolute; right: 22px; bottom: 22px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); animation: scene-plus 1.8s ease-in-out infinite; }
-.scene-plus::before, .scene-plus::after { content: ""; position: absolute; background: white; border-radius: 1px; }
-.scene-plus::before { top: 50%; left: 7px; right: 7px; height: 2px; transform: translateY(-50%); }
-.scene-plus::after { left: 50%; top: 7px; bottom: 7px; width: 2px; transform: translateX(-50%); }
-
-.scene-page { position: absolute; inset: 14px; display: grid; grid-template-columns: 1fr 28px; gap: 8px; align-items: start; }
-.scene-page-content { display: grid; gap: 6px; padding-top: 6px; }
-.scene-line { height: 3px; border-radius: 2px; background: var(--line); }
-.scene-line--long { width: 100%; }
-.scene-line--mid { width: 70%; }
-.scene-line--short { width: 45%; }
-.scene-panel { width: 100%; height: 100%; border-radius: 4px; background: var(--accent-pale); animation: scene-panel 2s ease-in-out infinite; }
-
-@keyframes scene-arrow { 0%, 100% { transform: rotate(45deg) translateY(-6px); opacity: .4; } 50% { transform: rotate(45deg) translateY(6px); opacity: 1; } }
-@keyframes scene-progress { 0% { left: -40%; } 100% { left: 100%; } }
-@keyframes scene-lid { 0%, 45% { transform: rotateX(0deg); } 55%, 85% { transform: rotateX(-110deg); } 95%, 100% { transform: rotateX(0deg); } }
-@keyframes scene-paper { 0%, 30% { transform: translateY(0) scale(.9); opacity: 0; } 45%, 80% { transform: translateY(-22px) scale(1); opacity: 1; } 100% { transform: translateY(-36px) scale(.95); opacity: 0; } }
-@keyframes scene-track { 0%, 40% { background: var(--line); } 45%, 85% { background: var(--accent); } 90%, 100% { background: var(--line); } }
-@keyframes scene-knob { 0%, 35% { left: 3px; } 50%, 85% { left: 31px; } 95%, 100% { left: 3px; } }
-@keyframes scene-plus { 0%, 100% { transform: scale(.9); opacity: .6; } 50% { transform: scale(1.1); opacity: 1; } }
-@keyframes scene-panel { 0%, 30% { transform: translateX(12px); opacity: 0; } 45%, 80% { transform: translateX(0); opacity: 1; } 100% { transform: translateX(0); opacity: 1; } }
+.install-icon { position: absolute; top: 22px; right: 22px; width: 32px; height: 32px; color: var(--ink); opacity: .14; pointer-events: none; transform-origin: center; transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+.install-grid li:hover .install-icon { transform: scale(1.15); }
 
 .closing-section { display: grid; gap: 18px; justify-items: center; text-align: center; }
 .closing-section h2 { font-size: clamp(2.2rem, 4.5vw, 4.5rem); max-width: 18ch; }

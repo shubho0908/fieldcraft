@@ -1,5 +1,5 @@
+import { DownloadCloud, FileArchive, ToggleRight, FolderPlus, BriefcaseBusiness } from "lucide-react";
 import { DownloadExtensionButton } from "./download-extension-button";
-import { InstallStepVisual } from "./install-step-visual";
 import ProductDemo from "./product-demo-lazy";
 
 function BrandMark() {
@@ -112,31 +112,31 @@ export default function Home() {
                 <span>01</span>
                 <strong>Download the build</strong>
                 <p>Get the latest ZIP from this page.</p>
-                <InstallStepVisual step={1} />
+                <DownloadCloud className="install-icon" aria-hidden="true" />
               </li>
               <li>
                 <span>02</span>
                 <strong>Unzip the archive</strong>
                 <p>Extract the folder so it can be selected.</p>
-                <InstallStepVisual step={2} />
+                <FileArchive className="install-icon" aria-hidden="true" />
               </li>
               <li>
                 <span>03</span>
                 <strong>Enable developer mode</strong>
                 <p>Open chrome://extensions and flip the toggle.</p>
-                <InstallStepVisual step={3} />
+                <ToggleRight className="install-icon" aria-hidden="true" />
               </li>
               <li>
                 <span>04</span>
                 <strong>Load unpacked</strong>
                 <p>Choose the extracted folder in the dialog.</p>
-                <InstallStepVisual step={4} />
+                <FolderPlus className="install-icon" aria-hidden="true" />
               </li>
               <li>
                 <span>05</span>
                 <strong>Open a job page</strong>
                 <p>Pin the icon, visit a posting, and open the panel.</p>
-                <InstallStepVisual step={5} />
+                <BriefcaseBusiness className="install-icon" aria-hidden="true" />
               </li>
             </ol>
           </section>
