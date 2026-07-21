@@ -12,3 +12,7 @@ release/
 .react-doctor/
 
 *.tsbuildinfo
+
+# Local env files
+.env*.local
+!.env.example
