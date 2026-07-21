@@ -107,8 +107,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .reveal { animation: reveal .8s cubic-bezier(.2, .8, .2, 1) both; animation-timeline: view(); animation-range: entry 10% cover 35%; }
 
 @media (max-width: 1100px) {
-  .hero { grid-template-columns: 1fr; gap: 48px; }
-  .hero-visual { max-width: 560px; width: 100%; justify-self: start; }
   .workflow-grid { grid-template-columns: 1fr; }
   .workflow-section .workflow-card:nth-child(1) { min-height: auto; }
   .install-grid { grid-template-columns: repeat(2, 1fr); }
@@ -123,6 +121,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 @media (max-width: 900px) {
   .site-shell { display: none; }
+  .hero { grid-template-columns: 1fr; gap: 48px; }
+  .hero-visual { max-width: 560px; width: 100%; justify-self: start; }
   .desktop-required {
     min-height: 100svh;
     display: grid;
