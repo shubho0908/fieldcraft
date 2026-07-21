@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { DownloadExtensionButton } from "./download-extension-button";
 import ProductDemo from "./product-demo-lazy";
 
@@ -34,22 +35,17 @@ export default function Home() {
             <span>Fieldcraft</span>
           </a>
           <nav aria-label="Primary navigation">
-            <a href="#demo">Product</a>
+            <a href="#product">Product</a>
             <a href="#workflow">How it works</a>
           </nav>
           <DownloadExtensionButton className="nav-action" />
         </header>
 
         <main id="top">
-          <section className="hero">
+          <section className="hero" aria-labelledby="hero-heading">
             <div className="hero-copy">
-              <p className="hero-kicker">
-                <span className="kicker-mark">
-                  <BrandMark />
-                  A careful copilot for job applications
-                </span>
-              </p>
-              <h1>
+              <span className="eyebrow">A careful copilot for job applications</span>
+              <h1 id="hero-heading">
                 Read it clearly.
                 <br />
                 Apply truthfully.
@@ -59,61 +55,87 @@ export default function Home() {
               </p>
               <div className="hero-actions">
                 <DownloadExtensionButton className="button button-primary" />
-                <a className="button button-secondary" href="#demo">
+                <a className="button button-secondary" href="#product">
                   Watch the workflow
                 </a>
               </div>
             </div>
+            <figure className="hero-media">
+              <Image
+                src="/hero.jpg"
+                alt="A calm, focused workspace bathed in natural light"
+                fill
+                priority
+                sizes="(max-width: 1100px) 100vw, 50vw"
+                className="hero-image"
+              />
+            </figure>
           </section>
 
-          <section className="demo-section" id="demo" aria-labelledby="demo-heading">
-            <div className="section-heading">
-              <p>
-                <span className="kicker-mark">
-                  <BrandMark />
-                  Inside the side panel
-                </span>
-              </p>
+          <section className="demo-section" id="product" aria-labelledby="demo-heading">
+            <div className="section-heading reveal">
               <h2 id="demo-heading">One tab. Clearer next move.</h2>
+              <p className="section-lead">
+                The side panel opens beside the job you&apos;re looking at. Fieldcraft reads the page, researches the company, and drafts answers you review before anything is filled.
+              </p>
             </div>
             <ProductDemo />
           </section>
 
           <section className="workflow-section" id="workflow" aria-labelledby="workflow-heading">
-            <div className="section-heading workflow-heading">
-              <p>
-                <span className="kicker-mark">
-                  <BrandMark />
-                  Built around review
-                </span>
+            <div className="section-heading reveal">
+              <h2 id="workflow-heading">Three steps. Your call every time.</h2>
+              <p className="section-lead">
+                Fieldcraft does the busywork. You keep the judgment.
               </p>
-              <h2 id="workflow-heading">Useful context, kept honest.</h2>
             </div>
-            <ol className="workflow-list">
-              <li>
-                <strong>Read</strong>
-                <p>Fieldcraft maps the job description, requirements, and visible form fields from the page you opened.</p>
-              </li>
-              <li>
-                <strong>Judge</strong>
-                <p>It grounds the fit in your saved profile, surfaces real gaps, and gathers a concise company brief.</p>
-              </li>
-              <li>
-                <strong>Fill</strong>
+            <div className="workflow-grid reveal">
+              <article className="workflow-card workflow-card-read">
+                <div className="workflow-card-text">
+                  <span className="step-number">01</span>
+                  <h3>Read</h3>
+                  <p>Maps the job description, requirements, and every visible application field from the page you opened.</p>
+                </div>
+                <div className="workflow-card-media">
+                  <Image
+                    src="/process.jpg"
+                    alt="Hands capturing the details of a role in a notebook"
+                    fill
+                    sizes="(max-width: 1100px) 100vw, 35vw"
+                    className="workflow-image"
+                  />
+                </div>
+              </article>
+
+              <article className="workflow-card workflow-card-judge">
+                <span className="step-number">02</span>
+                <h3>Judge</h3>
+                <p>Grounds the fit in your saved profile, surfaces real gaps, and gathers a concise company brief.</p>
+              </article>
+
+              <article className="workflow-card workflow-card-fill">
+                <span className="step-number">03</span>
+                <h3>Fill</h3>
                 <p>You review each drafted answer and choose what to insert. Fieldcraft never submits an application.</p>
-              </li>
-            </ol>
+                <div className="workflow-card-media workflow-card-media-fill">
+                  <Image
+                    src="/fill.jpg"
+                    alt="A hand ready to edit the final answer on a laptop"
+                    fill
+                    sizes="(max-width: 1100px) 100vw, 25vw"
+                    className="workflow-image"
+                  />
+                </div>
+              </article>
+            </div>
           </section>
 
-          <section className="closing-section" id="get-fieldcraft">
-            <p>
-              <span className="kicker-mark">
-                <BrandMark />
-                Apply with the full picture.
-              </span>
-            </p>
-            <h2>The decision stays with you.</h2>
-            <DownloadExtensionButton className="button button-primary" />
+          <section className="closing-section" id="get-fieldcraft" aria-labelledby="closing-heading">
+            <div className="closing-content reveal">
+              <h2 id="closing-heading">The decision stays with you.</h2>
+              <p>Free for Chrome. No account required. Your data stays local.</p>
+              <DownloadExtensionButton className="button button-primary" />
+            </div>
           </section>
         </main>
 

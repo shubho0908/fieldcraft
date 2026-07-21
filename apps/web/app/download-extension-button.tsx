@@ -18,7 +18,7 @@ export function DownloadExtensionButton({
       target="_blank"
       rel="noopener noreferrer"
     >
-      <Chrome size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />
+      <Chrome size={18} style={{ verticalAlign: "middle" }} />
       {children}
     </a>
   );
