@@ -35,7 +35,7 @@ export default function Home() {
             <span>Fieldcraft</span>
           </a>
           <nav aria-label="Primary navigation">
-            <a href="#product">Product</a>
+            <a href="#demo">Product</a>
             <a href="#workflow">How it works</a>
             <a href="#install">Install</a>
           </nav>
@@ -43,7 +43,7 @@ export default function Home() {
         </header>
 
         <main id="top">
-          <section className="hero" id="product" aria-labelledby="hero-heading">
+          <section className="hero" aria-labelledby="hero-heading">
             <div className="hero-copy">
               <span className="eyebrow">A careful copilot for job applications</span>
               <h1 id="hero-heading">
@@ -56,15 +56,25 @@ export default function Home() {
               </p>
               <div className="hero-actions">
                 <DownloadExtensionButton className="button button-primary" />
-                <a className="button button-secondary" href="#workflow">
-                  See how it works
+                <a className="button button-secondary" href="#demo">
+                  Watch the workflow
                 </a>
               </div>
             </div>
-            <div className="hero-demo" aria-hidden="true">
-              <div className="hero-demo-inner">
-                <ProductDemo />
+            <div className="hero-visual" aria-hidden="true">
+              <div className="hero-glyph">
+                <BrandMark />
               </div>
+            </div>
+          </section>
+
+          <section className="demo-section" id="demo" aria-labelledby="demo-heading">
+            <div className="section-heading reveal">
+              <h2 id="demo-heading">Inside the side panel</h2>
+              <p>One tab. A clearer next move.</p>
+            </div>
+            <div className="reveal">
+              <ProductDemo />
             </div>
           </section>
 
