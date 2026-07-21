@@ -56,14 +56,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .button-secondary { border-color: var(--line); background: var(--surface); color: var(--ink); }
 .button-secondary:hover { border-color: #c9c4ba; }
 
-.hero-visual { position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius-lg); background:
-  radial-gradient(circle at 28% 28%, var(--accent-pale) 0%, transparent 55%),
-  radial-gradient(circle at 78% 82%, rgba(91,76,219,.10) 0%, transparent 45%),
-  linear-gradient(145deg, var(--paper) 0%, var(--surface) 100%);
-  border: 1px solid var(--line); overflow: hidden; display: grid; place-items: center; }
-.hero-visual::before { content: ""; position: absolute; inset: -1px; background: radial-gradient(circle at 50% 50%, rgba(91,76,219,.06), transparent 70%); }
-.hero-glyph { position: relative; width: 120px; height: 120px; display: grid; place-items: center; border-radius: 28px; background: var(--ink); box-shadow: 0 24px 64px rgba(22,22,26,.15); }
-.hero-glyph .site-brand-mark { transform: scale(2.2); }
+.hero-visual { position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius-lg); border: 1px solid var(--line); overflow: hidden; background: var(--surface); box-shadow: 0 24px 64px rgba(22, 22, 26, .08); }
+.hero-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.08); }
 
 .section-heading { max-width: 680px; margin-bottom: 44px; }
 .section-heading h2, .closing-section h2 { margin: 0; font-weight: 590; letter-spacing: -.05em; line-height: .95; }

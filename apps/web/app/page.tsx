@@ -62,9 +62,15 @@ export default function Home() {
               </div>
             </div>
             <div className="hero-visual" aria-hidden="true">
-              <div className="hero-glyph">
-                <BrandMark />
-              </div>
+              <video
+                className="hero-video"
+                src="https://res.cloudinary.com/duhbdm1sx/video/upload/v1784635596/demo_uh4kqh.mp4"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
             </div>
           </section>
 
