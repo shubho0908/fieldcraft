@@ -1,3 +1,4 @@
+import { DownloadCloud, FileArchive, ToggleRight, FolderPlus, BriefcaseBusiness } from "lucide-react";
 import { DownloadExtensionButton } from "./download-extension-button";
 import ProductDemo from "./product-demo-lazy";
 
@@ -36,21 +37,17 @@ export default function Home() {
           <nav aria-label="Primary navigation">
             <a href="#demo">Product</a>
             <a href="#workflow">How it works</a>
+            <a href="#install">Install</a>
           </nav>
           <DownloadExtensionButton className="nav-action" />
         </header>
 
         <main id="top">
-          <section className="hero">
+          <section className="hero" aria-labelledby="hero-heading">
             <div className="hero-copy">
-              <p className="hero-kicker">
-                <span className="kicker-mark">
-                  <BrandMark />
-                  A careful copilot for job applications
-                </span>
-              </p>
-              <h1>
-                Read it clearly.
+              <span className="eyebrow">A careful copilot for job applications</span>
+              <h1 id="hero-heading">
+                Read clearly.
                 <br />
                 Apply truthfully.
               </h1>
@@ -64,70 +61,117 @@ export default function Home() {
                 </a>
               </div>
             </div>
+            <div className="hero-visual" aria-hidden="true">
+              <video
+                className="hero-video"
+                src="https://res.cloudinary.com/duhbdm1sx/video/upload/v1784636071/demo_ps6qzh.mp4"
+                width={1440}
+                height={1080}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
+            </div>
           </section>
 
           <section className="demo-section" id="demo" aria-labelledby="demo-heading">
-            <div className="section-heading">
-              <p>
-                <span className="kicker-mark">
-                  <BrandMark />
-                  Inside the side panel
-                </span>
-              </p>
-              <h2 id="demo-heading">One tab. Clearer next move.</h2>
+            <div className="section-heading reveal">
+              <h2 id="demo-heading">Inside the side panel</h2>
+              <p>One tab. A clearer next move.</p>
             </div>
-            <ProductDemo />
+            <div className="reveal">
+              <ProductDemo />
+            </div>
           </section>
 
           <section className="workflow-section" id="workflow" aria-labelledby="workflow-heading">
-            <div className="section-heading workflow-heading">
-              <p>
-                <span className="kicker-mark">
-                  <BrandMark />
-                  Built around review
-                </span>
-              </p>
-              <h2 id="workflow-heading">Useful context, kept honest.</h2>
+            <div className="section-heading workflow-heading reveal">
+              <h2 id="workflow-heading">Built around review</h2>
+              <p>Useful context, kept honest.</p>
             </div>
-            <ol className="workflow-list">
-              <li>
+            <div className="workflow-grid reveal">
+              <article className="workflow-card">
+                <span className="workflow-step">01</span>
                 <strong>Read</strong>
                 <p>Fieldcraft maps the job description, requirements, and visible form fields from the page you opened.</p>
-              </li>
-              <li>
+              </article>
+              <article className="workflow-card">
+                <span className="workflow-step">02</span>
                 <strong>Judge</strong>
-                <p>It grounds the fit in your saved profile, surfaces real gaps, and gathers a concise company brief.</p>
-              </li>
-              <li>
+                <p>It grounds the fit in your real experience, surfaces gaps, and gathers a concise company brief.</p>
+              </article>
+              <article className="workflow-card">
+                <span className="workflow-step">03</span>
                 <strong>Fill</strong>
                 <p>You review each drafted answer and choose what to insert. Fieldcraft never submits an application.</p>
+              </article>
+            </div>
+          </section>
+
+          <section className="install-section" id="install" aria-labelledby="install-heading">
+            <div className="section-heading reveal">
+              <h2 id="install-heading">Load it in Chrome</h2>
+              <p>Five steps to get going.</p>
+            </div>
+            <ol className="install-grid reveal">
+              <li>
+                <span>01</span>
+                <strong>Download the build</strong>
+                <p>Get the latest ZIP from this page.</p>
+                <DownloadCloud className="install-icon" aria-hidden="true" />
+              </li>
+              <li>
+                <span>02</span>
+                <strong>Unzip the archive</strong>
+                <p>Extract the folder so it can be selected.</p>
+                <FileArchive className="install-icon" aria-hidden="true" />
+              </li>
+              <li>
+                <span>03</span>
+                <strong>Enable developer mode</strong>
+                <p>Open chrome://extensions and flip the toggle.</p>
+                <ToggleRight className="install-icon" aria-hidden="true" />
+              </li>
+              <li>
+                <span>04</span>
+                <strong>Load unpacked</strong>
+                <p>Choose the extracted folder in the dialog.</p>
+                <FolderPlus className="install-icon" aria-hidden="true" />
+              </li>
+              <li>
+                <span>05</span>
+                <strong>Open a job page</strong>
+                <p>Pin the icon, visit a posting, and open the panel.</p>
+                <BriefcaseBusiness className="install-icon" aria-hidden="true" />
               </li>
             </ol>
           </section>
 
           <section className="closing-section" id="get-fieldcraft">
-            <p>
-              <span className="kicker-mark">
-                <BrandMark />
-                Apply with the full picture.
-              </span>
-            </p>
-            <h2>The decision stays with you.</h2>
-            <DownloadExtensionButton className="button button-primary" />
+            <h2 className="reveal">The decision stays with you.</h2>
+            <p className="reveal">Apply with the full picture.</p>
+            <div className="reveal">
+              <DownloadExtensionButton className="button button-primary" />
+            </div>
           </section>
         </main>
 
         <footer className="site-footer">
-          <a className="site-brand" href="#top">
+          <a className="site-brand" href="#top" aria-label="Fieldcraft home">
             <BrandMark />
             <span>Fieldcraft</span>
           </a>
-          <span className="site-footer-credit">
-            Created by{" "}
-            <a href="https://shubhojeet.me" target="_blank" rel="noopener noreferrer">
-              Shubhojeet
-            </a>
-          </span>
+          <div className="site-footer-right">
+            <span className="site-footer-credit">
+              Created by{" "}
+              <a href="https://shubhojeet.me" target="_blank" rel="noopener noreferrer">
+                Shubhojeet
+              </a>
+            </span>
+            <span className="site-footer-copy">&copy; {new Date().getFullYear()} Fieldcraft</span>
+          </div>
         </footer>
       </div>
     </>
