@@ -5,8 +5,8 @@ import {
   type GitHubAsset,
   type GitHubRelease,
   errorResponse,
-  fetchLatestGitHubRelease,
   fetchWithRetry,
+  getCachedLatestRelease,
   pickAsset,
 } from "../../../lib/extension-release";
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   let release: GitHubRelease;
   try {
-    release = await fetchLatestGitHubRelease(owner, name, token);
+    release = await getCachedLatestRelease(owner, name, token);
   } catch (err) {
     console.error("Failed to reach GitHub releases API:", err);
     return errorResponse(502, "Failed to reach GitHub", String(err));
