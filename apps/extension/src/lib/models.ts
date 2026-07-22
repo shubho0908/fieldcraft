@@ -174,9 +174,9 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
 export const GEMINI_MODELS: readonly ModelOption[] = [
   {
     provider: Provider.Gemini,
-    id: "gemini-3.1-pro-preview",
-    label: "Gemini 3.1 Pro Preview",
-    description: "Most capable Gemini reasoning model",
+    id: "gemini-3.6-flash",
+    label: "Gemini 3.6 Flash",
+    description: "Latest workhorse for coding, knowledge work, and multimodal tasks",
     defaultReasoningEffort: ReasoningEffort.None,
     supportedReasoningEfforts: [],
     maxOutputTokens: 8_192,
@@ -192,8 +192,8 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
   },
   {
     provider: Provider.Gemini,
-    id: "gemini-3.1-flash-lite",
-    label: "Gemini 3.1 Flash-Lite",
+    id: "gemini-3.5-flash-lite",
+    label: "Gemini 3.5 Flash-Lite",
     description: "Fast, economical high-volume analysis",
     defaultReasoningEffort: ReasoningEffort.None,
     supportedReasoningEfforts: [],
