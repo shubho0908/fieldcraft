@@ -1,4 +1,9 @@
 import { isAnalyzableTabUrl } from "./lib/page";
+import {
+  getNotificationUrl,
+  runReleaseCheck,
+  showUpdateNotification,
+} from "./lib/release-check";
 import { analyzeJob, testAiConnection } from "./lib/openai";
 import { testExaConnection } from "./lib/exa";
 import {
@@ -33,6 +38,8 @@ import type {
 /** Live side-panel ports keyed by browser windowId. */
 const sidePanelPorts = new Map<number, chrome.runtime.Port>();
 
+const RELEASE_CHECK_ALARM = "fieldcraft-release-check";
+
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 // An MV3 worker can be terminated only when no event is keeping it alive. If
 // that happens, an in-flight network/DOM operation cannot be resumed safely;
@@ -41,6 +48,29 @@ void recoverInterruptedTabRuns();
 
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  void initReleaseChecker();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void initReleaseChecker();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === RELEASE_CHECK_ALARM) {
+    void runReleaseCheck().then((release) => {
+      if (release) showUpdateNotification(release);
+    });
+  }
+});
+
+chrome.notifications.onClicked.addListener((notificationId) => {
+  void (async () => {
+    const url = await getNotificationUrl(notificationId);
+    if (url) {
+      void chrome.tabs.create({ url });
+      await chrome.notifications.clear(notificationId);
+    }
+  })();
 });
 
 // --- last-focused window cache for toggle-side-panel ---
@@ -466,6 +496,16 @@ async function recoverInterruptedTabRuns(): Promise<void> {
       };
     }
   });
+}
+
+async function initReleaseChecker(): Promise<void> {
+  const existing = await chrome.alarms.get(RELEASE_CHECK_ALARM);
+  if (!existing) {
+    await chrome.alarms.create(RELEASE_CHECK_ALARM, { periodInMinutes: 60 * 24 });
+  }
+
+  const release = await runReleaseCheck();
+  if (release) showUpdateNotification(release);
 }
 
 function errorMessage(error: unknown, fallback: string): string {

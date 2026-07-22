@@ -52,7 +52,20 @@ jobs:
       - name: Test
         run: bun run --filter fieldcraft-extension test
 
+      - name: Prepare version
+        id: prepare_version
+        run: |
+          VERSION=$(node -p "require('./apps/extension/package.json').version")
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            BUILD_VERSION="${{ github.ref_name }}"
+          else
+            BUILD_VERSION="${VERSION}+build.${{ github.run_number }}"
+          fi
+          echo "build_version=${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Build extension
+        env:
+          BUILD_VERSION: ${{ steps.prepare_version.outputs.build_version }}
         run: bun run --filter fieldcraft-extension build
 
       - name: Package extension
@@ -62,12 +75,11 @@ jobs:
           if [ "${{ github.ref_type }}" = "tag" ]; then
             TAG="${{ github.ref_name }}"
             RELEASE_NAME="Fieldcraft Extension ${{ github.ref_name }}"
-            ZIP_VERSION="${VERSION}"
           else
             TAG="latest"
             RELEASE_NAME="Fieldcraft Extension Latest"
-            ZIP_VERSION="${VERSION}+build.${{ github.run_number }}"
           fi
+          ZIP_VERSION="${{ steps.prepare_version.outputs.build_version }}"
           mkdir -p release
           cd apps/extension/dist
           zip -r "../../../release/fieldcraft-extension-${ZIP_VERSION}.zip" . -x "*.map"
