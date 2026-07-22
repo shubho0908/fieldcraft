@@ -4,7 +4,7 @@ dist/
 .DS_Store
 fieldcraft-extension.zip
 fieldcraft-source.zip
-release/
+/release/
 .turbo/
 .next/
 *.zip
