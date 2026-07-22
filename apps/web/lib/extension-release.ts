@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 
 export const GITHUB_API_BASE = "https://api.github.com";
@@ -115,3 +116,15 @@ export async function fetchLatestGitHubRelease(
 
   return (await res.json()) as GitHubRelease;
 }
+
+const RELEASE_CACHE_TAG = "github-latest-release";
+const RELEASE_CACHE_TTL_SECONDS = 5 * 60; // 5 minutes
+
+/** Cached GitHub release metadata. Shared by /api/release and /api/download. */
+export const getCachedLatestRelease = unstable_cache(
+  async (owner: string, name: string, token: string): Promise<GitHubRelease> => {
+    return fetchLatestGitHubRelease(owner, name, token);
+  },
+  [RELEASE_CACHE_TAG],
+  { revalidate: RELEASE_CACHE_TTL_SECONDS, tags: [RELEASE_CACHE_TAG] },
+);
