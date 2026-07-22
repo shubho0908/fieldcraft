@@ -9,6 +9,8 @@ const manifest: ManifestV3Export = {
     "Research a role, evaluate fit, draft truthful senior-quality answers, and fill job applications after your review.",
   permissions: [
     "activeTab",
+    "alarms",
+    "notifications",
     "sidePanel",
     "storage",
     "tabs",
