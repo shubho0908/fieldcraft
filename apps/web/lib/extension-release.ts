@@ -87,7 +87,7 @@ export function buildReleaseInfo(
     tag: release.tag_name,
     version,
     assetName: asset.name,
-    downloadUrl: `${origin}/api/download`,
+    downloadUrl: `${origin}/api/download?asset=${encodeURIComponent(asset.name)}`,
     publishedAt: release.published_at || new Date().toISOString(),
   };
 }
