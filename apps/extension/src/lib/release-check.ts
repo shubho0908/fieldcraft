@@ -93,21 +93,22 @@ async function fetchLatestRelease(): Promise<RemoteRelease> {
  * and newer than the last release we already notified about.
  */
 export async function checkForUpdate(): Promise<RemoteRelease | null> {
-  await setLastCheckedAt(Date.now());
-
   const remote = await fetchLatestRelease();
   const current = __FIELDCRAFT_VERSION__;
 
   if (compareVersions(remote.version, current) <= 0) {
+    await setLastCheckedAt(Date.now());
     return null;
   }
 
   const lastSeen = await getLastSeenRelease();
   if (lastSeen && compareVersions(remote.version, lastSeen.version) <= 0) {
+    await setLastCheckedAt(Date.now());
     return null;
   }
 
   await setLastSeenRelease(remote);
+  await setLastCheckedAt(Date.now());
   return remote;
 }
 
