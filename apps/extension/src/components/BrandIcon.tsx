@@ -60,6 +60,8 @@ export function BrandIcon({ svg, size = 14, className }: BrandIconProps) {
         height: size,
         flex: "0 0 auto",
       }}
+      // SVG strings are static, in-repo brand assets; they are not user-controlled.
+      // react-doctor-disable-next-line react-doctor/dangerous-html-sink
       dangerouslySetInnerHTML={{ __html: html }}
       aria-hidden="true"
     />

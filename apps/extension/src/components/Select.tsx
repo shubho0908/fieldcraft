@@ -130,6 +130,8 @@ export function Select({
       <button
         ref={triggerRef}
         type="button"
+        role="combobox"
+        aria-autocomplete="none"
         className="custom-select-trigger"
         onClick={toggle}
         onKeyDown={handleTriggerKeyDown}
