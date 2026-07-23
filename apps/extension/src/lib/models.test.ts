@@ -177,6 +177,9 @@ describe("custom protocol helpers", () => {
     expect(sanitizeCustomBaseUrl("https://api.fireworks.ai/inference/v1/")).toBe(
       "https://api.fireworks.ai/inference/v1",
     );
+    expect(sanitizeCustomBaseUrl("https://api.fireworks.ai/inference")).toBe(
+      "https://api.fireworks.ai/inference/v1",
+    );
   });
 
   it("leaves empty Anthropic base URLs empty so validation can reject them", () => {

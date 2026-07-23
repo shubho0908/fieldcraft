@@ -289,12 +289,17 @@ export function isCustomModelId(modelId: string): boolean {
  * Normalizes a user-pasted OpenAI-compatible base URL.
  * Many providers document the full `/chat/completions` endpoint, but the SDK
  * appends that path itself, so strip it here to avoid `.../chat/completions/chat/completions`.
+ * Also ensure the URL ends at the API version root (`/v1`) because the SDK
+ * expects that path segment to precede `/chat/completions`.
  */
 export function sanitizeCustomBaseUrl(baseUrl: string): string {
-  return baseUrl
+  const trimmed = baseUrl
     .trim()
     .replace(/\/chat\/completions\/?$/i, "")
     .replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (/\/v\d+$/i.test(trimmed)) return trimmed;
+  return `${trimmed}/v1`;
 }
 
 /**
