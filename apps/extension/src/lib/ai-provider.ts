@@ -1,10 +1,13 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import {
+  CustomProtocol,
   Provider,
   customModelId,
   isCustomModelId,
+  sanitizeAnthropicBaseUrl,
   sanitizeCustomBaseUrl,
   type ModelOption,
 } from "./models";
@@ -14,10 +17,12 @@ export interface CreateAiModelOptions {
   apiKey: string;
   /** Required for {@link Provider.Custom}; ignored for built-in providers. */
   baseURL?: string;
+  /** Which protocol a custom endpoint speaks. Ignored for built-in providers. */
+  protocol?: CustomProtocol;
 }
 
 export function createAiModel(options: CreateAiModelOptions): LanguageModel {
-  const { model, apiKey, baseURL } = options;
+  const { model, apiKey, baseURL, protocol } = options;
   if (model.provider === Provider.Gemini) {
     const google = createGoogleGenerativeAI({ apiKey });
     return google(model.id);
@@ -33,9 +38,28 @@ export function createAiModel(options: CreateAiModelOptions): LanguageModel {
     if (!baseURL?.trim()) {
       throw new Error("Enter a custom base URL before analyzing.");
     }
+
+    if (protocol === CustomProtocol.Anthropic) {
+      const trimmedBaseURL = sanitizeAnthropicBaseUrl(baseURL);
+      console.info(
+        `[fieldcraft ai-provider] anthropic provider: baseURL=${trimmedBaseURL} model=${actualModelId}`,
+      );
+      // Anthropic's official API uses x-api-key; most third-party
+      // Anthropic-compatible gateways (MiniMax, DashScope, etc.) expect Bearer.
+      const isAnthropicHost = new URL(trimmedBaseURL).hostname.endsWith(
+        "anthropic.com",
+      );
+      const anthropic = createAnthropic(
+        isAnthropicHost
+          ? { apiKey, baseURL: trimmedBaseURL }
+          : { authToken: apiKey, baseURL: trimmedBaseURL },
+      );
+      return anthropic(actualModelId);
+    }
+
     const trimmedBaseURL = sanitizeCustomBaseUrl(baseURL);
     console.info(
-      `[fieldcraft ai-provider] custom provider: baseURL=${trimmedBaseURL} model=${actualModelId}`,
+      `[fieldcraft ai-provider] openai provider: baseURL=${trimmedBaseURL} model=${actualModelId}`,
     );
     const openai = createOpenAI({ apiKey, baseURL: trimmedBaseURL });
     return openai.chat(actualModelId);

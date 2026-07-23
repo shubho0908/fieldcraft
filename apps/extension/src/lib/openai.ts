@@ -340,6 +340,8 @@ export async function runJobAnalysis(
     apiKey: auth.apiKey,
     baseURL:
       model.provider === Provider.Custom ? settings.customBaseUrl : undefined,
+    protocol:
+      model.provider === Provider.Custom ? settings.customProtocol : undefined,
   });
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
@@ -442,6 +444,8 @@ export async function testAiConnection(
     apiKey,
     baseURL:
       model.provider === Provider.Custom ? settings.customBaseUrl : undefined,
+    protocol:
+      model.provider === Provider.Custom ? settings.customProtocol : undefined,
   });
 
   const result = await generateText({

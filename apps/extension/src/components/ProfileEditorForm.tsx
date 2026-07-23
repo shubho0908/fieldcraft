@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   CUSTOM_MODEL_PREFIX,
+  CustomProtocol,
   Provider,
   customModelId,
   isCustomModelId,
@@ -57,6 +58,7 @@ export type ProfileEditorFormProps = {
   updateModel: (modelId: string) => void;
   updateCustomModelId: (actualModelId: string) => void;
   updateCustomBaseUrl: (baseUrl: string) => void;
+  updateCustomProtocol: (protocol: CustomProtocol) => void;
   updateEvalModel: (modelId: string) => void;
   updateProvider: (provider: Provider) => void;
   updateMaxOutputTokens: (value: string) => void;
@@ -102,6 +104,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     updateModel,
     updateCustomModelId,
     updateCustomBaseUrl,
+    updateCustomProtocol,
     updateEvalModel,
     updateProvider,
     updateMaxOutputTokens,
@@ -468,7 +471,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               >
                 <option value={Provider.OpenAI}>OpenAI</option>
                 <option value={Provider.Gemini}>Gemini</option>
-                <option value={Provider.Custom}>Custom (OpenAI-compatible)</option>
+                <option value={Provider.Custom}>Custom endpoint</option>
               </select>
             </Field>
             <Field
@@ -490,11 +493,31 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             </Field>
             {isCustom ? (
               <>
-                <Field label="Custom model ID" hint="The provider-specific model string">
+                <Field label="Endpoint protocol" hint="The API format your custom endpoint expects">
+                  <select
+                    value={settings.customProtocol}
+                    onChange={(event) => updateCustomProtocol(event.target.value as CustomProtocol)}
+                  >
+                    <option value={CustomProtocol.OpenAI}>OpenAI-compatible · /v1/chat/completions</option>
+                    <option value={CustomProtocol.Anthropic}>Anthropic-compatible · /v1/messages</option>
+                  </select>
+                </Field>
+                <Field
+                  label="Custom model ID"
+                  hint={
+                    settings.customProtocol === CustomProtocol.Anthropic
+                      ? "e.g. claude-sonnet-4-5 or MiniMax-M3"
+                      : "The provider-specific model string"
+                  }
+                >
                   <input
                     value={customModelId(settings.model)}
                     onChange={(event) => updateCustomModelId(event.target.value)}
-                    placeholder="accounts/fireworks/models/llama-v3p1-405b-instruct"
+                    placeholder={
+                      settings.customProtocol === CustomProtocol.Anthropic
+                        ? "claude-sonnet-4-5"
+                        : "accounts/fireworks/models/llama-v3p1-405b-instruct"
+                    }
                     autoComplete="off"
                   />
                 </Field>
@@ -503,7 +526,11 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                     type="url"
                     value={settings.customBaseUrl}
                     onChange={(event) => updateCustomBaseUrl(event.target.value)}
-                    placeholder="https://api.fireworks.ai/inference/v1"
+                    placeholder={
+                      settings.customProtocol === CustomProtocol.Anthropic
+                        ? "https://api.anthropic.com/v1"
+                        : "https://api.fireworks.ai/inference/v1"
+                    }
                     autoComplete="off"
                   />
                 </Field>

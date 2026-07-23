@@ -8,14 +8,17 @@ import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
 import { ReasoningEffortSettingAuto, isAutofillMode } from "./enums";
 import {
   CUSTOM_MODEL_PREFIX,
+  CustomProtocol,
   Provider,
   customModelId,
   defaultModelForProvider,
   isCustomModelId,
+  isCustomProtocol,
   isKnownModel,
   isProvider,
   isReasoningEffortSetting,
   resolveModel,
+  sanitizeAnthropicBaseUrl,
   sanitizeCustomBaseUrl,
 } from "./models";
 
@@ -146,8 +149,14 @@ function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSe
   settings.model = LEGACY_MODEL_ALIASES[settings.model] ?? settings.model;
   settings.evalModel = LEGACY_MODEL_ALIASES[settings.evalModel] ?? settings.evalModel;
 
+  if (!isCustomProtocol(settings.customProtocol)) {
+    settings.customProtocol = DEFAULT_SETTINGS.customProtocol;
+  }
+
   if (typeof settings.customBaseUrl !== "string") {
     settings.customBaseUrl = DEFAULT_SETTINGS.customBaseUrl;
+  } else if (settings.customProtocol === CustomProtocol.Anthropic) {
+    settings.customBaseUrl = sanitizeAnthropicBaseUrl(settings.customBaseUrl);
   } else {
     settings.customBaseUrl = sanitizeCustomBaseUrl(settings.customBaseUrl);
   }
