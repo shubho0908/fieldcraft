@@ -3,6 +3,7 @@ import { JudgeId } from "../enums";
 import type { ReasoningEffortSetting } from "../enums";
 import {
   CUSTOM_MODEL_PREFIX,
+  CustomProtocol,
   DEFAULT_EVAL_MODEL_ID,
   DEFAULT_EVAL_REASONING_EFFORT,
   Provider,
@@ -36,10 +37,12 @@ export interface LiveEvalOptions {
   researchCompany?: boolean;
   /** Limit fixtures for cheaper smoke runs. */
   fixtureIds?: string[];
-  /** Override provider detection. Required for custom OpenAI-compatible endpoints. */
+  /** Override provider detection. Required for custom endpoints. */
   provider?: Provider;
   /** Base URL for {@link Provider.Custom}. */
   customBaseUrl?: string;
+  /** Protocol for {@link Provider.Custom}. */
+  customProtocol?: CustomProtocol;
 }
 
 export interface LiveEvalCaseResult {
@@ -60,6 +63,7 @@ export interface ResolvedLiveEvalConfig {
   researchCompany: boolean;
   provider: Provider;
   customBaseUrl?: string;
+  customProtocol?: CustomProtocol;
 }
 
 /**
@@ -69,7 +73,12 @@ export interface ResolvedLiveEvalConfig {
 export function resolveLiveEvalConfig(
   options: Pick<
     LiveEvalOptions,
-    "model" | "reasoningEffort" | "researchCompany" | "provider" | "customBaseUrl"
+    | "model"
+    | "reasoningEffort"
+    | "researchCompany"
+    | "provider"
+    | "customBaseUrl"
+    | "customProtocol"
   >,
 ): ResolvedLiveEvalConfig {
   let modelId = options.model ?? DEFAULT_EVAL_MODEL_ID;
@@ -95,6 +104,7 @@ export function resolveLiveEvalConfig(
     researchCompany: options.researchCompany ?? false,
     provider,
     customBaseUrl: options.customBaseUrl,
+    customProtocol: options.customProtocol,
   };
 }
 
@@ -111,6 +121,7 @@ export async function runLiveEval(
     provider: resolved.provider,
     model: resolved.model,
     customBaseUrl: resolved.customBaseUrl ?? DEFAULT_SETTINGS.customBaseUrl,
+    customProtocol: resolved.customProtocol ?? DEFAULT_SETTINGS.customProtocol,
     reasoningEffort: resolved.reasoningEffort,
     evalModel: resolved.model,
     evalReasoningEffort: resolved.reasoningEffort,

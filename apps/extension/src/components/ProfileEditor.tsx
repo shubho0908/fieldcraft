@@ -30,6 +30,7 @@ import { DEFAULT_SETTINGS } from "../lib/defaults";
 import { AutofillMode, ReasoningEffortSettingAuto } from "../lib/enums";
 import {
   CUSTOM_MODEL_PREFIX,
+  CustomProtocol,
   Provider,
   customModelId,
   defaultModelForProvider,
@@ -102,6 +103,10 @@ export default function ProfileEditor({
         provider === Provider.Custom
           ? current.customBaseUrl
           : DEFAULT_SETTINGS.customBaseUrl,
+      customProtocol:
+        provider === Provider.Custom
+          ? (current.customProtocol ?? DEFAULT_SETTINGS.customProtocol)
+          : DEFAULT_SETTINGS.customProtocol,
       reasoningEffort: ReasoningEffortSettingAuto,
       evalModel: model.id,
       evalReasoningEffort: ReasoningEffortSettingAuto,
@@ -139,6 +144,10 @@ export default function ProfileEditor({
 
   function updateCustomBaseUrl(customBaseUrl: string) {
     setSettings((current) => ({ ...current, customBaseUrl: customBaseUrl.trim() }));
+  }
+
+  function updateCustomProtocol(customProtocol: CustomProtocol) {
+    setSettings((current) => ({ ...current, customProtocol }));
   }
 
   function updateEvalModel(modelId: string) {
@@ -221,11 +230,11 @@ export default function ProfileEditor({
         settings.provider === Provider.Custom
       ) {
         if (!customModelId(settings.model).trim()) {
-          setError("Enter a custom model ID (e.g. accounts/fireworks/models/llama-v3p1-405b-instruct).");
+          setError("Enter a custom model ID.");
           return false;
         }
         if (!settings.customBaseUrl.trim()) {
-          setError("Enter a custom base URL (e.g. https://api.fireworks.ai/inference/v1).");
+          setError("Enter a custom base URL.");
           return false;
         }
       }
@@ -392,6 +401,7 @@ export default function ProfileEditor({
       updateModel={updateModel}
       updateCustomModelId={updateCustomModelId}
       updateCustomBaseUrl={updateCustomBaseUrl}
+      updateCustomProtocol={updateCustomProtocol}
       updateEvalModel={updateEvalModel}
       updateProvider={updateProvider}
       updateMaxOutputTokens={updateMaxOutputTokens}

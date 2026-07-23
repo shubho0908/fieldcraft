@@ -71,7 +71,9 @@ export interface ExtensionSettings {
   evalModel: string;
   /** Reasoning effort for live evals. Defaults to high. */
   evalReasoningEffort: ReasoningEffortSetting;
-  /** Base URL for an OpenAI-compatible custom provider (e.g. Fireworks, Together, Groq, OpenRouter). */
+  /** Which protocol a custom endpoint speaks. */
+  customProtocol: "openai" | "anthropic";
+  /** Base URL for a custom provider (e.g. Fireworks, Together, Groq, OpenRouter, Anthropic, MiniMax). */
   customBaseUrl: string;
   /** Optional per-model override for the maximum output tokens. Falls back to the model catalog default. */
   maxOutputTokens?: number;

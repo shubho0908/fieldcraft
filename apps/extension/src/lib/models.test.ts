@@ -6,8 +6,10 @@ import {
 } from "./enums";
 import {
   CUSTOM_MODEL_PREFIX,
+  CustomProtocol,
   DEFAULT_MODEL_ID,
   GEMINI_MODELS,
+  isCustomProtocol,
   isKnownModel,
   OPENAI_MODELS,
   resolveAnalysisConfig,
@@ -15,6 +17,8 @@ import {
   resolveModel,
   resolveReasoningEffort,
   reasoningEffortsForModel,
+  sanitizeAnthropicBaseUrl,
+  sanitizeCustomBaseUrl,
 } from "./models";
 
 describe("OpenAI model catalog", () => {
@@ -150,5 +154,56 @@ describe("max output token resolution", () => {
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, -1)).toBe(16_384);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, NaN)).toBe(16_384);
     expect(resolveMaxOutputTokens("not-a-model")).toBe(16_384);
+  });
+});
+
+describe("custom protocol helpers", () => {
+  it("recognizes only valid custom protocols", () => {
+    expect(isCustomProtocol(CustomProtocol.OpenAI)).toBe(true);
+    expect(isCustomProtocol(CustomProtocol.Anthropic)).toBe(true);
+    expect(isCustomProtocol("openai")).toBe(true);
+    expect(isCustomProtocol("anthropic")).toBe(true);
+    expect(isCustomProtocol("gemini")).toBe(false);
+    expect(isCustomProtocol("")).toBe(false);
+  });
+
+  it("normalizes OpenAI-compatible base URLs", () => {
+    expect(sanitizeCustomBaseUrl("https://api.fireworks.ai/inference/v1")).toBe(
+      "https://api.fireworks.ai/inference/v1",
+    );
+    expect(
+      sanitizeCustomBaseUrl("https://api.fireworks.ai/inference/v1/chat/completions"),
+    ).toBe("https://api.fireworks.ai/inference/v1");
+    expect(sanitizeCustomBaseUrl("https://api.fireworks.ai/inference/v1/")).toBe(
+      "https://api.fireworks.ai/inference/v1",
+    );
+    expect(sanitizeCustomBaseUrl("https://api.fireworks.ai/inference")).toBe(
+      "https://api.fireworks.ai/inference/v1",
+    );
+  });
+
+  it("leaves empty Anthropic base URLs empty so validation can reject them", () => {
+    expect(sanitizeAnthropicBaseUrl("")).toBe("");
+    expect(sanitizeAnthropicBaseUrl("   ")).toBe("");
+  });
+
+  it("normalizes Anthropic-compatible base URLs to the /v1 root", () => {
+    expect(sanitizeAnthropicBaseUrl("https://api.anthropic.com")).toBe(
+      "https://api.anthropic.com/v1",
+    );
+    expect(sanitizeAnthropicBaseUrl("https://api.anthropic.com/v1")).toBe(
+      "https://api.anthropic.com/v1",
+    );
+    expect(
+      sanitizeAnthropicBaseUrl("https://api.anthropic.com/v1/messages"),
+    ).toBe("https://api.anthropic.com/v1");
+    expect(
+      sanitizeAnthropicBaseUrl("https://api.minimax.io/anthropic"),
+    ).toBe("https://api.minimax.io/anthropic/v1");
+    expect(
+      sanitizeAnthropicBaseUrl(
+        "https://api.minimax.io/anthropic/v1/messages",
+      ),
+    ).toBe("https://api.minimax.io/anthropic/v1");
   });
 });

@@ -28,6 +28,18 @@ export const Provider = {
 
 export type Provider = (typeof Provider)[keyof typeof Provider];
 
+export const CustomProtocol = {
+  OpenAI: "openai",
+  Anthropic: "anthropic",
+} as const;
+
+export type CustomProtocol =
+  (typeof CustomProtocol)[keyof typeof CustomProtocol];
+
+export function isCustomProtocol(value: string): value is CustomProtocol {
+  return Object.values(CustomProtocol).includes(value as CustomProtocol);
+}
+
 /** Custom model ids are encoded as `custom:<actual-model-id>` so settings.model stays a single source of truth. */
 export const CUSTOM_MODEL_PREFIX = "custom:" as const;
 
@@ -201,12 +213,12 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
   },
 ] as const;
 
-/** OpenAI-compatible custom provider placeholder. The real model id lives after `custom:` in settings.model. */
+/** Custom provider placeholder. The real model id lives after `custom:` in settings.model. */
 const CUSTOM_MODEL_PLACEHOLDER: ModelOption = {
   provider: Provider.Custom,
   id: `${CUSTOM_MODEL_PREFIX}`,
   label: "Custom model",
-  description: "Any OpenAI-compatible endpoint (Fireworks, Together, Groq, OpenRouter…)",
+  description: "Any OpenAI- or Anthropic-compatible endpoint (Fireworks, Together, Groq, OpenRouter, Anthropic, MiniMax…)",
   defaultReasoningEffort: ReasoningEffort.None,
   supportedReasoningEfforts: [ReasoningEffort.None],
   maxOutputTokens: 4_096,
@@ -277,12 +289,34 @@ export function isCustomModelId(modelId: string): boolean {
  * Normalizes a user-pasted OpenAI-compatible base URL.
  * Many providers document the full `/chat/completions` endpoint, but the SDK
  * appends that path itself, so strip it here to avoid `.../chat/completions/chat/completions`.
+ * Also ensure the URL ends at the API version root (`/v1`) because the SDK
+ * expects that path segment to precede `/chat/completions`.
  */
 export function sanitizeCustomBaseUrl(baseUrl: string): string {
-  return baseUrl
+  const trimmed = baseUrl
     .trim()
     .replace(/\/chat\/completions\/?$/i, "")
     .replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (/\/v\d+$/i.test(trimmed)) return trimmed;
+  return `${trimmed}/v1`;
+}
+
+/**
+ * Normalizes a user-pasted Anthropic-compatible base URL.
+ * The AI SDK appends `/messages` to the base URL, so the base must end at the
+ * API version root (`/v1`). Strip accidental endpoint suffixes and add `/v1`
+ * when no version segment is present.
+ */
+export function sanitizeAnthropicBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl
+    .trim()
+    .replace(/\/chat\/completions\/?$/i, "")
+    .replace(/\/messages\/?$/i, "")
+    .replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (/\/v\d+$/i.test(trimmed)) return trimmed;
+  return `${trimmed}/v1`;
 }
 
 export function isKnownModel(modelId: string): boolean {

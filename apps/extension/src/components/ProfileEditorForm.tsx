@@ -1,29 +1,78 @@
 import BrandMark from "./BrandMark";
 import type { CandidateProfile, ExtensionSettings } from "../types";
 import {
+  AlignCenter,
   ArrowLeft,
   ArrowRight,
+  Brain,
   Check,
+  ChevronsUp,
   Eye,
   EyeOff,
   FileText,
-  KeyRound,
+  FlaskConical,
+  Gauge,
+  MessagesSquare,
+  Minus,
   Plus,
+  Rocket,
+  Server,
   ShieldCheck,
   Trash2,
+  TrendingDown,
+  TrendingUp,
   Upload,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   CUSTOM_MODEL_PREFIX,
+  CustomProtocol,
   Provider,
   customModelId,
-  isCustomModelId,
   modelsForProvider,
   resolveMaxOutputTokens,
 } from "../lib/models";
+import { Select } from "./Select";
+import { OpenAIIcon } from "./OpenAIIcon";
+import { GeminiIcon } from "./GeminiIcon";
+import { AnthropicIcon } from "./AnthropicIcon";
+import { ExaIcon } from "./ExaIcon";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
+
+function providerIcon(provider: Provider): ReactNode {
+  switch (provider) {
+    case Provider.OpenAI:
+      return <OpenAIIcon size={14} />;
+    case Provider.Gemini:
+      return <GeminiIcon size={14} />;
+    case Provider.Custom:
+      return <Server size={14} />;
+  }
+}
+
+function protocolIcon(protocol: CustomProtocol): ReactNode {
+  switch (protocol) {
+    case CustomProtocol.OpenAI:
+      return <MessagesSquare size={14} />;
+    case CustomProtocol.Anthropic:
+      return <AnthropicIcon size={14} />;
+  }
+}
+
+function reasoningIcon(id: ReasoningEffortSetting): ReactNode {
+  const icons: Record<ReasoningEffortSetting, ReactNode> = {
+    auto: <Gauge size={14} />,
+    none: <Minus size={14} />,
+    low: <TrendingDown size={14} />,
+    medium: <AlignCenter size={14} />,
+    high: <TrendingUp size={14} />,
+    xhigh: <ChevronsUp size={14} />,
+    max: <Rocket size={14} />,
+  };
+  return icons[id];
+}
 
 export type ProfileEditorFormProps = {
   onboarding: boolean;
@@ -57,6 +106,7 @@ export type ProfileEditorFormProps = {
   updateModel: (modelId: string) => void;
   updateCustomModelId: (actualModelId: string) => void;
   updateCustomBaseUrl: (baseUrl: string) => void;
+  updateCustomProtocol: (protocol: CustomProtocol) => void;
   updateEvalModel: (modelId: string) => void;
   updateProvider: (provider: Provider) => void;
   updateMaxOutputTokens: (value: string) => void;
@@ -102,6 +152,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     updateModel,
     updateCustomModelId,
     updateCustomBaseUrl,
+    updateCustomProtocol,
     updateEvalModel,
     updateProvider,
     updateMaxOutputTokens,
@@ -455,21 +506,22 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
 
             <div className="divider" />
             <div className="api-heading">
-              <div className="api-icon"><KeyRound size={18} /></div>
+              <div className="api-icon"><Brain size={18} /></div>
               <div>
                 <h3>AI provider connection</h3>
                 <p>Used for analysis, company research, and answer drafting.</p>
               </div>
             </div>
             <Field label="AI provider">
-              <select
+              <Select
                 value={settings.provider}
-                onChange={(event) => updateProvider(event.target.value as Provider)}
-              >
-                <option value={Provider.OpenAI}>OpenAI</option>
-                <option value={Provider.Gemini}>Gemini</option>
-                <option value={Provider.Custom}>Custom (OpenAI-compatible)</option>
-              </select>
+                options={[
+                  { value: Provider.OpenAI, label: "OpenAI", icon: providerIcon(Provider.OpenAI) },
+                  { value: Provider.Gemini, label: "Gemini", icon: providerIcon(Provider.Gemini) },
+                  { value: Provider.Custom, label: "Custom endpoint", icon: providerIcon(Provider.Custom) },
+                ]}
+                onChange={(value) => updateProvider(value as Provider)}
+              />
             </Field>
             <Field
               label={`${providerName} API key`}
@@ -490,11 +542,32 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             </Field>
             {isCustom ? (
               <>
-                <Field label="Custom model ID" hint="The provider-specific model string">
+                <Field label="Endpoint protocol" hint="The API format your custom endpoint expects">
+                  <Select
+                    value={settings.customProtocol}
+                    options={[
+                      { value: CustomProtocol.OpenAI, label: "OpenAI-compatible · /v1/chat/completions", icon: protocolIcon(CustomProtocol.OpenAI) },
+                      { value: CustomProtocol.Anthropic, label: "Anthropic-compatible · /v1/messages", icon: protocolIcon(CustomProtocol.Anthropic) },
+                    ]}
+                    onChange={(value) => updateCustomProtocol(value as CustomProtocol)}
+                  />
+                </Field>
+                <Field
+                  label="Custom model ID"
+                  hint={
+                    settings.customProtocol === CustomProtocol.Anthropic
+                      ? "e.g. claude-sonnet-4-5 or MiniMax-M3"
+                      : "The provider-specific model string"
+                  }
+                >
                   <input
                     value={customModelId(settings.model)}
                     onChange={(event) => updateCustomModelId(event.target.value)}
-                    placeholder="accounts/fireworks/models/llama-v3p1-405b-instruct"
+                    placeholder={
+                      settings.customProtocol === CustomProtocol.Anthropic
+                        ? "claude-sonnet-4-5"
+                        : "accounts/fireworks/models/llama-v3p1-405b-instruct"
+                    }
                     autoComplete="off"
                   />
                 </Field>
@@ -503,23 +576,26 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                     type="url"
                     value={settings.customBaseUrl}
                     onChange={(event) => updateCustomBaseUrl(event.target.value)}
-                    placeholder="https://api.fireworks.ai/inference/v1"
+                    placeholder={
+                      settings.customProtocol === CustomProtocol.Anthropic
+                        ? "https://api.anthropic.com/v1"
+                        : "https://api.fireworks.ai/inference/v1"
+                    }
                     autoComplete="off"
                   />
                 </Field>
               </>
             ) : (
               <Field label="Model">
-                <select
+                <Select
                   value={settings.model}
-                  onChange={(event) => updateModel(event.target.value)}
-                >
-                  {providerModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label} · {model.description}
-                    </option>
-                  ))}
-                </select>
+                  options={providerModels.map((model) => ({
+                    value: model.id,
+                    label: `${model.label} · ${model.description}`,
+                    icon: providerIcon(model.provider),
+                  }))}
+                  onChange={(value) => updateModel(value)}
+                />
               </Field>
             )}
             <Field
@@ -539,27 +615,26 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               label="Reasoning effort"
               hint="Reasoning effort · Auto uses the model default"
             >
-              <select
+              <Select
                 value={settings.reasoningEffort}
-                onChange={(event) =>
+                options={effortOptions.map((option) => ({
+                  value: option.id,
+                  label: `${option.label} · ${option.description}`,
+                  icon: reasoningIcon(option.id),
+                }))}
+                onChange={(value) =>
                   setSettings({
                     ...settings,
-                    reasoningEffort: event.target.value as ExtensionSettings["reasoningEffort"],
+                    reasoningEffort: value as ExtensionSettings["reasoningEffort"],
                   })
                 }
-              >
-                {effortOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label} · {option.description}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>}
 
             <div className="divider" />
             <div className="api-heading">
               <div className="api-icon">
-                <KeyRound size={18} />
+                <FlaskConical size={18} />
               </div>
               <div>
                 <h3>Live fixture evals</h3>
@@ -568,43 +643,40 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             </div>
             {!isCustom && (
               <Field label="Eval model" hint="Separate from Analyze model above">
-                <select
+                <Select
                   value={settings.evalModel}
-                  onChange={(event) => updateEvalModel(event.target.value)}
-                >
-                  {providerModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label} · {model.description}
-                    </option>
-                  ))}
-                </select>
+                  options={providerModels.map((model) => ({
+                    value: model.id,
+                    label: `${model.label} · ${model.description}`,
+                    icon: providerIcon(model.provider),
+                  }))}
+                  onChange={(value) => updateEvalModel(value)}
+                />
               </Field>
             )}
             {settings.provider === Provider.OpenAI && <Field
               label="Eval reasoning"
               hint="Default high · clamped if the model cannot use that effort"
             >
-              <select
+              <Select
                 value={settings.evalReasoningEffort}
-                onChange={(event) =>
+                options={evalEffortOptions.map((option) => ({
+                  value: option.id,
+                  label: `${option.label} · ${option.description}`,
+                  icon: reasoningIcon(option.id),
+                }))}
+                onChange={(value) =>
                   setSettings({
                     ...settings,
-                    evalReasoningEffort: event.target
-                      .value as ExtensionSettings["evalReasoningEffort"],
+                    evalReasoningEffort: value as ExtensionSettings["evalReasoningEffort"],
                   })
                 }
-              >
-                {evalEffortOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label} · {option.description}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>}
 
             <div className="divider" />
             <div className="api-heading">
-              <div className="api-icon"><KeyRound size={18} /></div>
+              <div className="api-icon"><ExaIcon size={18} /></div>
               <div>
                 <h3>Exa company research</h3>
                 <p>Looks up company background (funding, size, products) so job fit recommendations are more accurate.</p>
