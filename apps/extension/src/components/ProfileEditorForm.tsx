@@ -16,7 +16,6 @@ import {
   Minus,
   Plus,
   Rocket,
-  Search,
   Server,
   ShieldCheck,
   Trash2,
@@ -37,6 +36,7 @@ import { Select } from "./Select";
 import { OpenAIIcon } from "./OpenAIIcon";
 import { GeminiIcon } from "./GeminiIcon";
 import { AnthropicIcon } from "./AnthropicIcon";
+import { ExaIcon } from "./ExaIcon";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
@@ -676,7 +676,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
 
             <div className="divider" />
             <div className="api-heading">
-              <div className="api-icon"><Search size={18} /></div>
+              <div className="api-icon"><ExaIcon size={18} /></div>
               <div>
                 <h3>Exa company research</h3>
                 <p>Looks up company background (funding, size, products) so job fit recommendations are more accurate.</p>

@@ -12,14 +12,41 @@ export function BrandIcon({ svg, size = 14, className }: BrandIconProps) {
 
   const html = useMemo(() => {
     let sanitized = svg
-      .replace(/\bwidth="[^"]*"/, `width="${size}"`)
-      .replace(/\bheight="[^"]*"/, `height="${size}"`)
       .replace(/\bid="/g, `id="${prefix}`)
       .replace(/url\(#/g, `url(#${prefix}`);
 
-    if (!sanitized.includes('fill="')) {
-      sanitized = sanitized.replace(/<svg\b/, `<svg fill="#1c1b20"`);
-    }
+    const fullStyle = "width:100%;height:100%;display:block;";
+
+    sanitized = sanitized.replace(/<svg\b([^>]*)>/, (match, attrs: string) => {
+      let next = attrs;
+
+      if (/\bwidth="/.test(next)) {
+        next = next.replace(/\bwidth="[^"]*"/, `width="${size}"`);
+      } else {
+        next += ` width="${size}"`;
+      }
+
+      if (/\bheight="/.test(next)) {
+        next = next.replace(/\bheight="[^"]*"/, `height="${size}"`);
+      } else {
+        next += ` height="${size}"`;
+      }
+
+      if (/\bstyle="/.test(next)) {
+        next = next.replace(/\bstyle="([^"]*)"/, (_m, existing: string) => {
+          const normalized = existing.endsWith(";") ? existing : `${existing};`;
+          return `style="${normalized}${fullStyle}"`;
+        });
+      } else {
+        next += ` style="${fullStyle}"`;
+      }
+
+      if (!next.includes('fill="') && !next.includes("fill:")) {
+        next += ` fill="#1c1b20"`;
+      }
+
+      return `<svg${next}>`;
+    });
 
     return sanitized;
   }, [svg, size, prefix]);
