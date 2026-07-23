@@ -18,10 +18,10 @@ import {
   CustomProtocol,
   Provider,
   customModelId,
-  isCustomModelId,
   modelsForProvider,
   resolveMaxOutputTokens,
 } from "../lib/models";
+import { Select } from "./Select";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
@@ -465,14 +465,15 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               </div>
             </div>
             <Field label="AI provider">
-              <select
+              <Select
                 value={settings.provider}
-                onChange={(event) => updateProvider(event.target.value as Provider)}
-              >
-                <option value={Provider.OpenAI}>OpenAI</option>
-                <option value={Provider.Gemini}>Gemini</option>
-                <option value={Provider.Custom}>Custom endpoint</option>
-              </select>
+                options={[
+                  { value: Provider.OpenAI, label: "OpenAI" },
+                  { value: Provider.Gemini, label: "Gemini" },
+                  { value: Provider.Custom, label: "Custom endpoint" },
+                ]}
+                onChange={(value) => updateProvider(value as Provider)}
+              />
             </Field>
             <Field
               label={`${providerName} API key`}
@@ -494,13 +495,14 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             {isCustom ? (
               <>
                 <Field label="Endpoint protocol" hint="The API format your custom endpoint expects">
-                  <select
+                  <Select
                     value={settings.customProtocol}
-                    onChange={(event) => updateCustomProtocol(event.target.value as CustomProtocol)}
-                  >
-                    <option value={CustomProtocol.OpenAI}>OpenAI-compatible · /v1/chat/completions</option>
-                    <option value={CustomProtocol.Anthropic}>Anthropic-compatible · /v1/messages</option>
-                  </select>
+                    options={[
+                      { value: CustomProtocol.OpenAI, label: "OpenAI-compatible · /v1/chat/completions" },
+                      { value: CustomProtocol.Anthropic, label: "Anthropic-compatible · /v1/messages" },
+                    ]}
+                    onChange={(value) => updateCustomProtocol(value as CustomProtocol)}
+                  />
                 </Field>
                 <Field
                   label="Custom model ID"
@@ -537,16 +539,14 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               </>
             ) : (
               <Field label="Model">
-                <select
+                <Select
                   value={settings.model}
-                  onChange={(event) => updateModel(event.target.value)}
-                >
-                  {providerModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label} · {model.description}
-                    </option>
-                  ))}
-                </select>
+                  options={providerModels.map((model) => ({
+                    value: model.id,
+                    label: `${model.label} · ${model.description}`,
+                  }))}
+                  onChange={(value) => updateModel(value)}
+                />
               </Field>
             )}
             <Field
@@ -566,21 +566,19 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               label="Reasoning effort"
               hint="Reasoning effort · Auto uses the model default"
             >
-              <select
+              <Select
                 value={settings.reasoningEffort}
-                onChange={(event) =>
+                options={effortOptions.map((option) => ({
+                  value: option.id,
+                  label: `${option.label} · ${option.description}`,
+                }))}
+                onChange={(value) =>
                   setSettings({
                     ...settings,
-                    reasoningEffort: event.target.value as ExtensionSettings["reasoningEffort"],
+                    reasoningEffort: value as ExtensionSettings["reasoningEffort"],
                   })
                 }
-              >
-                {effortOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label} · {option.description}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>}
 
             <div className="divider" />
@@ -595,38 +593,33 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             </div>
             {!isCustom && (
               <Field label="Eval model" hint="Separate from Analyze model above">
-                <select
+                <Select
                   value={settings.evalModel}
-                  onChange={(event) => updateEvalModel(event.target.value)}
-                >
-                  {providerModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label} · {model.description}
-                    </option>
-                  ))}
-                </select>
+                  options={providerModels.map((model) => ({
+                    value: model.id,
+                    label: `${model.label} · ${model.description}`,
+                  }))}
+                  onChange={(value) => updateEvalModel(value)}
+                />
               </Field>
             )}
             {settings.provider === Provider.OpenAI && <Field
               label="Eval reasoning"
               hint="Default high · clamped if the model cannot use that effort"
             >
-              <select
+              <Select
                 value={settings.evalReasoningEffort}
-                onChange={(event) =>
+                options={evalEffortOptions.map((option) => ({
+                  value: option.id,
+                  label: `${option.label} · ${option.description}`,
+                }))}
+                onChange={(value) =>
                   setSettings({
                     ...settings,
-                    evalReasoningEffort: event.target
-                      .value as ExtensionSettings["evalReasoningEffort"],
+                    evalReasoningEffort: value as ExtensionSettings["evalReasoningEffort"],
                   })
                 }
-              >
-                {evalEffortOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label} · {option.description}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>}
 
             <div className="divider" />
