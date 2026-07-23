@@ -720,7 +720,7 @@ button:disabled, button[aria-disabled="true"], [role="button"]:disabled, [role="
 .custom-select-trigger[aria-expanded="true"] { border-color: var(--purple); }
 .custom-select-trigger svg { flex: 0 0 auto; color: var(--muted); transition: transform .15s; }
 .custom-select-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
-.custom-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.custom-select-value { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .custom-select-trigger:disabled { opacity: .48; cursor: not-allowed; }
 
 .custom-select-menu {
@@ -760,4 +760,10 @@ button:disabled, button[aria-disabled="true"], [role="button"]:disabled, [role="
   font-weight: 650;
   color: var(--ink);
 }
+.custom-select-option-text { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.custom-select-icon { flex: 0 0 auto; display: inline-flex; color: var(--muted); }
+.custom-select-option.active .custom-select-icon,
+.custom-select-option:hover .custom-select-icon { color: var(--purple-dark); }
+.custom-select-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.custom-select-option .custom-select-label { white-space: normal; }
 .custom-select-option svg { flex: 0 0 auto; color: var(--purple); }

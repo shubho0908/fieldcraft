@@ -1,9 +1,11 @@
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 export interface SelectOption {
   value: string;
   label: string;
+  icon?: ReactNode;
 }
 
 interface SelectProps {
@@ -138,9 +140,10 @@ export function Select({
         disabled={disabled}
       >
         <span className="custom-select-value">
-          {selected?.label ?? placeholder}
+          {selected?.icon && <span className="custom-select-icon">{selected.icon}</span>}
+          <span className="custom-select-label">{selected?.label ?? placeholder}</span>
         </span>
-        <ChevronDown size={16} />
+        <ChevronsUpDown size={16} />
       </button>
 
       {open && (
@@ -161,7 +164,10 @@ export function Select({
               onClick={() => select(option, index)}
               onMouseEnter={() => setActiveIndex(index)}
             >
-              <span>{option.label}</span>
+              <span className="custom-select-option-text">
+                {option.icon && <span className="custom-select-icon">{option.icon}</span>}
+                <span className="custom-select-label">{option.label}</span>
+              </span>
               {option.value === value && <Check size={14} />}
             </li>
           ))}

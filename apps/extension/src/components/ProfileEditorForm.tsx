@@ -1,18 +1,33 @@
 import BrandMark from "./BrandMark";
 import type { CandidateProfile, ExtensionSettings } from "../types";
 import {
+  AlignCenter,
   ArrowLeft,
   ArrowRight,
+  Bot,
+  Brain,
   Check,
+  ChevronsUp,
   Eye,
   EyeOff,
   FileText,
-  KeyRound,
+  FlaskConical,
+  Gauge,
+  MessagesSquare,
+  Minus,
   Plus,
+  Rocket,
+  Search,
+  Server,
   ShieldCheck,
+  Sparkles,
   Trash2,
+  TrendingDown,
+  TrendingUp,
   Upload,
+  Zap,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   CUSTOM_MODEL_PREFIX,
   CustomProtocol,
@@ -25,6 +40,39 @@ import { Select } from "./Select";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
+
+function providerIcon(provider: Provider): ReactNode {
+  switch (provider) {
+    case Provider.OpenAI:
+      return <Sparkles size={14} />;
+    case Provider.Gemini:
+      return <Zap size={14} />;
+    case Provider.Custom:
+      return <Server size={14} />;
+  }
+}
+
+function protocolIcon(protocol: CustomProtocol): ReactNode {
+  switch (protocol) {
+    case CustomProtocol.OpenAI:
+      return <MessagesSquare size={14} />;
+    case CustomProtocol.Anthropic:
+      return <Bot size={14} />;
+  }
+}
+
+function reasoningIcon(id: ReasoningEffortSetting): ReactNode {
+  const icons: Record<ReasoningEffortSetting, ReactNode> = {
+    auto: <Gauge size={14} />,
+    none: <Minus size={14} />,
+    low: <TrendingDown size={14} />,
+    medium: <AlignCenter size={14} />,
+    high: <TrendingUp size={14} />,
+    xhigh: <ChevronsUp size={14} />,
+    max: <Rocket size={14} />,
+  };
+  return icons[id];
+}
 
 export type ProfileEditorFormProps = {
   onboarding: boolean;
@@ -458,7 +506,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
 
             <div className="divider" />
             <div className="api-heading">
-              <div className="api-icon"><KeyRound size={18} /></div>
+              <div className="api-icon"><Brain size={18} /></div>
               <div>
                 <h3>AI provider connection</h3>
                 <p>Used for analysis, company research, and answer drafting.</p>
@@ -468,9 +516,9 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
               <Select
                 value={settings.provider}
                 options={[
-                  { value: Provider.OpenAI, label: "OpenAI" },
-                  { value: Provider.Gemini, label: "Gemini" },
-                  { value: Provider.Custom, label: "Custom endpoint" },
+                  { value: Provider.OpenAI, label: "OpenAI", icon: providerIcon(Provider.OpenAI) },
+                  { value: Provider.Gemini, label: "Gemini", icon: providerIcon(Provider.Gemini) },
+                  { value: Provider.Custom, label: "Custom endpoint", icon: providerIcon(Provider.Custom) },
                 ]}
                 onChange={(value) => updateProvider(value as Provider)}
               />
@@ -498,8 +546,8 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                   <Select
                     value={settings.customProtocol}
                     options={[
-                      { value: CustomProtocol.OpenAI, label: "OpenAI-compatible · /v1/chat/completions" },
-                      { value: CustomProtocol.Anthropic, label: "Anthropic-compatible · /v1/messages" },
+                      { value: CustomProtocol.OpenAI, label: "OpenAI-compatible · /v1/chat/completions", icon: protocolIcon(CustomProtocol.OpenAI) },
+                      { value: CustomProtocol.Anthropic, label: "Anthropic-compatible · /v1/messages", icon: protocolIcon(CustomProtocol.Anthropic) },
                     ]}
                     onChange={(value) => updateCustomProtocol(value as CustomProtocol)}
                   />
@@ -544,6 +592,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                   options={providerModels.map((model) => ({
                     value: model.id,
                     label: `${model.label} · ${model.description}`,
+                    icon: providerIcon(model.provider),
                   }))}
                   onChange={(value) => updateModel(value)}
                 />
@@ -571,6 +620,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 options={effortOptions.map((option) => ({
                   value: option.id,
                   label: `${option.label} · ${option.description}`,
+                  icon: reasoningIcon(option.id),
                 }))}
                 onChange={(value) =>
                   setSettings({
@@ -584,7 +634,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             <div className="divider" />
             <div className="api-heading">
               <div className="api-icon">
-                <KeyRound size={18} />
+                <FlaskConical size={18} />
               </div>
               <div>
                 <h3>Live fixture evals</h3>
@@ -598,6 +648,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                   options={providerModels.map((model) => ({
                     value: model.id,
                     label: `${model.label} · ${model.description}`,
+                    icon: providerIcon(model.provider),
                   }))}
                   onChange={(value) => updateEvalModel(value)}
                 />
@@ -612,6 +663,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 options={evalEffortOptions.map((option) => ({
                   value: option.id,
                   label: `${option.label} · ${option.description}`,
+                  icon: reasoningIcon(option.id),
                 }))}
                 onChange={(value) =>
                   setSettings({
@@ -624,7 +676,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
 
             <div className="divider" />
             <div className="api-heading">
-              <div className="api-icon"><KeyRound size={18} /></div>
+              <div className="api-icon"><Search size={18} /></div>
               <div>
                 <h3>Exa company research</h3>
                 <p>Looks up company background (funding, size, products) so job fit recommendations are more accurate.</p>
