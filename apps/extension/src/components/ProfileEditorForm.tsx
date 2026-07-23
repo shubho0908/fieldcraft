@@ -8,6 +8,7 @@ import {
   Brain,
   Check,
   ChevronsUp,
+  Cpu,
   Eye,
   EyeOff,
   FileText,
@@ -20,7 +21,6 @@ import {
   Search,
   Server,
   ShieldCheck,
-  Sparkles,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -44,7 +44,7 @@ type EffortOption = { id: ReasoningEffortSetting; label: string; description: st
 function providerIcon(provider: Provider): ReactNode {
   switch (provider) {
     case Provider.OpenAI:
-      return <Sparkles size={14} />;
+      return <Cpu size={14} />;
     case Provider.Gemini:
       return <Zap size={14} />;
     case Provider.Custom:
