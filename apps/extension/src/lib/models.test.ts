@@ -179,6 +179,11 @@ describe("custom protocol helpers", () => {
     );
   });
 
+  it("leaves empty Anthropic base URLs empty so validation can reject them", () => {
+    expect(sanitizeAnthropicBaseUrl("")).toBe("");
+    expect(sanitizeAnthropicBaseUrl("   ")).toBe("");
+  });
+
   it("normalizes Anthropic-compatible base URLs to the /v1 root", () => {
     expect(sanitizeAnthropicBaseUrl("https://api.anthropic.com")).toBe(
       "https://api.anthropic.com/v1",

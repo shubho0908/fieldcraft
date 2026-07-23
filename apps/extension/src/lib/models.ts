@@ -309,6 +309,7 @@ export function sanitizeAnthropicBaseUrl(baseUrl: string): string {
     .replace(/\/chat\/completions\/?$/i, "")
     .replace(/\/messages\/?$/i, "")
     .replace(/\/+$/, "");
+  if (!trimmed) return "";
   if (/\/v\d+$/i.test(trimmed)) return trimmed;
   return `${trimmed}/v1`;
 }
