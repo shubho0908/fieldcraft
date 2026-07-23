@@ -2,7 +2,6 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
-import { createAnthropicCompatibleFetch } from "./anthropic-fetch";
 import {
   CustomProtocol,
   Provider,
@@ -52,16 +51,8 @@ export function createAiModel(options: CreateAiModelOptions): LanguageModel {
       );
       const anthropic = createAnthropic(
         isAnthropicHost
-          ? {
-              apiKey,
-              baseURL: trimmedBaseURL,
-              fetch: createAnthropicCompatibleFetch(),
-            }
-          : {
-              authToken: apiKey,
-              baseURL: trimmedBaseURL,
-              fetch: createAnthropicCompatibleFetch(),
-            },
+          ? { apiKey, baseURL: trimmedBaseURL }
+          : { authToken: apiKey, baseURL: trimmedBaseURL },
       );
       return anthropic(actualModelId);
     }

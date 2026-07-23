@@ -1,4 +1,4 @@
-import { generateText, jsonSchema, Output } from "ai";
+import { generateText, jsonSchema, Output, streamText } from "ai";
 import type { JSONSchema7 } from "@ai-sdk/provider";
 import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
 import { createAiModel } from "./ai-provider";
@@ -16,6 +16,7 @@ import { isThinCompanyResearch } from "./fit";
 import { toSafeAnalysis } from "./analysis";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
+  CustomProtocol,
   Provider,
   resolveAnalysisConfig,
   resolveMaxOutputTokens,
@@ -381,21 +382,34 @@ export async function runJobAnalysis(
 
   let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
 
+  const isAnthropicCustom =
+    model.provider === Provider.Custom &&
+    settings.customProtocol === CustomProtocol.Anthropic;
+
   try {
     if (model.provider === Provider.Custom) {
       // OpenAI-compatible providers often do not support response_format or
       // structured outputs, so we ask for plain text and parse the JSON ourselves.
       const customInstructions = `${ANALYSIS_INSTRUCTIONS}\n\nReturn your entire response as a single JSON object matching the following JSON Schema. Do not wrap it in markdown code fences and do not add any commentary before or after the JSON object.\n\n${JSON.stringify(JOB_ANALYSIS_SCHEMA, null, 2)}`;
-      const result = await generateText({
-        model: aiModel,
-        prompt: input,
-        instructions: customInstructions,
-        tools: NO_MODEL_TOOLS,
-        maxOutputTokens: resolveMaxOutputTokens(model.id, settings.maxOutputTokens),
-        providerOptions,
-      });
+      const result = isAnthropicCustom
+        ? await streamText({
+            model: aiModel,
+            prompt: input,
+            instructions: customInstructions,
+            tools: NO_MODEL_TOOLS,
+            maxOutputTokens: resolveMaxOutputTokens(model.id, settings.maxOutputTokens),
+            providerOptions,
+          })
+        : await generateText({
+            model: aiModel,
+            prompt: input,
+            instructions: customInstructions,
+            tools: NO_MODEL_TOOLS,
+            maxOutputTokens: resolveMaxOutputTokens(model.id, settings.maxOutputTokens),
+            providerOptions,
+          });
 
-      parsed = coerceAnalysisOutput(extractJsonObject(result.text));
+      parsed = coerceAnalysisOutput(extractJsonObject(await result.text));
     } else {
       const result = await generateText({
         model: aiModel,
@@ -407,7 +421,7 @@ export async function runJobAnalysis(
         providerOptions,
       });
 
-      parsed = coerceAnalysisOutput(result.output);
+      parsed = coerceAnalysisOutput(await result.output);
     }
   } catch (error) {
     throw new Error(formatAnalysisError(error, model.provider));
@@ -448,24 +462,35 @@ export async function testAiConnection(
       model.provider === Provider.Custom ? settings.customProtocol : undefined,
   });
 
-  const result = await generateText({
-    model: aiModel,
-    prompt: CONNECTION_TEST_PROMPT,
-    tools: NO_MODEL_TOOLS,
-    maxOutputTokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
-    providerOptions:
-      model.provider === Provider.OpenAI
-        ? {
-            openai: {
-              store: false,
-              user: await getInstallId(),
-              reasoningEffort: CONNECTION_TEST_REASONING_EFFORT,
-            },
-          }
-        : undefined,
-  });
+  const isAnthropicCustom =
+    model.provider === Provider.Custom &&
+    settings.customProtocol === CustomProtocol.Anthropic;
 
-  if (result.finishReason === "error") {
+  const result = isAnthropicCustom
+    ? await streamText({
+        model: aiModel,
+        prompt: CONNECTION_TEST_PROMPT,
+        tools: NO_MODEL_TOOLS,
+        maxOutputTokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
+      })
+    : await generateText({
+        model: aiModel,
+        prompt: CONNECTION_TEST_PROMPT,
+        tools: NO_MODEL_TOOLS,
+        maxOutputTokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
+        providerOptions:
+          model.provider === Provider.OpenAI
+            ? {
+                openai: {
+                  store: false,
+                  user: await getInstallId(),
+                  reasoningEffort: CONNECTION_TEST_REASONING_EFFORT,
+                },
+              }
+            : undefined,
+      });
+
+  if ((await result.finishReason) === "error") {
     throw new Error(
       "The provider ended the connection test with an error.",
     );
@@ -473,7 +498,7 @@ export async function testAiConnection(
 
   return {
     model: model.id,
-    responseId: result.response?.id,
+    responseId: (await result.response)?.id,
   };
 }
 
