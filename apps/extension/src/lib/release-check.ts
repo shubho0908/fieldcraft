@@ -133,7 +133,7 @@ export async function getNotificationUrl(notificationId: string): Promise<string
   return typeof url === "string" ? url : null;
 }
 
-export async function clearNotificationUrl(notificationId: string): Promise<void> {
+async function clearNotificationUrl(notificationId: string): Promise<void> {
   await chrome.storage.local.remove(`${NOTIFICATION_URLS_KEY}.${notificationId}`);
 }
 
