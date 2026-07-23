@@ -4,11 +4,9 @@ import {
   AlignCenter,
   ArrowLeft,
   ArrowRight,
-  Bot,
   Brain,
   Check,
   ChevronsUp,
-  Cpu,
   Eye,
   EyeOff,
   FileText,
@@ -25,7 +23,6 @@ import {
   TrendingDown,
   TrendingUp,
   Upload,
-  Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import {
@@ -37,6 +34,9 @@ import {
   resolveMaxOutputTokens,
 } from "../lib/models";
 import { Select } from "./Select";
+import { OpenAIIcon } from "./OpenAIIcon";
+import { GeminiIcon } from "./GeminiIcon";
+import { AnthropicIcon } from "./AnthropicIcon";
 import type { ReasoningEffortSetting } from "../lib/enums";
 
 type EffortOption = { id: ReasoningEffortSetting; label: string; description: string };
@@ -44,9 +44,9 @@ type EffortOption = { id: ReasoningEffortSetting; label: string; description: st
 function providerIcon(provider: Provider): ReactNode {
   switch (provider) {
     case Provider.OpenAI:
-      return <Cpu size={14} />;
+      return <OpenAIIcon size={14} />;
     case Provider.Gemini:
-      return <Zap size={14} />;
+      return <GeminiIcon size={14} />;
     case Provider.Custom:
       return <Server size={14} />;
   }
@@ -57,7 +57,7 @@ function protocolIcon(protocol: CustomProtocol): ReactNode {
     case CustomProtocol.OpenAI:
       return <MessagesSquare size={14} />;
     case CustomProtocol.Anthropic:
-      return <Bot size={14} />;
+      return <AnthropicIcon size={14} />;
   }
 }
 
