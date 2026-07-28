@@ -22,7 +22,7 @@ import {
   sanitizeCustomBaseUrl,
 } from "./models";
 
-const KEYS = {
+export const KEYS = {
   profile: "fieldcraft.profile",
   settings: "fieldcraft.settings",
   /** Legacy OpenAI key name, retained for a safe one-time read migration. */
@@ -32,6 +32,7 @@ const KEYS = {
   customApiKey: "fieldcraft.customApiKey",
   exaApiKey: "fieldcraft.exaApiKey",
   tabSessions: "fieldcraft.tabAnalysisSessions",
+  panelBoundTabs: "fieldcraft.panelBoundTabs",
   installId: "fieldcraft.installId",
 };
 
@@ -351,6 +352,62 @@ export async function removeTabAnalysisSession(tabId: number): Promise<void> {
   await mutateTabAnalysisSessions((sessions) => {
     delete sessions[String(tabId)];
   });
+}
+
+/** Which tab the side panel is bound to for each window. */
+export interface PanelBoundTab {
+  tabId: number;
+  windowId: number;
+  url?: string;
+}
+
+let panelBoundMutation: Promise<void> = Promise.resolve();
+
+async function mutatePanelBoundTabs<T>(
+  mutator: (record: Record<string, PanelBoundTab>) => T,
+): Promise<T> {
+  const operation = panelBoundMutation.then(async () => {
+    const stored = await chrome.storage.session.get(KEYS.panelBoundTabs);
+    const record = (stored[KEYS.panelBoundTabs] ?? {}) as Record<string, PanelBoundTab>;
+    const value = mutator(record);
+    await chrome.storage.session.set({ [KEYS.panelBoundTabs]: record });
+    return value;
+  });
+  panelBoundMutation = operation.then(
+    () => undefined,
+    () => undefined,
+  );
+  return operation;
+}
+
+export async function getPanelBoundTab(windowId: number): Promise<PanelBoundTab | null> {
+  await panelBoundMutation;
+  const stored = await chrome.storage.session.get(KEYS.panelBoundTabs);
+  const record = stored[KEYS.panelBoundTabs] as Record<string, PanelBoundTab> | undefined;
+  const bound = record?.[String(windowId)] ?? null;
+  return bound && bound.windowId === windowId ? bound : null;
+}
+
+export async function setPanelBoundTab(
+  windowId: number,
+  tabId: number,
+  url?: string,
+): Promise<void> {
+  await mutatePanelBoundTabs((record) => {
+    record[String(windowId)] = { windowId, tabId, url };
+  });
+}
+
+export async function clearPanelBoundTab(windowId: number): Promise<void> {
+  await mutatePanelBoundTabs((record) => {
+    delete record[String(windowId)];
+  });
+}
+
+export async function getAllPanelBoundTabs(): Promise<Record<string, PanelBoundTab>> {
+  await panelBoundMutation;
+  const stored = await chrome.storage.session.get(KEYS.panelBoundTabs);
+  return (stored[KEYS.panelBoundTabs] as Record<string, PanelBoundTab> | undefined) ?? {};
 }
 
 export async function getInstallId(): Promise<string> {

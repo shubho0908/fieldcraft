@@ -10,17 +10,19 @@ import {
   SIDE_PANEL_PORT,
   SIDE_PANEL_TOGGLE_COMMAND,
   type SidePanelHostMessage,
-  closeSidePanel,
-  openSidePanel,
-  toggleSidePanel,
+  closePanelForTab,
+  openPanelForTab,
 } from "./lib/side-panel";
 import {
+  clearPanelBoundTab,
+  getAllPanelBoundTabs,
   getExaApiKey,
   getProfile,
   getSettings,
   getTabAnalysisSession,
   mutateTabAnalysisSessions,
   removeTabAnalysisSession,
+  setPanelBoundTab,
 } from "./lib/storage";
 import {
   canUpdateRun,
@@ -37,22 +39,33 @@ import type {
 
 /** Live side-panel ports keyed by browser windowId. */
 const sidePanelPorts = new Map<number, chrome.runtime.Port>();
+/** Active tab cache keyed by browser windowId, used for the keyboard shortcut. */
+const activeTabs = new Map<number, number>();
+/** Bound panel tab keyed by browser windowId. */
+const boundPanelTabs = new Map<number, number>();
 
 const RELEASE_CHECK_ALARM = "fieldcraft-release-check";
 
-void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+// Fieldcraft's side panel is per-tab. Disable the default global panel and
+// leave it hidden until the user explicitly opens it on a specific tab.
+void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+void chrome.sidePanel.setOptions({ enabled: false });
+void initActiveTabCache();
+void restorePanelBindings();
 // An MV3 worker can be terminated only when no event is keeping it alive. If
 // that happens, an in-flight network/DOM operation cannot be resumed safely;
 // surface a retry state rather than leaving a tab on an endless spinner.
 void recoverInterruptedTabRuns();
 
 chrome.runtime.onInstalled.addListener(() => {
-  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+  void chrome.sidePanel.setOptions({ enabled: false });
   void initReleaseChecker();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   void initReleaseChecker();
+  void restorePanelBindings();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -73,21 +86,30 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   })();
 });
 
-// --- last-focused window cache for toggle-side-panel ---
+// --- last-focused window and active-tab caches for the toggle shortcut ---
 //
 // chrome.sidePanel.open() must be called from a SYNCHRONOUS (non-async)
 // context — Chrome drops the user-gesture flag across async function
-// boundaries.  Caching the windowId lets us call openSidePanel() directly
-// in the command listener, preserving the gesture.
+// boundaries. Caching the windowId and active tab lets us call
+// openPanelForTab() directly in the command listener, preserving the gesture.
 let _lastFocusedWindowId: number | undefined;
 
+async function updateActiveTabForWindow(windowId: number): Promise<void> {
+  const [tab] = await chrome.tabs.query({ active: true, windowId });
+  if (tab?.id) activeTabs.set(windowId, tab.id);
+}
+
 chrome.windows.getLastFocused({ populate: false }).then((win) => {
-  _lastFocusedWindowId = win.id;
+  if (win.id != null) {
+    _lastFocusedWindowId = win.id;
+    void updateActiveTabForWindow(win.id);
+  }
 });
 
 chrome.windows.onFocusChanged.addListener((windowId) => {
   if (windowId !== chrome.windows.WINDOW_ID_NONE) {
     _lastFocusedWindowId = windowId;
+    void updateActiveTabForWindow(windowId);
   }
 });
 
@@ -96,19 +118,34 @@ chrome.commands.onCommand.addListener((command) => {
   if (command !== SIDE_PANEL_TOGGLE_COMMAND) return;
 
   const windowId = _lastFocusedWindowId;
-  if (windowId == null) {
-    // Cache not ready — try async toggle (close still works via port fallback).
-    void toggleSidePanel(sidePanelPorts);
+  if (windowId == null) return;
+
+  const cachedTabId = activeTabs.get(windowId);
+  if (cachedTabId != null) {
+    togglePanelForTab(windowId, cachedTabId);
     return;
   }
 
-  const openPort = sidePanelPorts.get(windowId);
-  if (openPort) {
-    void closeSidePanel(windowId, openPort);
-  } else {
-    // Synchronous call preserves the keyboard-command user gesture.
-    openSidePanel(windowId);
+  // Cache not ready — try async resolution (gesture may be lost, fallback only).
+  void chrome.tabs.query({ active: true, windowId }).then(([tab]) => {
+    if (tab?.id) togglePanelForTab(windowId, tab.id);
+  });
+});
+
+// Click the toolbar icon to bind the side panel to the current tab.
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab.id || !tab.windowId) return;
+
+  const url = tab.url || tab.pendingUrl || "";
+  if (url && !isAnalyzableTabUrl(url)) {
+    const bound = boundPanelTabs.get(tab.windowId);
+    if (bound != null) {
+      void closePanelAndUnbind(tab.windowId, bound);
+    }
+    return;
   }
+
+  togglePanelForTab(tab.windowId, tab.id, url);
 });
 
 // Side panel documents check in while open so we can close them on toggle.
@@ -122,6 +159,9 @@ chrome.runtime.onConnect.addListener((port) => {
     if (!Number.isInteger(message.windowId)) return;
     windowId = message.windowId;
     sidePanelPorts.set(windowId, port);
+    if (Number.isInteger(message.tabId) && message.tabId > 0) {
+      boundPanelTabs.set(windowId, message.tabId);
+    }
   });
 
   port.onDisconnect.addListener(() => {
@@ -131,8 +171,51 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
+// Listen for the native side-panel close event (Chrome 141+) so we can clear
+// the bound tab when the user explicitly closes the panel.
+const sidePanelOnClosed = (
+  chrome.sidePanel as unknown as {
+    onClosed?: {
+      addListener: (callback: (info: { tabId?: number; windowId: number }) => void) => void;
+    };
+  }
+).onClosed;
+if (sidePanelOnClosed?.addListener) {
+  sidePanelOnClosed.addListener(({ tabId, windowId }) => {
+    if (tabId == null) return;
+    for (const [winId, boundTabId] of boundPanelTabs) {
+      if (winId === windowId && boundTabId === tabId) {
+        boundPanelTabs.delete(winId);
+        void clearPanelBoundTab(winId);
+        void chrome.sidePanel.setOptions({ tabId, enabled: false }).catch(() => {});
+        break;
+      }
+    }
+  });
+}
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  activeTabs.set(activeInfo.windowId, activeInfo.tabId);
+
+  const bound = boundPanelTabs.get(activeInfo.windowId);
+  if (bound === activeInfo.tabId) {
+    void chrome.sidePanel.setOptions({ tabId: bound, enabled: true }).catch(() => {});
+  } else {
+    void chrome.sidePanel.setOptions({ tabId: activeInfo.tabId, enabled: false }).catch(() => {});
+  }
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   void removeTabAnalysisSession(tabId);
+
+  for (const [windowId, boundTabId] of boundPanelTabs) {
+    if (boundTabId === tabId) {
+      boundPanelTabs.delete(windowId);
+      void clearPanelBoundTab(windowId);
+      void chrome.sidePanel.setOptions({ tabId, enabled: false }).catch(() => {});
+      break;
+    }
+  }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
@@ -510,6 +593,69 @@ async function initReleaseChecker(): Promise<void> {
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+function togglePanelForTab(windowId: number, tabId: number, url?: string): void {
+  const bound = boundPanelTabs.get(windowId);
+  if (bound === tabId && sidePanelPorts.has(windowId)) {
+    void closePanelAndUnbind(windowId, tabId);
+    return;
+  }
+
+  if (bound != null && bound !== tabId) {
+    void chrome.sidePanel.setOptions({ tabId: bound, enabled: false }).catch(() => {});
+  }
+
+  boundPanelTabs.set(windowId, tabId);
+  if (url) void setPanelBoundTab(windowId, tabId, url);
+  else void setPanelBoundTab(windowId, tabId);
+  openPanelForTab(tabId, windowId);
+
+  if (url) return;
+  void chrome.tabs
+    .get(tabId)
+    .then((tab) => {
+      const tabUrl = tab.url || tab.pendingUrl || "";
+      if (tabUrl) void setPanelBoundTab(windowId, tabId, tabUrl);
+    })
+    .catch(() => {});
+}
+
+async function closePanelAndUnbind(windowId: number, tabId: number): Promise<void> {
+  const port = sidePanelPorts.get(windowId);
+  sidePanelPorts.delete(windowId);
+  boundPanelTabs.delete(windowId);
+  await clearPanelBoundTab(windowId);
+  await closePanelForTab(tabId, windowId, port);
+  await chrome.sidePanel.setOptions({ tabId, enabled: false }).catch(() => {});
+}
+
+async function initActiveTabCache(): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ active: true });
+    for (const tab of tabs) {
+      if (tab.windowId && tab.id) activeTabs.set(tab.windowId, tab.id);
+    }
+  } catch {
+    // Ignore if the tabs API isn't available.
+  }
+}
+
+async function restorePanelBindings(): Promise<void> {
+  try {
+    const all = await getAllPanelBoundTabs();
+    for (const [windowId, bound] of Object.entries(all)) {
+      if (!bound.tabId) continue;
+      const winId = Number(windowId);
+      boundPanelTabs.set(winId, bound.tabId);
+      const [active] = await chrome.tabs.query({ active: true, windowId: winId });
+      if (active?.id === bound.tabId) {
+        void chrome.sidePanel.setOptions({ tabId: bound.tabId, enabled: true }).catch(() => {});
+      }
+    }
+  } catch {
+    // Ignore.
+  }
 }
 
 /**
