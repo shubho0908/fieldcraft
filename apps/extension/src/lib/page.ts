@@ -670,6 +670,17 @@ function setFileInput(
 ): void {
   const [meta, encoded] = attachment.dataUrl.split(",", 2);
   if (!encoded || !meta) throw new Error("Saved resume file is invalid");
+
+  // iOS / iPadOS Safari does not allow scripts to programmatically set file inputs.
+  // Surface a clear message so the user can upload the resume manually.
+  const isIos =
+    (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) &&
+    !(window as { MSStream?: unknown }).MSStream;
+  if (isIos) {
+    throw new Error("Resume upload cannot be automated on iOS / iPadOS Safari. Please attach it manually.");
+  }
+
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {

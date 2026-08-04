@@ -13,7 +13,10 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPO || "shubho0908/fieldcraft";
-  const assetName = process.env.EXTENSION_ASSET_NAME || DEFAULT_ASSET_NAME;
+  const assetName =
+    request.nextUrl.searchParams.get("asset") ||
+    process.env.EXTENSION_ASSET_NAME ||
+    DEFAULT_ASSET_NAME;
 
   const [owner, name] = repo.split("/");
   if (!owner || !name || repo.split("/").length !== 2) {

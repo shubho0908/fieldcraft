@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { ArrowLeft, Settings2 } from "lucide-react";
 import BrandMark from "./components/BrandMark";
+import { ReleaseBanner } from "./components/ReleaseBanner";
 import { getBootData, hasExaApiKey } from "./lib/storage";
 import type { CandidateProfile, ExtensionSettings } from "./types";
 
@@ -51,6 +52,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {!onboarding && <ReleaseBanner />}
       {!onboarding && (
         <header className="app-header">
           <button

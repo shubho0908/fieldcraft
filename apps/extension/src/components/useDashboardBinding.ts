@@ -112,7 +112,9 @@ export function useDashboardBinding() {
       changes: Record<string, chrome.storage.StorageChange>,
       area: string,
     ) => {
-      if (area !== "session" || !changes["fieldcraft.tabAnalysisSessions"] || !binding) return;
+      // Safari <16.4 (and some other contexts) fall back to chrome.storage.local
+      // for tab sessions, so we react to both session and local changes here.
+      if (area === "managed" || !changes["fieldcraft.tabAnalysisSessions"] || !binding) return;
       const sessions = changes["fieldcraft.tabAnalysisSessions"].newValue as
         | Record<string, TabAnalysisSession>
         | undefined;

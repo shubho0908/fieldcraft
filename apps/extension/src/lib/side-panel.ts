@@ -6,6 +6,8 @@
  * track the panel via a long-lived port and ask it to window.close().
  */
 
+import { isSidePanelApiSupported, sidePanelApi } from "./ui-host";
+
 export const SIDE_PANEL_PORT = "fieldcraft-sidepanel";
 export const SIDE_PANEL_TOGGLE_COMMAND = "toggle-side-panel";
 
@@ -20,6 +22,7 @@ export type SidePanelHostMessage =
 export function connectSidePanelHost(): void {
   if (typeof chrome === "undefined" || !chrome.runtime?.connect) return;
 
+  if (!("windows" in chrome)) return;
   void chrome.windows.getCurrent().then((win) => {
     if (win.id == null) return;
     const port = chrome.runtime.connect({ name: SIDE_PANEL_PORT });
@@ -36,6 +39,10 @@ export function connectSidePanelHost(): void {
   });
 }
 
+function sidePanelEnabled(): boolean {
+  return isSidePanelApiSupported();
+}
+
 /**
  * Open the side panel. MUST be called from a synchronous (non-async) context
  * during a user gesture — Chrome drops the user-gesture flag across async
@@ -45,7 +52,9 @@ export function openSidePanel(windowId: number): void {
   // Must NOT be async — Chrome's user-gesture flag is lost across async
   // boundaries.  .catch() is fine because the registration is synchronous
   // and doesn't break the gesture context.
-  chrome.sidePanel.open({ windowId }).catch(() => {});
+  const api = sidePanelApi();
+  if (!api) return;
+  api.open({ windowId }).catch(() => {});
 }
 
 /**
@@ -56,15 +65,10 @@ export async function closeSidePanel(
   port: chrome.runtime.Port,
 ): Promise<void> {
   // Chrome 141+: native close. Prefer it so the panel and Chrome UI stay in sync.
-  const sidePanelClose = (
-    chrome.sidePanel as typeof chrome.sidePanel & {
-      close?: (options: { windowId: number }) => Promise<void>;
-    }
-  ).close;
-
-  if (typeof sidePanelClose === "function") {
+  const api = sidePanelApi();
+  if (api && "close" in api) {
     try {
-      await sidePanelClose.call(chrome.sidePanel, { windowId });
+      await (api as typeof api & { close: (options: { windowId: number }) => Promise<void> }).close({ windowId });
       return;
     } catch {
       // Fall through to port-driven close if the native call fails.
@@ -87,6 +91,8 @@ export async function closeSidePanel(
 export async function toggleSidePanel(
   openPorts: Map<number, chrome.runtime.Port>,
 ): Promise<void> {
+  if (!sidePanelEnabled()) return;
+
   const windowId = await resolveFocusedWindowId();
   if (windowId == null) return;
 
@@ -98,20 +104,27 @@ export async function toggleSidePanel(
 
   // Gesture may be lost after the await above — callers should use
   // openSidePanel() from a sync context when a gesture is active.
-  await chrome.sidePanel.open({ windowId });
+  const api = sidePanelApi();
+  if (api) await api.open({ windowId });
 }
 
 async function resolveFocusedWindowId(): Promise<number | undefined> {
   try {
-    const win = await chrome.windows.getLastFocused({ populate: false });
-    if (win.id != null) return win.id;
+    if (typeof chrome !== "undefined" && "windows" in chrome) {
+      const win = await chrome.windows.getLastFocused({ populate: false });
+      if (win.id != null) return win.id;
+    }
   } catch {
     // Fall through to active-tab lookup.
   }
 
-  const [tab] = await chrome.tabs.query({
-    active: true,
-    lastFocusedWindow: true,
-  });
-  return tab?.windowId;
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    return tab?.windowId;
+  } catch {
+    return undefined;
+  }
 }

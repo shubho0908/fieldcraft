@@ -1,4 +1,8 @@
-const RELEASE_API_URL = "https://fieldcraft.shubhojeet.me/api/release";
+import { isSidePanelApiSupported } from "./ui-host";
+
+const RELEASE_API_BASE = "https://fieldcraft.shubhojeet.me/api/release";
+const CHROME_ASSET_NAME = "fieldcraft-extension-latest.zip";
+const SAFARI_ASSET_NAME = "fieldcraft-extension-safari-latest.zip";
 const CHECK_INTERVAL_MINUTES = 60 * 24;
 
 const STORAGE_KEY = "fieldcraft.lastSeenRelease";
@@ -78,8 +82,13 @@ export async function shouldCheckRelease(): Promise<boolean> {
   return Date.now() - lastChecked >= CHECK_INTERVAL_MINUTES * 60 * 1000;
 }
 
+function releaseApiUrl(): string {
+  const assetName = isSidePanelApiSupported() ? CHROME_ASSET_NAME : SAFARI_ASSET_NAME;
+  return `${RELEASE_API_BASE}?asset=${encodeURIComponent(assetName)}`;
+}
+
 async function fetchLatestRelease(): Promise<RemoteRelease> {
-  const response = await fetch(RELEASE_API_URL, { cache: "no-store" });
+  const response = await fetch(releaseApiUrl(), { cache: "no-store" });
   if (!response.ok) {
     const body = await response.text().catch(() => "unknown");
     throw new Error(`Release check failed: ${response.status} ${body}`);
@@ -140,15 +149,22 @@ async function clearNotificationUrl(notificationId: string): Promise<void> {
 export function showUpdateNotification(release: RemoteRelease): string {
   const id = `fieldcraft-update-${release.version}`;
   const title = `Fieldcraft ${release.version} is available`;
-  const message = "Click to download the zip, then load it unpacked in chrome://extensions.";
 
-  void chrome.notifications.create(id, {
-    type: "basic",
-    iconUrl: "icons/icon-128.png",
-    title,
-    message,
-    isClickable: true,
-  });
+  // Safari WebExtensions do not support chrome.notifications.
+  // Store the URL so the UI can show a release callout instead.
+  if (typeof chrome !== "undefined" && "notifications" in chrome) {
+    const isChrome = isSidePanelApiSupported();
+    const message = isChrome
+      ? "Click to download the zip, then load it unpacked in chrome://extensions."
+      : "Click to download the Safari build, then wrap it with xcrun safari-web-extension-converter.";
+    void chrome.notifications.create(id, {
+      type: "basic",
+      iconUrl: "icons/icon-128.png",
+      title,
+      message,
+      isClickable: true,
+    });
+  }
 
   storeNotificationUrl(id, release.downloadUrl);
   return id;
