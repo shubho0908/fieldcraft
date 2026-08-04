@@ -1,5 +1,5 @@
-import { DownloadCloud, FileArchive, ToggleRight, FolderPlus, BriefcaseBusiness } from "lucide-react";
 import { DownloadExtensionButton } from "./download-extension-button";
+import { InstallSection } from "./install-section";
 import ProductDemo from "./product-demo-lazy";
 
 function BrandMark() {
@@ -110,44 +110,7 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="install-section" id="install" aria-labelledby="install-heading">
-            <div className="section-heading reveal">
-              <h2 id="install-heading">Load it in Chrome</h2>
-              <p>Five steps to get going.</p>
-            </div>
-            <ol className="install-grid reveal">
-              <li>
-                <span>01</span>
-                <strong>Download the build</strong>
-                <p>Get the latest ZIP from this page.</p>
-                <DownloadCloud className="install-icon" aria-hidden="true" />
-              </li>
-              <li>
-                <span>02</span>
-                <strong>Unzip the archive</strong>
-                <p>Extract the folder so it can be selected.</p>
-                <FileArchive className="install-icon" aria-hidden="true" />
-              </li>
-              <li>
-                <span>03</span>
-                <strong>Enable developer mode</strong>
-                <p>Open chrome://extensions and flip the toggle.</p>
-                <ToggleRight className="install-icon" aria-hidden="true" />
-              </li>
-              <li>
-                <span>04</span>
-                <strong>Load unpacked</strong>
-                <p>Choose the extracted folder in the dialog.</p>
-                <FolderPlus className="install-icon" aria-hidden="true" />
-              </li>
-              <li>
-                <span>05</span>
-                <strong>Open a job page</strong>
-                <p>Pin the icon, visit a posting, and open the panel.</p>
-                <BriefcaseBusiness className="install-icon" aria-hidden="true" />
-              </li>
-            </ol>
-          </section>
+          <InstallSection />
 
           <section className="closing-section" id="get-fieldcraft">
             <h2 className="reveal">The decision stays with you.</h2>

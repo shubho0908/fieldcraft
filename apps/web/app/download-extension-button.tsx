@@ -2,23 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Apple, Chrome, Loader2 } from "lucide-react";
+import { getBrowserTarget, type BrowserTarget } from "./lib/detect-browser";
 
 export interface DownloadExtensionButtonProps {
   className?: string;
   children?: React.ReactNode;
   href?: string;
-}
-
-type BrowserTarget = "chrome" | "safari" | "other";
-
-function getBrowserTarget(): BrowserTarget {
-  if (typeof navigator === "undefined") return "chrome";
-  const ua = navigator.userAgent;
-  // Chromium-based browsers (Chrome, Edge, Brave, Opera, Arc, Chrome on iOS).
-  if (/Chrome\/|Chromium\/|CriOS\/|Edg\/|Edge\//i.test(ua)) return "chrome";
-  // Safari on macOS and iOS.
-  if (/Safari\//i.test(ua)) return "safari";
-  return "other";
 }
 
 function getAssetName(browser: BrowserTarget): string {
