@@ -7,8 +7,8 @@ import {
   DownloadCloud,
   FileArchive,
   FolderPlus,
+  Globe,
   Settings,
-  Terminal,
   ToggleRight,
 } from "lucide-react";
 import { getBrowserTarget, type BrowserTarget } from "./lib/detect-browser";
@@ -51,15 +51,21 @@ export function InstallSection() {
           <>
             <li>
               <span>03</span>
-              <strong>Convert with Xcode</strong>
-              <p>Run xcrun safari-web-extension-converter on the extracted folder.</p>
-              <Terminal className="install-icon" aria-hidden="true" />
+              <strong>Open Developer Settings</strong>
+              <p>In Safari, click Develop in the menu bar, then Developer Settings.</p>
+              <Settings className="install-icon" aria-hidden="true" />
             </li>
             <li>
               <span>04</span>
-              <strong>Enable the extension</strong>
-              <p>Open Safari Settings → Extensions and turn Fieldcraft on.</p>
-              <Settings className="install-icon" aria-hidden="true" />
+              <strong>Add temporary extension</strong>
+              <p>Click Add Temporary Extension and choose the extracted build folder.</p>
+              <FolderPlus className="install-icon" aria-hidden="true" />
+            </li>
+            <li>
+              <span>05</span>
+              <strong>Enable and allow access</strong>
+              <p>Go to Safari Settings → Extensions, turn Fieldcraft on, and allow access on every website.</p>
+              <Globe className="install-icon" aria-hidden="true" />
             </li>
           </>
         ) : (
@@ -76,14 +82,14 @@ export function InstallSection() {
               <p>Choose the extracted folder in the dialog.</p>
               <FolderPlus className="install-icon" aria-hidden="true" />
             </li>
+            <li>
+              <span>05</span>
+              <strong>Open a job page</strong>
+              <p>Pin the icon, visit a posting, and open the panel.</p>
+              <BriefcaseBusiness className="install-icon" aria-hidden="true" />
+            </li>
           </>
         )}
-        <li>
-          <span>05</span>
-          <strong>Open a job page</strong>
-          <p>{isSafari ? "Visit a posting and click the Fieldcraft toolbar icon." : "Pin the icon, visit a posting, and open the panel."}</p>
-          <BriefcaseBusiness className="install-icon" aria-hidden="true" />
-        </li>
       </ol>
       {isSafari && (
         <p className="install-safari-note">
