@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:safari": "EXTENSION_TARGET=safari vite",
     "build": "tsc --noEmit && vite build",
+    "build:safari": "tsc --noEmit && EXTENSION_TARGET=safari vite build && node scripts/strip-safari-sidepanel.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "eval": "vitest run src/lib/eval/eval.test.ts",

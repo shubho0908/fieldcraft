@@ -140,15 +140,19 @@ async function clearNotificationUrl(notificationId: string): Promise<void> {
 export function showUpdateNotification(release: RemoteRelease): string {
   const id = `fieldcraft-update-${release.version}`;
   const title = `Fieldcraft ${release.version} is available`;
-  const message = "Click to download the zip, then load it unpacked in chrome://extensions.";
 
-  void chrome.notifications.create(id, {
-    type: "basic",
-    iconUrl: "icons/icon-128.png",
-    title,
-    message,
-    isClickable: true,
-  });
+  // Safari WebExtensions do not support chrome.notifications.
+  // Store the URL so the UI can show a release callout instead.
+  if (typeof chrome !== "undefined" && "notifications" in chrome) {
+    const message = "Click to download the zip, then load it unpacked in chrome://extensions.";
+    void chrome.notifications.create(id, {
+      type: "basic",
+      iconUrl: "icons/icon-128.png",
+      title,
+      message,
+      isClickable: true,
+    });
+  }
 
   storeNotificationUrl(id, release.downloadUrl);
   return id;

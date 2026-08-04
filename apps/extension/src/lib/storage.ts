@@ -3,6 +3,7 @@ import type {
   ExtensionSettings,
   TabAnalysisSession,
 } from "../types";
+import { sessionStorageApi } from "./ui-host";
 import { normalizeSession } from "./tab-sessions";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
 import { ReasoningEffortSettingAuto, isAutofillMode } from "./enums";
@@ -38,6 +39,16 @@ const KEYS = {
 const MAX_TAB_SESSIONS = 24;
 let tabSessionMutation: Promise<void> = Promise.resolve();
 
+/**
+ * Returns the session storage area when available, otherwise falls back to
+ * local storage. Safari supports `chrome.storage.session` from 16.4+; older
+ * versions (and contexts without the API) fall back to local. Callers that
+ * need strict session semantics should still prefer this over local directly.
+ */
+function getSessionStorage(): chrome.storage.StorageArea {
+  return sessionStorageApi() ?? chrome.storage.local;
+}
+
 // OpenAI documents gpt-5.6 as an alias for the canonical GPT-5.6 Sol ID.
 // Preserve an existing user's intentional Sol choice while keeping the catalog
 // itself on stable, explicit model IDs.
@@ -57,6 +68,7 @@ export async function getBootData(): Promise<{
   apiKeyExists: boolean;
   exaApiKeyExists: boolean;
 }> {
+  const sessionApi = sessionStorageApi();
   const [local, session] = await Promise.all([
     chrome.storage.local.get([
       KEYS.profile,
@@ -67,12 +79,14 @@ export async function getBootData(): Promise<{
       KEYS.apiKey,
       KEYS.exaApiKey,
     ]),
-    chrome.storage.session.get([
-      KEYS.openAiApiKey,
-      KEYS.geminiApiKey,
-      KEYS.customApiKey,
-      KEYS.apiKey,
-    ]),
+    sessionApi
+      ? sessionApi.get([
+          KEYS.openAiApiKey,
+          KEYS.geminiApiKey,
+          KEYS.customApiKey,
+          KEYS.apiKey,
+        ])
+      : Promise.resolve({} as Record<string, unknown>),
   ]);
 
   const profile = mergeProfile(local[KEYS.profile] as Partial<CandidateProfile> | undefined);
@@ -244,18 +258,26 @@ export async function saveApiKey(
 ): Promise<void> {
   const key = apiKey.trim();
   const storageKey = apiKeyStorageKey(provider);
+  const sessionApi = sessionStorageApi();
+
   if (remember) {
     await chrome.storage.local.set({ [storageKey]: key });
-    await chrome.storage.session.remove(storageKey);
-  } else {
-    await chrome.storage.session.set({ [storageKey]: key });
+    if (sessionApi) await sessionApi.remove(storageKey);
+  } else if (sessionApi) {
+    await sessionApi.set({ [storageKey]: key });
     await chrome.storage.local.remove(storageKey);
+  } else {
+    // Safari <16.4 has no session storage area. Keep the key in local as a
+    // pragmatic fallback so the extension remains usable, even though the user's
+    // "don't remember" preference cannot be honored in that runtime.
+    await chrome.storage.local.set({ [storageKey]: key });
   }
 }
 
 export async function getApiKey(provider: Provider): Promise<string> {
   const storageKey = apiKeyStorageKey(provider);
-  const session = await chrome.storage.session.get(storageKey);
+  const sessionApi = sessionStorageApi();
+  const session = sessionApi ? await sessionApi.get(storageKey) : {};
   if (session[storageKey]) return String(session[storageKey]);
   const local = await chrome.storage.local.get(storageKey);
   if (local[storageKey]) return String(local[storageKey]);
@@ -263,7 +285,7 @@ export async function getApiKey(provider: Provider): Promise<string> {
   // Existing installs only had one key and supported OpenAI. Never reuse that
   // key for Gemini, where it would be both misleading and invalid.
   if (provider !== Provider.OpenAI) return "";
-  const legacySession = await chrome.storage.session.get(KEYS.apiKey);
+  const legacySession = sessionApi ? await sessionApi.get(KEYS.apiKey) : {};
   if (legacySession[KEYS.apiKey]) return String(legacySession[KEYS.apiKey]);
   const legacyLocal = await chrome.storage.local.get(KEYS.apiKey);
   return String(legacyLocal[KEYS.apiKey] ?? "");
@@ -275,13 +297,14 @@ export async function hasApiKey(provider: Provider): Promise<boolean> {
 
 export async function clearApiKey(provider: Provider): Promise<void> {
   const storageKey = apiKeyStorageKey(provider);
+  const sessionApi = sessionStorageApi();
   await Promise.all([
     chrome.storage.local.remove(storageKey),
-    chrome.storage.session.remove(storageKey),
+    ...(sessionApi ? [sessionApi.remove(storageKey)] : []),
     ...(provider === Provider.OpenAI
       ? [
           chrome.storage.local.remove(KEYS.apiKey),
-          chrome.storage.session.remove(KEYS.apiKey),
+          ...(sessionApi ? [sessionApi.remove(KEYS.apiKey)] : []),
         ]
       : []),
   ]);
@@ -334,7 +357,7 @@ export async function mutateTabAnalysisSessions<T>(
   const operation = tabSessionMutation.then(async () => {
     const sessions = await readTabAnalysisSessions();
     const value = mutator(sessions);
-    await chrome.storage.session.set({
+    await getSessionStorage().set({
       [KEYS.tabSessions]: pruneTabAnalysisSessions(sessions),
     });
     return value;
@@ -378,7 +401,7 @@ function mergeProfile(raw?: Partial<CandidateProfile>): CandidateProfile {
 }
 
 async function readTabAnalysisSessions(): Promise<Record<string, TabAnalysisSession>> {
-  const stored = await chrome.storage.session.get(KEYS.tabSessions);
+  const stored = await getSessionStorage().get(KEYS.tabSessions);
   const raw = stored[KEYS.tabSessions];
   if (!raw || typeof raw !== "object") return {};
   return Object.fromEntries(

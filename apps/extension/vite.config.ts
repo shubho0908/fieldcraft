@@ -2,19 +2,20 @@ import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { crx } from "@crxjs/vite-plugin";
-import manifest from "./src/manifest";
+import getManifest from "./src/manifest";
 
 const packageJson = JSON.parse(readFileSync("./package.json", "utf8")) as {
   version: string;
 };
 
 const buildVersion = process.env.BUILD_VERSION || packageJson.version;
+const extensionTarget = (process.env.EXTENSION_TARGET || "chrome") as "chrome" | "safari";
 
 export default defineConfig({
   define: {
     __FIELDCRAFT_VERSION__: JSON.stringify(buildVersion),
   },
-  plugins: [react(), crx({ manifest })],
+  plugins: [react(), crx({ manifest: getManifest(extensionTarget) })],
   build: {
     sourcemap: false,
     target: "es2022",

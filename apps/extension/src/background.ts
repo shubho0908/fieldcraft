@@ -15,6 +15,12 @@ import {
   toggleSidePanel,
 } from "./lib/side-panel";
 import {
+  isNotificationsApiSupported,
+  isSidePanelApiSupported,
+  toggleOverlayOnActiveTab,
+  hideOverlayOnActiveTab,
+} from "./lib/ui-host";
+import {
   getExaApiKey,
   getProfile,
   getSettings,
@@ -40,14 +46,28 @@ const sidePanelPorts = new Map<number, chrome.runtime.Port>();
 
 const RELEASE_CHECK_ALARM = "fieldcraft-release-check";
 
-void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+// Only configure the native side panel on browsers that support it (Chrome/Edge).
+// Safari uses a content-script overlay instead.
+if (isSidePanelApiSupported()) {
+  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+}
+
 // An MV3 worker can be terminated only when no event is keeping it alive. If
 // that happens, an in-flight network/DOM operation cannot be resumed safely;
 // surface a retry state rather than leaving a tab on an endless spinner.
 void recoverInterruptedTabRuns();
 
 chrome.runtime.onInstalled.addListener(() => {
-  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  if (isSidePanelApiSupported()) {
+    void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  }
+  // Allow content scripts and extension pages (including the overlay iframe)
+  // to share session storage. Safari requires this explicit access grant.
+  if (chrome.storage.session && "setAccessLevel" in chrome.storage.session) {
+    void chrome.storage.session.setAccessLevel({
+      accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS",
+    });
+  }
   void initReleaseChecker();
 });
 
@@ -63,15 +83,17 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-chrome.notifications.onClicked.addListener((notificationId) => {
-  void (async () => {
-    const url = await getNotificationUrl(notificationId);
-    if (url) {
-      void chrome.tabs.create({ url });
-      await chrome.notifications.clear(notificationId);
-    }
-  })();
-});
+if (isNotificationsApiSupported()) {
+  chrome.notifications.onClicked.addListener((notificationId) => {
+    void (async () => {
+      const url = await getNotificationUrl(notificationId);
+      if (url) {
+        void chrome.tabs.create({ url });
+        await chrome.notifications.clear(notificationId);
+      }
+    })();
+  });
+}
 
 // --- last-focused window cache for toggle-side-panel ---
 //
@@ -79,21 +101,31 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 // context — Chrome drops the user-gesture flag across async function
 // boundaries.  Caching the windowId lets us call openSidePanel() directly
 // in the command listener, preserving the gesture.
+// Safari does not implement chrome.windows, so this is gated.
 let _lastFocusedWindowId: number | undefined;
 
-chrome.windows.getLastFocused({ populate: false }).then((win) => {
-  _lastFocusedWindowId = win.id;
-});
+if (typeof chrome !== "undefined" && "windows" in chrome) {
+  chrome.windows.getLastFocused({ populate: false }).then((win) => {
+    _lastFocusedWindowId = win.id;
+  });
 
-chrome.windows.onFocusChanged.addListener((windowId) => {
-  if (windowId !== chrome.windows.WINDOW_ID_NONE) {
-    _lastFocusedWindowId = windowId;
-  }
-});
+  chrome.windows.onFocusChanged.addListener((windowId) => {
+    if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+      _lastFocusedWindowId = windowId;
+    }
+  });
+}
 
-// Ctrl+Shift+F (Windows) / Option+F (macOS) — open or close the Fieldcraft side panel.
+// Ctrl+Shift+F (Windows) / Option+F (macOS) — open or close the Fieldcraft panel.
+// On Chrome/Edge this uses the native side panel. On Safari (and any browser
+// without chrome.sidePanel) it toggles a content-script overlay iframe.
 chrome.commands.onCommand.addListener((command) => {
   if (command !== SIDE_PANEL_TOGGLE_COMMAND) return;
+
+  if (!isSidePanelApiSupported()) {
+    void toggleOverlayOnActiveTab();
+    return;
+  }
 
   const windowId = _lastFocusedWindowId;
   if (windowId == null) {
@@ -110,6 +142,13 @@ chrome.commands.onCommand.addListener((command) => {
     openSidePanel(windowId);
   }
 });
+
+// Toolbar icon click on browsers without a native side panel toggles the overlay.
+if (!isSidePanelApiSupported()) {
+  chrome.action.onClicked.addListener((tab) => {
+    if (tab.id) void toggleOverlayOnActiveTab();
+  });
+}
 
 // Side panel documents check in while open so we can close them on toggle.
 chrome.runtime.onConnect.addListener((port) => {
@@ -144,6 +183,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
 chrome.runtime.onMessage.addListener(
   (request: RuntimeRequest, _sender, sendResponse) => {
+    if (request.type === "FIELDCRAFT_OVERLAY_CLOSE") {
+      void hideOverlayOnActiveTab().then(() => sendResponse({ ok: true }));
+      return true;
+    }
+
     if (request.type === "FIELDCRAFT_START_ANALYSIS") {
       void startAnalysis(request.tabId)
         .then(() => sendResponse({ ok: true }))
@@ -520,17 +564,27 @@ function errorMessage(error: unknown, fallback: string): string {
 async function resolveActiveBrowserTab(): Promise<ResolvedActiveTab | null> {
   const candidates: chrome.tabs.Tab[] = [];
 
-  const [lastFocused] = await chrome.tabs.query({
-    active: true,
-    lastFocusedWindow: true,
-  });
-  if (lastFocused) candidates.push(lastFocused);
+  // lastFocusedWindow is not supported by all WebExtensions implementations
+  // (Safari in particular), so query it defensively and fall back to currentWindow.
+  try {
+    const [lastFocused] = await chrome.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    if (lastFocused) candidates.push(lastFocused);
+  } catch {
+    // Ignore unsupported query parameter.
+  }
 
-  const [currentWindow] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-  if (currentWindow) candidates.push(currentWindow);
+  try {
+    const [currentWindow] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    if (currentWindow) candidates.push(currentWindow);
+  } catch {
+    // currentWindow should always be supported; if it fails we have no candidate.
+  }
 
   const seen = new Set<number>();
   for (const tab of candidates) {
