@@ -9,7 +9,14 @@ const packageJson = JSON.parse(readFileSync("./package.json", "utf8")) as {
 };
 
 const buildVersion = process.env.BUILD_VERSION || packageJson.version;
-const extensionTarget = (process.env.EXTENSION_TARGET || "chrome") as "chrome" | "safari";
+
+const extensionTarget = (() => {
+  const target = process.env.EXTENSION_TARGET || "chrome";
+  if (target !== "chrome" && target !== "safari") {
+    throw new Error(`Unsupported EXTENSION_TARGET: ${target}. Expected "chrome" or "safari".`);
+  }
+  return target;
+})();
 
 export default defineConfig({
   define: {

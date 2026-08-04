@@ -778,3 +778,29 @@ button:disabled, button[aria-disabled="true"], [role="button"]:disabled, [role="
 .custom-select-label { display: inline-block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
 .custom-select-option .custom-select-label { white-space: normal; overflow-wrap: break-word; word-break: break-word; }
 .custom-select-option svg { flex: 0 0 auto; color: var(--purple); }
+
+/* Update banner shown when a newer release is available (visible in Safari where
+   chrome.notifications is unsupported). */
+.release-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--purple-pale);
+  color: var(--purple-dark);
+  font-size: 11px;
+  font-weight: 620;
+  text-decoration: none;
+}
+.release-banner:hover { background: #e0daf7; }
+.release-banner-cta {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--purple);
+  color: white;
+  font-size: 9px;
+  font-weight: 720;
+}

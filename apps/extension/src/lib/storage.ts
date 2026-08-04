@@ -3,7 +3,7 @@ import type {
   ExtensionSettings,
   TabAnalysisSession,
 } from "../types";
-import { sessionStorageApi } from "./ui-host";
+import { isSessionStorageSupported, sessionStorageApi } from "./ui-host";
 import { normalizeSession } from "./tab-sessions";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
 import { ReasoningEffortSettingAuto, isAutofillMode } from "./enums";
@@ -47,6 +47,17 @@ let tabSessionMutation: Promise<void> = Promise.resolve();
  */
 function getSessionStorage(): chrome.storage.StorageArea {
   return sessionStorageApi() ?? chrome.storage.local;
+}
+
+/**
+ * Tab sessions are meant to be session-scoped. On browsers without
+ * `chrome.storage.session` we fall back to `chrome.storage.local`, so clear
+ * any stale tab sessions at browser startup to avoid showing old job results
+ * when a tab ID is reused after a restart.
+ */
+export async function clearTabSessionsIfSessionStorageMissing(): Promise<void> {
+  if (isSessionStorageSupported()) return;
+  await chrome.storage.local.remove(KEYS.tabSessions);
 }
 
 // OpenAI documents gpt-5.6 as an alias for the canonical GPT-5.6 Sol ID.

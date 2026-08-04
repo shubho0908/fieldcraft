@@ -21,6 +21,7 @@ import {
   hideOverlayOnActiveTab,
 } from "./lib/ui-host";
 import {
+  clearTabSessionsIfSessionStorageMissing,
   getExaApiKey,
   getProfile,
   getSettings,
@@ -68,10 +69,15 @@ chrome.runtime.onInstalled.addListener(() => {
       accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS",
     });
   }
+  // Older Safari falls back to chrome.storage.local for tab sessions, which
+  // survives browser restarts. Clear stale sessions on startup/install.
+  void clearTabSessionsIfSessionStorageMissing();
   void initReleaseChecker();
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  // Ensure local-storage tab-session fallback is reset across browser restarts.
+  void clearTabSessionsIfSessionStorageMissing();
   void initReleaseChecker();
 });
 
