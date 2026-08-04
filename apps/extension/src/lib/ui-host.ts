@@ -64,13 +64,10 @@ export function closeHost(): void {
     return;
   }
 
-  // Side panel: native close is best-effort; fall back to window.close().
-  const sidePanel = sidePanelApi();
-  if (sidePanel && "close" in sidePanel) {
-    void (sidePanel as typeof sidePanel & { close: (options: { windowId: number }) => Promise<void> }).close({ windowId: -1 });
-  } else {
-    window.close();
-  }
+  // Side panel: window.close() is the only reliable way for a side-panel document
+  // to dismiss itself. chrome.sidePanel.close() is meant for the service worker
+  // with a valid windowId, not from inside the panel.
+  window.close();
 }
 
 export async function sendToggleOverlayToTab(tabId: number): Promise<{ ok: boolean; open?: boolean; error?: string }> {

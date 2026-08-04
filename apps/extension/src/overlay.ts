@@ -33,7 +33,7 @@ function createOverlay(): HTMLIFrameElement {
   iframe.setAttribute("aria-hidden", "true");
   iframe.setAttribute("title", "Fieldcraft");
 
-  document.body.appendChild(iframe);
+  (document.body || document.documentElement).appendChild(iframe);
   return iframe;
 }
 
