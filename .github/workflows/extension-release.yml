@@ -63,12 +63,12 @@ jobs:
           fi
           echo "build_version=${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Build extension
+      - name: Build Chrome extension
         env:
           BUILD_VERSION: ${{ steps.prepare_version.outputs.build_version }}
         run: bun run --filter fieldcraft-extension build
 
-      - name: Package extension
+      - name: Package Chrome extension
         id: package
         run: |
           VERSION=$(node -p "require('./apps/extension/package.json').version")
@@ -84,10 +84,24 @@ jobs:
           cd apps/extension/dist
           zip -r "../../../release/fieldcraft-extension-${ZIP_VERSION}.zip" . -x "*.map"
           cp "../../../release/fieldcraft-extension-${ZIP_VERSION}.zip" "../../../release/fieldcraft-extension-latest.zip"
-          cd ..
+          cd ../..
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "release_name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
           echo "zip_version=${ZIP_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Safari extension
+        env:
+          BUILD_VERSION: ${{ steps.prepare_version.outputs.build_version }}
+        run: bun run --filter fieldcraft-extension build:safari
+
+      - name: Package Safari extension
+        run: |
+          ZIP_VERSION="${{ steps.prepare_version.outputs.build_version }}"
+          mkdir -p release
+          cd apps/extension/dist
+          zip -r "../../../release/fieldcraft-extension-safari-${ZIP_VERSION}.zip" . -x "*.map"
+          cp "../../../release/fieldcraft-extension-safari-${ZIP_VERSION}.zip" "../../../release/fieldcraft-extension-safari-latest.zip"
+          cd ../..
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -107,11 +121,14 @@ jobs:
           files: |
             release/fieldcraft-extension-${{ steps.package.outputs.zip_version }}.zip
             release/fieldcraft-extension-latest.zip
+            release/fieldcraft-extension-safari-${{ steps.package.outputs.zip_version }}.zip
+            release/fieldcraft-extension-safari-latest.zip
           replace: true
           updateTag: true
           body: |
             Automated build from `main` at ${{ github.sha }}.
-            Download `fieldcraft-extension-latest.zip` for the most recent extension package.
+            - `fieldcraft-extension-latest.zip` — Chrome/Edge (unpacked extension)
+            - `fieldcraft-extension-safari-latest.zip` — Safari raw WebExtension bundle (run `xcrun safari-web-extension-converter` on macOS to wrap it in an `.app`)
 
       - name: Release versioned build
         if: github.ref_type == 'tag'
@@ -122,6 +139,8 @@ jobs:
           files: |
             release/fieldcraft-extension-${{ steps.package.outputs.zip_version }}.zip
             release/fieldcraft-extension-latest.zip
+            release/fieldcraft-extension-safari-${{ steps.package.outputs.zip_version }}.zip
+            release/fieldcraft-extension-safari-latest.zip
           generate_release_notes: true
           make_latest: true
           fail_on_unmatched_files: true
