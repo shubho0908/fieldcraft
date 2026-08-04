@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Apple, Chrome, Loader2 } from "lucide-react";
+import { Chrome, Loader2 } from "lucide-react";
 import { getBrowserTarget, type BrowserTarget } from "./lib/detect-browser";
+import { SafariIcon } from "./icons/safari-icon";
 
 export interface DownloadExtensionButtonProps {
   className?: string;
@@ -90,7 +91,7 @@ export function DownloadExtensionButton({
     [href, isInternal, isLoading, defaultFilename],
   );
 
-  const Icon = browser === "safari" ? Apple : Chrome;
+  const Icon = browser === "safari" ? SafariIcon : Chrome;
 
   if (isInternal) {
     return (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   BriefcaseBusiness,
+  Chrome,
   DownloadCloud,
   FileArchive,
   FolderPlus,
@@ -11,6 +12,7 @@ import {
   ToggleRight,
 } from "lucide-react";
 import { getBrowserTarget, type BrowserTarget } from "./lib/detect-browser";
+import { SafariIcon } from "./icons/safari-icon";
 
 export function InstallSection() {
   const [browser, setBrowser] = useState<BrowserTarget>("chrome");
@@ -21,10 +23,15 @@ export function InstallSection() {
 
   const isSafari = browser === "safari";
 
+  const HeadingIcon = isSafari ? SafariIcon : Chrome;
+
   return (
     <section className="install-section" id="install" aria-labelledby="install-heading">
       <div className="section-heading reveal">
-        <h2 id="install-heading">{isSafari ? "Load it in Safari" : "Load it in Chrome"}</h2>
+        <h2 id="install-heading" className="install-heading">
+          <HeadingIcon size={24} />
+          {isSafari ? "Load it in Safari" : "Load it in Chrome"}
+        </h2>
         <p>Five steps to get going.</p>
       </div>
       <ol className="install-grid reveal">
