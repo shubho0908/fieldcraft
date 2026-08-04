@@ -88,6 +88,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .install-grid li p { position: relative; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .install-icon { position: absolute; top: 22px; right: 22px; width: 32px; height: 32px; color: var(--ink); opacity: .14; pointer-events: none; transform-origin: center; transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
 .install-grid li:hover .install-icon { transform: scale(1.15); }
+.install-safari-note { margin: 18px 0 0; color: var(--muted); font-size: 14px; }
+.install-heading { display: flex; align-items: center; gap: 10px; }
+.install-heading svg { flex: 0 0 auto; width: 24px; height: 24px; }
 
 .closing-section { display: grid; gap: 18px; justify-items: center; text-align: center; }
 .closing-section h2 { font-size: clamp(2.2rem, 4.5vw, 4.5rem); max-width: 18ch; }
