@@ -54,7 +54,7 @@
 .extension-replica .orbit-two { inset: 17px; border-style: dashed; transform: rotate(23deg); }
 .extension-replica .orbit-two::after { right: -3px; bottom: 24px; width: 5px; height: 5px; background: var(--amber); box-shadow: 0 0 0 4px var(--amber-pale); }
 .extension-replica .hero-glyph { position: relative; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 17px; color: white; background: var(--ink); box-shadow: 0 14px 40px rgba(33, 28, 43, .08); }
-.extension-replica .eyebrow { color: var(--purple-dark); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.extension-replica .eyebrow { margin: 0; color: var(--purple-dark); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .extension-replica .empty-hero h2 { margin: 8px 0 11px; font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif; font-size: clamp(31px, 8cqw, 41px); font-weight: 650; letter-spacing: -.045em; line-height: 1.01; }
 .extension-replica .empty-hero p { max-width: 420px; margin: 0 auto; color: var(--muted); font-size: 12px; line-height: 1.58; }
 .extension-replica .workflow-card { margin: 18px 0 12px; padding: 3px 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
