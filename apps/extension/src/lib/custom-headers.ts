@@ -19,26 +19,59 @@ function sanitizeHeaderPair(
   return { key: trimmedKey, value: trimmedValue };
 }
 
+function addHeader(
+  headers: Map<string, { key: string; value: string }>,
+  key: string,
+  value: unknown,
+): void {
+  const sanitized = sanitizeHeaderPair(key, value);
+  if (!sanitized) return;
+  const lower = sanitized.key.toLowerCase();
+  const existing = headers.get(lower);
+  if (existing) {
+    // Same header name seen with different casing: last value wins and the
+    // casing from the last occurrence is preserved.
+    existing.key = sanitized.key;
+    existing.value = sanitized.value;
+  } else {
+    headers.set(lower, sanitized);
+  }
+}
+
+function headersFromMap(
+  headers: Map<string, { key: string; value: string }>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const { key, value } of headers.values()) {
+    result[key] = value;
+  }
+  return result;
+}
+
 /**
  * Sanitize a raw header object (e.g. from storage or JSON). Keeps only valid
  * RFC 7230 token names, trims values, drops empty/bad entries, and collapses
  * any embedded newlines in values to spaces so they cannot break the HTTP
- * message framing.
+ * message framing. Header names are compared case-insensitively; duplicate
+ * names collapse to a single entry where the last occurrence wins.
  */
 export function sanitizeCustomHeaders(raw: unknown): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return headers;
-  for (const [key, value] of Object.entries(raw)) {
-    const sanitized = sanitizeHeaderPair(key, value);
-    if (sanitized) headers[sanitized.key] = sanitized.value;
+  const headers = new Map<string, { key: string; value: string }>();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return headersFromMap(headers);
   }
-  return headers;
+  for (const [key, value] of Object.entries(raw)) {
+    addHeader(headers, key, value);
+  }
+  return headersFromMap(headers);
 }
 
 /**
  * Parse a multiline string of headers into a sanitized header object.
  * Supports `Name: value` and `Name=value` separators, one header per line.
- * If the input looks like a JSON object, it is parsed and sanitized first.
+ * Header names are compared case-insensitively; duplicate names collapse to a
+ * single entry where the last occurrence wins. If the input looks like a JSON
+ * object, it is parsed and sanitized first.
  */
 export function parseCustomHeaderLines(input: string): Record<string, string> {
   const text = input.trim();
@@ -52,7 +85,7 @@ export function parseCustomHeaderLines(input: string): Record<string, string> {
     }
   }
 
-  const headers: Record<string, string> = {};
+  const headers = new Map<string, { key: string; value: string }>();
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("#")) continue;
@@ -69,10 +102,9 @@ export function parseCustomHeaderLines(input: string): Record<string, string> {
 
     const key = trimmed.slice(0, separator).trim();
     const value = trimmed.slice(separator + 1).trim();
-    const sanitized = sanitizeHeaderPair(key, value);
-    if (sanitized) headers[sanitized.key] = sanitized.value;
+    addHeader(headers, key, value);
   }
-  return headers;
+  return headersFromMap(headers);
 }
 
 /**

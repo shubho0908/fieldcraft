@@ -44,6 +44,19 @@ describe("custom header helpers", () => {
         }),
       ).toEqual({ "X-Context": "line1 line2 line3" });
     });
+
+    it("collapses duplicate header names case-insensitively", () => {
+      expect(
+        sanitizeCustomHeaders({
+          "X-Title": "First",
+          "x-title": "Second",
+          "HTTP-Referer": "https://fieldcraft.sh",
+        }),
+      ).toEqual({
+        "x-title": "Second",
+        "HTTP-Referer": "https://fieldcraft.sh",
+      });
+    });
   });
 
   describe("parseCustomHeaderLines", () => {
@@ -83,6 +96,16 @@ HTTP-Referer: https://fieldcraft.sh`;
 X-Title: Fieldcraft`;
       expect(parseCustomHeaderLines(input)).toEqual({
         "X-Title": "Fieldcraft",
+      });
+    });
+
+    it("collapses duplicate header names case-insensitively", () => {
+      const input = `X-Title: First
+x-title: Second
+HTTP-Referer: https://fieldcraft.sh`;
+      expect(parseCustomHeaderLines(input)).toEqual({
+        "x-title": "Second",
+        "HTTP-Referer": "https://fieldcraft.sh",
       });
     });
   });
