@@ -343,6 +343,8 @@ export async function runJobAnalysis(
       model.provider === Provider.Custom ? settings.customBaseUrl : undefined,
     protocol:
       model.provider === Provider.Custom ? settings.customProtocol : undefined,
+    headers:
+      model.provider === Provider.Custom ? settings.customHeaders : undefined,
   });
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
@@ -460,6 +462,8 @@ export async function testAiConnection(
       model.provider === Provider.Custom ? settings.customBaseUrl : undefined,
     protocol:
       model.provider === Provider.Custom ? settings.customProtocol : undefined,
+    headers:
+      model.provider === Provider.Custom ? settings.customHeaders : undefined,
   });
 
   const isAnthropicCustom =

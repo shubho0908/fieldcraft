@@ -1,0 +1,86 @@
+/**
+ * Helpers for parsing and sanitizing user-supplied custom HTTP headers.
+ * Used by the custom endpoint settings UI and any code that needs to inject
+ * extra headers into OpenAI- or Anthropic-compatible SDK calls.
+ */
+
+const RFC7230_TOKEN_PATTERN = /^[\w!#$%&'*+\-.^_`|~]+$/u;
+
+function sanitizeHeaderPair(
+  key: string,
+  value: unknown,
+): { key: string; value: string } | null {
+  if (typeof key !== "string" || typeof value !== "string") return null;
+  const trimmedKey = key.trim();
+  const trimmedValue = value.replace(/\r?\n|\r/g, " ").trim();
+  if (!trimmedKey || !trimmedValue || !RFC7230_TOKEN_PATTERN.test(trimmedKey)) {
+    return null;
+  }
+  return { key: trimmedKey, value: trimmedValue };
+}
+
+/**
+ * Sanitize a raw header object (e.g. from storage or JSON). Keeps only valid
+ * RFC 7230 token names, trims values, drops empty/bad entries, and collapses
+ * any embedded newlines in values to spaces so they cannot break the HTTP
+ * message framing.
+ */
+export function sanitizeCustomHeaders(raw: unknown): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return headers;
+  for (const [key, value] of Object.entries(raw)) {
+    const sanitized = sanitizeHeaderPair(key, value);
+    if (sanitized) headers[sanitized.key] = sanitized.value;
+  }
+  return headers;
+}
+
+/**
+ * Parse a multiline string of headers into a sanitized header object.
+ * Supports `Name: value` and `Name=value` separators, one header per line.
+ * If the input looks like a JSON object, it is parsed and sanitized first.
+ */
+export function parseCustomHeaderLines(input: string): Record<string, string> {
+  const text = input.trim();
+  if (!text) return {};
+
+  if (text.startsWith("{")) {
+    try {
+      return sanitizeCustomHeaders(JSON.parse(text));
+    } catch {
+      // Fall through to line parsing if JSON is malformed.
+    }
+  }
+
+  const headers: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("#")) continue;
+
+    const colonIndex = trimmed.indexOf(":");
+    const equalsIndex = trimmed.indexOf("=");
+    let separator = -1;
+    if (colonIndex !== -1 && equalsIndex !== -1) {
+      separator = Math.min(colonIndex, equalsIndex);
+    } else {
+      separator = Math.max(colonIndex, equalsIndex);
+    }
+    if (separator <= 0) continue;
+
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    const sanitized = sanitizeHeaderPair(key, value);
+    if (sanitized) headers[sanitized.key] = sanitized.value;
+  }
+  return headers;
+}
+
+/**
+ * Convert a sanitized header object back into a `Name: value` multiline string.
+ * Empty objects produce an empty string so the UI stays clean.
+ */
+export function serializeCustomHeaderLines(headers: Record<string, string>): string {
+  return Object.entries(headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+}

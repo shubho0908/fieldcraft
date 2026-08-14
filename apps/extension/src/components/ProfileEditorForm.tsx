@@ -83,6 +83,7 @@ export type ProfileEditorFormProps = {
   settings: ExtensionSettings;
   apiKey: string;
   showApiKey: boolean;
+  customHeadersText: string;
   error: string;
   saving: boolean;
   testing: boolean;
@@ -107,6 +108,7 @@ export type ProfileEditorFormProps = {
   updateCustomModelId: (actualModelId: string) => void;
   updateCustomBaseUrl: (baseUrl: string) => void;
   updateCustomProtocol: (protocol: CustomProtocol) => void;
+  updateCustomHeaders: (text: string) => void;
   updateEvalModel: (modelId: string) => void;
   updateProvider: (provider: Provider) => void;
   updateMaxOutputTokens: (value: string) => void;
@@ -129,6 +131,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     settings,
     apiKey,
     showApiKey,
+    customHeadersText,
     error,
     saving,
     testing,
@@ -153,6 +156,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     updateCustomModelId,
     updateCustomBaseUrl,
     updateCustomProtocol,
+    updateCustomHeaders,
     updateEvalModel,
     updateProvider,
     updateMaxOutputTokens,
@@ -581,6 +585,15 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                         ? "https://api.anthropic.com/v1"
                         : "https://api.fireworks.ai/inference/v1"
                     }
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label="Custom headers" hint="Optional · one per line: Header-Name: value">
+                  <textarea
+                    className="custom-headers-textarea"
+                    value={customHeadersText}
+                    onChange={(event) => updateCustomHeaders(event.target.value)}
+                    placeholder={`X-Title: My App\nHTTP-Referer: https://fieldcraft.sh`}
                     autoComplete="off"
                   />
                 </Field>

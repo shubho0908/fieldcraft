@@ -173,6 +173,7 @@ button:disabled, button[aria-disabled="true"], [role="button"]:disabled, [role="
 }
 .form-field textarea, .canonical-row textarea { min-height: 82px; resize: vertical; }
 .form-field .resume-textarea { min-height: 225px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.55; }
+.form-field .custom-headers-textarea { min-height: 68px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.55; }
 .form-field input:hover, .form-field textarea:hover, .form-field select:hover { border-color: #c7c2b8; }
 .form-field input:focus, .form-field textarea:focus, .form-field select:focus, .canonical-row input:focus, .canonical-row textarea:focus {
   outline: 0;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseCustomHeaderLines } from "../custom-headers";
 import { isReasoningEffortSetting } from "../enums";
 import {
   CUSTOM_MODEL_PREFIX,
@@ -20,6 +21,7 @@ const provider = (env.FIELDCRAFT_EVAL_PROVIDER?.trim() || Provider.OpenAI) as Pr
 const customBaseUrl = env.FIELDCRAFT_CUSTOM_BASE_URL?.trim();
 const customModelId = env.FIELDCRAFT_CUSTOM_MODEL_ID?.trim();
 const customApiKey = env.FIELDCRAFT_CUSTOM_API_KEY?.trim();
+const customHeaders = parseCustomHeaderLines(env.FIELDCRAFT_CUSTOM_HEADERS ?? "");
 const openAiApiKey = env.OPENAI_API_KEY?.trim();
 const apiKey =
   (provider === Provider.Custom ? customApiKey || openAiApiKey : openAiApiKey) ??
@@ -85,6 +87,7 @@ describe("live eval config", () => {
  *   FIELDCRAFT_EVAL_REASONING  — none|low|medium|high|xhigh|max|auto
  *                                (default: DEFAULT_EVAL_REASONING_EFFORT)
  *   FIELDCRAFT_EVAL_RESEARCH=1 — enable company web research
+ *   FIELDCRAFT_CUSTOM_HEADERS  — multiline "Name: value" pairs for custom endpoints
  */
 runLive("live OpenAI fixture eval", () => {
   it(
@@ -97,6 +100,7 @@ runLive("live OpenAI fixture eval", () => {
         reasoningEffort,
         provider,
         customBaseUrl,
+        customHeaders,
       });
 
       // Visible in vitest output so you know which model was used.
@@ -115,6 +119,7 @@ runLive("live OpenAI fixture eval", () => {
         researchCompany: env.FIELDCRAFT_EVAL_RESEARCH === "1",
         provider: config.provider,
         customBaseUrl: config.customBaseUrl,
+        customHeaders: config.customHeaders,
       });
 
       const failed = results.filter((result) => !result.report.ok || result.error);

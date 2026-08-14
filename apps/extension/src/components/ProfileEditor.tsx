@@ -39,6 +39,10 @@ import {
   resolveMaxOutputTokens,
   resolveModel,
 } from "../lib/models";
+import {
+  parseCustomHeaderLines,
+  serializeCustomHeaderLines,
+} from "../lib/custom-headers";
 import type { CandidateProfile, ExtensionSettings } from "../types";
 
 interface Props {
@@ -78,6 +82,9 @@ export default function ProfileEditor({
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testStatus, setTestStatus] = useState("");
+  const [customHeadersText, setCustomHeadersText] = useState(() =>
+    serializeCustomHeaderLines(initialSettings.customHeaders ?? {}),
+  );
 
   const progress = ((step + 1) / STEPS.length) * 100;
   const effortOptions = useMemo(
@@ -148,6 +155,14 @@ export default function ProfileEditor({
 
   function updateCustomProtocol(customProtocol: CustomProtocol) {
     setSettings((current) => ({ ...current, customProtocol }));
+  }
+
+  function updateCustomHeaders(text: string) {
+    setCustomHeadersText(text);
+    setSettings((current) => ({
+      ...current,
+      customHeaders: parseCustomHeaderLines(text),
+    }));
   }
 
   function updateEvalModel(modelId: string) {
@@ -378,6 +393,7 @@ export default function ProfileEditor({
       settings={settings}
       apiKey={apiKey}
       showApiKey={showApiKey}
+      customHeadersText={customHeadersText}
       error={error}
       saving={saving}
       testing={testing}
@@ -402,6 +418,7 @@ export default function ProfileEditor({
       updateCustomModelId={updateCustomModelId}
       updateCustomBaseUrl={updateCustomBaseUrl}
       updateCustomProtocol={updateCustomProtocol}
+      updateCustomHeaders={updateCustomHeaders}
       updateEvalModel={updateEvalModel}
       updateProvider={updateProvider}
       updateMaxOutputTokens={updateMaxOutputTokens}

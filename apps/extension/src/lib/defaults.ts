@@ -56,6 +56,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   customProtocol: "openai",
   // Base URL for a custom provider.
   customBaseUrl: "",
+  // Optional extra headers for custom endpoints.
+  customHeaders: {},
   // Research is opt-in because it requires a separate Exa API key.
   researchCompany: false,
   rememberApiKey: false,
