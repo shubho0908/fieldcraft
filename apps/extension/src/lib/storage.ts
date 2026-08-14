@@ -22,6 +22,7 @@ import {
   sanitizeAnthropicBaseUrl,
   sanitizeCustomBaseUrl,
 } from "./models";
+import { sanitizeCustomHeaders } from "./custom-headers";
 
 const KEYS = {
   profile: "fieldcraft.profile",
@@ -185,6 +186,8 @@ function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSe
   } else {
     settings.customBaseUrl = sanitizeCustomBaseUrl(settings.customBaseUrl);
   }
+
+  settings.customHeaders = sanitizeCustomHeaders(settings.customHeaders);
 
   // Any stored `custom:` model id forces the provider to Custom so the model
   // is not silently dropped/replaced with a built-in default.

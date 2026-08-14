@@ -19,10 +19,15 @@ export interface CreateAiModelOptions {
   baseURL?: string;
   /** Which protocol a custom endpoint speaks. Ignored for built-in providers. */
   protocol?: CustomProtocol;
+  /** Optional extra headers for a custom endpoint. Ignored for built-in providers. */
+  headers?: Record<string, string>;
 }
 
 export function createAiModel(options: CreateAiModelOptions): LanguageModel {
-  const { model, apiKey, baseURL, protocol } = options;
+  const { model, apiKey, baseURL, protocol, headers } = options;
+  const customHeaders =
+    headers && Object.keys(headers).length > 0 ? headers : undefined;
+
   if (model.provider === Provider.Gemini) {
     const google = createGoogleGenerativeAI({ apiKey });
     return google(model.id);
@@ -51,8 +56,8 @@ export function createAiModel(options: CreateAiModelOptions): LanguageModel {
       );
       const anthropic = createAnthropic(
         isAnthropicHost
-          ? { apiKey, baseURL: trimmedBaseURL }
-          : { authToken: apiKey, baseURL: trimmedBaseURL },
+          ? { apiKey, baseURL: trimmedBaseURL, headers: customHeaders }
+          : { authToken: apiKey, baseURL: trimmedBaseURL, headers: customHeaders },
       );
       return anthropic(actualModelId);
     }
@@ -61,7 +66,11 @@ export function createAiModel(options: CreateAiModelOptions): LanguageModel {
     console.info(
       `[fieldcraft ai-provider] openai provider: baseURL=${trimmedBaseURL} model=${actualModelId}`,
     );
-    const openai = createOpenAI({ apiKey, baseURL: trimmedBaseURL });
+    const openai = createOpenAI({
+      apiKey,
+      baseURL: trimmedBaseURL,
+      headers: customHeaders,
+    });
     return openai.chat(actualModelId);
   }
 

@@ -75,6 +75,8 @@ export interface ExtensionSettings {
   customProtocol: "openai" | "anthropic";
   /** Base URL for a custom provider (e.g. Fireworks, Together, Groq, OpenRouter, Anthropic, MiniMax). */
   customBaseUrl: string;
+  /** Optional extra headers to send to a custom endpoint. Ignored for built-in providers. */
+  customHeaders?: Record<string, string>;
   /** Optional per-model override for the maximum output tokens. Falls back to the model catalog default. */
   maxOutputTokens?: number;
   researchCompany: boolean;

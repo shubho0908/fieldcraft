@@ -99,6 +99,60 @@ describe("createAiModel", () => {
     );
   });
 
+  it("passes custom headers through to custom OpenAI and Anthropic endpoints", () => {
+    const headers = { "X-Title": "Fieldcraft", "HTTP-Referer": "https://fieldcraft.sh" };
+    createAiModel({
+      model: { provider: Provider.Custom, id: "custom:test-model" } as any,
+      apiKey: "sk-test",
+      baseURL: "https://api.openrouter.ai/api/v1",
+      protocol: CustomProtocol.OpenAI,
+      headers,
+    });
+    expect(createOpenAI).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        apiKey: "sk-test",
+        baseURL: "https://api.openrouter.ai/api/v1",
+        headers,
+      }),
+    );
+
+    createAiModel({
+      model: { provider: Provider.Custom, id: "custom:claude-test" } as any,
+      apiKey: "sk-test",
+      baseURL: "https://api.anthropic.com/v1",
+      protocol: CustomProtocol.Anthropic,
+      headers,
+    });
+    expect(createAnthropic).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        apiKey: "sk-test",
+        baseURL: "https://api.anthropic.com/v1",
+        headers,
+      }),
+    );
+  });
+
+  it("ignores empty custom header objects", () => {
+    createAiModel({
+      model: { provider: Provider.Custom, id: "custom:test-model" } as any,
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
+      protocol: CustomProtocol.OpenAI,
+      headers: {},
+    });
+    expect(createOpenAI).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        apiKey: "sk-test",
+        baseURL: "https://api.example.com/v1",
+      }),
+    );
+    // Empty headers should not appear as an explicit empty object, because the
+    // provider factory treats undefined more consistently.
+    expect(createOpenAI).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ headers: {} }),
+    );
+  });
+
   it("routes built-in providers through their respective factories", () => {
     createAiModel({
       model: { provider: Provider.Gemini, id: "gemini-3.5-flash" } as any,

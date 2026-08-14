@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from "../defaults";
+import { sanitizeCustomHeaders } from "../custom-headers";
 import { JudgeId } from "../enums";
 import type { ReasoningEffortSetting } from "../enums";
 import {
@@ -43,6 +44,8 @@ export interface LiveEvalOptions {
   customBaseUrl?: string;
   /** Protocol for {@link Provider.Custom}. */
   customProtocol?: CustomProtocol;
+  /** Optional extra headers for {@link Provider.Custom}. */
+  customHeaders?: Record<string, string>;
 }
 
 export interface LiveEvalCaseResult {
@@ -64,6 +67,7 @@ export interface ResolvedLiveEvalConfig {
   provider: Provider;
   customBaseUrl?: string;
   customProtocol?: CustomProtocol;
+  customHeaders?: Record<string, string>;
 }
 
 /**
@@ -79,6 +83,7 @@ export function resolveLiveEvalConfig(
     | "provider"
     | "customBaseUrl"
     | "customProtocol"
+    | "customHeaders"
   >,
 ): ResolvedLiveEvalConfig {
   let modelId = options.model ?? DEFAULT_EVAL_MODEL_ID;
@@ -105,6 +110,7 @@ export function resolveLiveEvalConfig(
     provider,
     customBaseUrl: options.customBaseUrl,
     customProtocol: options.customProtocol,
+    customHeaders: sanitizeCustomHeaders(options.customHeaders),
   };
 }
 
@@ -122,6 +128,7 @@ export async function runLiveEval(
     model: resolved.model,
     customBaseUrl: resolved.customBaseUrl ?? DEFAULT_SETTINGS.customBaseUrl,
     customProtocol: resolved.customProtocol ?? DEFAULT_SETTINGS.customProtocol,
+    customHeaders: resolved.customHeaders ?? DEFAULT_SETTINGS.customHeaders,
     reasoningEffort: resolved.reasoningEffort,
     evalModel: resolved.model,
     evalReasoningEffort: resolved.reasoningEffort,
