@@ -34,6 +34,7 @@ describe("OpenAI model catalog", () => {
 
   it("includes the current Gemini Pro and Flash choices", () => {
     expect(GEMINI_MODELS.map((model) => model.id)).toEqual([
+      "gemini-3.7-flash",
       "gemini-3.6-flash",
       "gemini-3.5-flash",
       "gemini-3.5-flash-lite",
