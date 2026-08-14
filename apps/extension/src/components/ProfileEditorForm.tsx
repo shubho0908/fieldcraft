@@ -593,7 +593,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                     className="custom-headers-textarea"
                     value={customHeadersText}
                     onChange={(event) => updateCustomHeaders(event.target.value)}
-                    placeholder={`X-Title: My App\nHTTP-Referer: https://fieldcraft.sh`}
+                    placeholder={`X-Title: My App\nHTTP-Referer: https://fieldcraft.shubhojeet.me`}
                     autoComplete="off"
                   />
                 </Field>

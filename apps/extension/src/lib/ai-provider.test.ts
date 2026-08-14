@@ -100,7 +100,7 @@ describe("createAiModel", () => {
   });
 
   it("passes custom headers through to custom OpenAI and Anthropic endpoints", () => {
-    const headers = { "X-Title": "Fieldcraft", "HTTP-Referer": "https://fieldcraft.sh" };
+    const headers = { "X-Title": "Fieldcraft", "HTTP-Referer": "https://fieldcraft.shubhojeet.me" };
     createAiModel({
       model: { provider: Provider.Custom, id: "custom:test-model" } as any,
       apiKey: "sk-test",

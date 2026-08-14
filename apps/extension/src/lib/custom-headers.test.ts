@@ -18,11 +18,11 @@ describe("custom header helpers", () => {
       expect(
         sanitizeCustomHeaders({
           "X-Title": "  Fieldcraft  ",
-          "HTTP-Referer": "https://fieldcraft.sh",
+          "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
         }),
       ).toEqual({
         "X-Title": "Fieldcraft",
-        "HTTP-Referer": "https://fieldcraft.sh",
+        "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
       });
     });
 
@@ -50,11 +50,11 @@ describe("custom header helpers", () => {
         sanitizeCustomHeaders({
           "X-Title": "First",
           "x-title": "Second",
-          "HTTP-Referer": "https://fieldcraft.sh",
+          "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
         }),
       ).toEqual({
         "x-title": "Second",
-        "HTTP-Referer": "https://fieldcraft.sh",
+        "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
       });
     });
   });
@@ -62,20 +62,20 @@ describe("custom header helpers", () => {
   describe("parseCustomHeaderLines", () => {
     it("parses colon and equals separated lines", () => {
       const input = `X-Title: Fieldcraft
-HTTP-Referer=https://fieldcraft.sh
+HTTP-Referer=https://fieldcraft.shubhojeet.me
 Empty: value`;
       expect(parseCustomHeaderLines(input)).toEqual({
         "X-Title": "Fieldcraft",
-        "HTTP-Referer": "https://fieldcraft.sh",
+        "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
         Empty: "value",
       });
     });
 
     it("parses a JSON object", () => {
-      const input = '{"X-Title": "Fieldcraft", "HTTP-Referer": "https://fieldcraft.sh"}';
+      const input = '{"X-Title": "Fieldcraft", "HTTP-Referer": "https://fieldcraft.shubhojeet.me"}';
       expect(parseCustomHeaderLines(input)).toEqual({
         "X-Title": "Fieldcraft",
-        "HTTP-Referer": "https://fieldcraft.sh",
+        "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
       });
     });
 
@@ -84,10 +84,10 @@ Empty: value`;
 X-Title: Fieldcraft
 
 // ignored
-HTTP-Referer: https://fieldcraft.sh`;
+HTTP-Referer: https://fieldcraft.shubhojeet.me`;
       expect(parseCustomHeaderLines(input)).toEqual({
         "X-Title": "Fieldcraft",
-        "HTTP-Referer": "https://fieldcraft.sh",
+        "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
       });
     });
 
@@ -102,10 +102,10 @@ X-Title: Fieldcraft`;
     it("collapses duplicate header names case-insensitively", () => {
       const input = `X-Title: First
 x-title: Second
-HTTP-Referer: https://fieldcraft.sh`;
+HTTP-Referer: https://fieldcraft.shubhojeet.me`;
       expect(parseCustomHeaderLines(input)).toEqual({
         "x-title": "Second",
-        "HTTP-Referer": "https://fieldcraft.sh",
+        "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
       });
     });
   });
@@ -115,9 +115,9 @@ HTTP-Referer: https://fieldcraft.sh`;
       expect(
         serializeCustomHeaderLines({
           "X-Title": "Fieldcraft",
-          "HTTP-Referer": "https://fieldcraft.sh",
+          "HTTP-Referer": "https://fieldcraft.shubhojeet.me",
         }),
-      ).toBe("X-Title: Fieldcraft\nHTTP-Referer: https://fieldcraft.sh");
+      ).toBe("X-Title: Fieldcraft\nHTTP-Referer: https://fieldcraft.shubhojeet.me");
     });
 
     it("returns an empty string for empty headers", () => {
