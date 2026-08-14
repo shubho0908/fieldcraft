@@ -401,6 +401,7 @@ export async function runJobAnalysis(
             tools: NO_MODEL_TOOLS,
             maxOutputTokens: resolveMaxOutputTokens(model.id, settings.maxOutputTokens),
             providerOptions,
+            headers: settings.customHeaders,
           })
         : await generateText({
             model: aiModel,
@@ -409,6 +410,7 @@ export async function runJobAnalysis(
             tools: NO_MODEL_TOOLS,
             maxOutputTokens: resolveMaxOutputTokens(model.id, settings.maxOutputTokens),
             providerOptions,
+            headers: settings.customHeaders,
           });
 
       parsed = coerceAnalysisOutput(extractJsonObject(await result.text));
@@ -476,6 +478,8 @@ export async function testAiConnection(
         prompt: CONNECTION_TEST_PROMPT,
         tools: NO_MODEL_TOOLS,
         maxOutputTokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
+        headers:
+          model.provider === Provider.Custom ? settings.customHeaders : undefined,
       })
     : await generateText({
         model: aiModel,
@@ -492,6 +496,8 @@ export async function testAiConnection(
                 },
               }
             : undefined,
+        headers:
+          model.provider === Provider.Custom ? settings.customHeaders : undefined,
       });
 
   if ((await result.finishReason) === "error") {
