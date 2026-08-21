@@ -1,4 +1,5 @@
 import { ProfileEditorForm } from "./ProfileEditorForm";
+import { DataTransferCard } from "./DataTransferCard";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -383,6 +384,21 @@ export default function ProfileEditor({
     }));
   }
 
+  /**
+   * Syncs the wizard's local state with a freshly restored backup, then hands
+   * control back to App via onSaved so boot state (keys included) is re-read.
+   */
+  function applyRestoredBackup(
+    restoredProfile: CandidateProfile,
+    restoredSettings: ExtensionSettings,
+    hasKey: boolean,
+  ) {
+    setProfile(structuredClone(restoredProfile));
+    setSettings({ ...restoredSettings });
+    setCustomHeadersText(serializeCustomHeaderLines(restoredSettings.customHeaders ?? {}));
+    onSaved(restoredProfile, restoredSettings, hasKey);
+  }
+
   return (
     <ProfileEditorForm
       onboarding={onboarding}
@@ -404,8 +420,7 @@ export default function ProfileEditor({
       exaApiKeyExists={exaApiKeyExists}
       effortOptions={effortOptions}
       evalEffortOptions={evalEffortOptions}
-      onCancel={onCancel}
-      setProfile={setProfile}
+      onCancel={onCancel}      setProfile={setProfile}
       setSettings={setSettings}
       setApiKeyState={setApiKeyState}
       setShowApiKey={setShowApiKey}
@@ -429,7 +444,13 @@ export default function ProfileEditor({
       removeExaApiKey={() => void removeExaApiKey()}
       next={() => void next()}
       setStep={setStep}
-    />
+    >
+      <DataTransferCard
+        profile={profile}
+        settings={settings}
+        onRestored={applyRestoredBackup}
+      />
+    </ProfileEditorForm>
   );
 }
 
