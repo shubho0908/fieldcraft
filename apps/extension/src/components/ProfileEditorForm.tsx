@@ -75,6 +75,7 @@ function reasoningIcon(id: ReasoningEffortSetting): ReactNode {
 }
 
 export type ProfileEditorFormProps = {
+  children?: ReactNode;
   onboarding: boolean;
   step: number;
   steps: string[];
@@ -123,6 +124,7 @@ export type ProfileEditorFormProps = {
 
 export function ProfileEditorForm(props: ProfileEditorFormProps) {
   const {
+    children,
     onboarding,
     step,
     steps: STEPS,
@@ -767,6 +769,8 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
       </section>
 
       {error && <div className="form-error" role="alert">{error}</div>}
+
+      {children}
 
       <footer className="editor-footer">
         <button

@@ -24,6 +24,17 @@ export interface ResumeAttachment {
   dataUrl: string;
 }
 
+/**
+ * Durable (remembered) API keys as carried by a backup file. Session-scoped
+ * keys are ephemeral by design and never appear here.
+ */
+export interface BackupApiKeys {
+  openai?: string;
+  gemini?: string;
+  custom?: string;
+  exa?: string;
+}
+
 export interface CandidateProfile {
   identity: {
     fullName: string;

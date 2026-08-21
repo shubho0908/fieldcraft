@@ -1,4 +1,5 @@
 import type {
+  BackupApiKeys,
   CandidateProfile,
   ExtensionSettings,
   TabAnalysisSession,
@@ -165,8 +166,8 @@ function isValidCustomSettings(settings: ExtensionSettings): boolean {
   );
 }
 
-/** Synchronous settings validation — shared by getSettings() and getBootData(). */
-function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSettings {
+/** Synchronous settings validation — shared by getSettings(), getBootData(), and profile transfer. */
+export function parseSettings(raw: Partial<ExtensionSettings> | undefined): ExtensionSettings {
   const settings = {
     ...DEFAULT_SETTINGS,
     ...(raw ?? {}),
@@ -348,6 +349,31 @@ export async function hasExaApiKey(): Promise<boolean> {
   return Boolean(await getExaApiKey());
 }
 
+/**
+ * Reads every durably remembered key (local storage only). Session-scoped keys
+ * are ephemeral by design and intentionally excluded, e.g. from backups.
+ */
+export async function getDurableApiKeys(): Promise<BackupApiKeys> {
+  const local = await chrome.storage.local.get([
+    KEYS.openAiApiKey,
+    KEYS.geminiApiKey,
+    KEYS.customApiKey,
+    // Legacy single-key name; migrate it into the OpenAI slot when present.
+    KEYS.apiKey,
+    KEYS.exaApiKey,
+  ]);
+  const keys: BackupApiKeys = {};
+  const openai = String(local[KEYS.openAiApiKey] ?? local[KEYS.apiKey] ?? "").trim();
+  if (openai) keys.openai = openai;
+  const gemini = String(local[KEYS.geminiApiKey] ?? "").trim();
+  if (gemini) keys.gemini = gemini;
+  const custom = String(local[KEYS.customApiKey] ?? "").trim();
+  if (custom) keys.custom = custom;
+  const exa = String(local[KEYS.exaApiKey] ?? "").trim();
+  if (exa) keys.exa = exa;
+  return keys;
+}
+
 export async function clearExaApiKey(): Promise<void> {
   await chrome.storage.local.remove(KEYS.exaApiKey);
 }
@@ -398,7 +424,8 @@ export async function getInstallId(): Promise<string> {
   return id;
 }
 
-function mergeProfile(raw?: Partial<CandidateProfile>): CandidateProfile {
+/** Shared with lib/profile-transfer so backups sanitize through the same path. */
+export function mergeProfile(raw?: Partial<CandidateProfile>): CandidateProfile {
   if (!raw) return structuredClone(DEFAULT_PROFILE);
   return {
     ...DEFAULT_PROFILE,
