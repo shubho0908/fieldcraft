@@ -7,7 +7,7 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 - Toggle the Fieldcraft side panel with **⌥F** (macOS) or **Ctrl+Shift+F** (Windows). Same gesture opens and closes it. Rebind under `chrome://extensions/shortcuts` if the default conflicts.
 - Keeps a structured candidate profile, full resume text, proof points, work-authorization defaults, compensation/notice-period facts, canonical answers, and an optional resume attachment in Chrome extension storage.
 - Extracts visible JD content and up to 100 application controls from Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Jobvite, iCIMS, BambooHR, Wellfound, LinkedIn, and generic forms.
-- Uses the Vercel AI SDK with structured output, supporting OpenAI (Responses API, GPT-5.5/5.6), Gemini, and any OpenAI-compatible custom provider (Fireworks, Together, Groq, OpenRouter, etc.) with a configurable base URL, model ID, and API key, with optional Exa company research.
+- Uses the Vercel AI SDK with structured output, supporting OpenAI (Responses API, GPT-5.5/5.6), Gemini (3.8/3.7/3.6/3.5 Flash — 3.8 Flash exposes tunable low/medium/high thinking levels), and any OpenAI-compatible custom provider (Fireworks, Together, Groq, OpenRouter, etc.) with a configurable base URL, model ID, and API key, with optional Exa company research.
 - Produces an honest fit score, hard blockers, company brief with clickable sources, missing-fact list, and one reviewed suggestion per detected field.
 - Handles textareas, native selects, radio groups, checkboxes, contenteditable controls, and resume file inputs.
 - Supports two autofill modes: **Analyze with AI** (research, fit score, drafted answers) and **Direct-fill** (instant profile-to-form mapping without an AI call).
@@ -115,10 +115,10 @@ Monorepo overview, web app, and release packaging: [../../README.md](../../READM
 - `src/lib/chrome-events.ts` and `src/lib/chrome-tabs.ts` provide small Chrome extension event/active-tab helpers.
 - `src/lib/page.ts` performs generic ATS/form extraction and browser-compatible filling.
 - `src/lib/prompt.ts` defines the truthfulness, prompt-injection, writing, and field-action contract.
-- `src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, model IDs, judge IDs).
-- `src/lib/models.ts` defines the multi-provider model catalog and per-tier defaults on top of those enums.
+- `src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, OpenAI/Gemini model IDs, Gemini thinking levels, judge IDs).
+- `src/lib/models.ts` defines the multi-provider model catalog and per-tier defaults on top of those enums, plus the effort → provider vocabulary mapping (`toGeminiThinkingLevel`). Each built-in model separates its hard output ceiling (`maxOutputTokens`) from the routine request budget (`defaultMaxOutputTokens`) so ordinary runs don't declare a huge response allowance.
 - `src/lib/fit.ts` enforces fit-score invariants after model output.
-- `src/lib/openai.ts` calls the selected AI provider through the Vercel AI SDK with structured outputs, response storage disabled for OpenAI, and a privacy-preserving installation identifier.
+- `src/lib/openai.ts` calls the selected AI provider through the Vercel AI SDK with structured outputs, response storage disabled for OpenAI, per-model reasoning (OpenAI `reasoningEffort`, Gemini `thinkingConfig.thinkingLevel`), and a privacy-preserving installation identifier.
 - `src/lib/ai-provider.ts` creates the correct OpenAI or Gemini language model for the AI SDK.
 - `src/lib/direct-fill.ts` builds field suggestions directly from the saved profile and canonical answers, used by Direct autofill mode without any AI call.
 - `src/lib/eval/` holds fixtures, deterministic judges, and golden samples for analysis quality gates.

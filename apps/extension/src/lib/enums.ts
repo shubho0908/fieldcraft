@@ -184,6 +184,54 @@ export const OPENAI_MODEL_IDS = [
   OpenAiModelId.Gpt55Pro,
 ] as const;
 
+// ── Gemini model IDs ─────────────────────────────────────────────────
+
+/**
+ * Current Gemini text models offered by the Gemini provider.
+ *
+ * `gemini-3.8-flash-cyber` is intentionally absent: Google exposes it only to
+ * the Fairwind Program (trusted defenders), so it is not usable with a regular
+ * Gemini API key.
+ */
+export const GeminiModelId = {
+  Gemini38Flash: "gemini-3.8-flash",
+  Gemini37Flash: "gemini-3.7-flash",
+  Gemini36Flash: "gemini-3.6-flash",
+  Gemini35Flash: "gemini-3.5-flash",
+  Gemini35FlashLite: "gemini-3.5-flash-lite",
+} as const;
+
+export type GeminiModelId =
+  (typeof GeminiModelId)[keyof typeof GeminiModelId];
+
+export const GEMINI_MODEL_IDS = [
+  GeminiModelId.Gemini38Flash,
+  GeminiModelId.Gemini37Flash,
+  GeminiModelId.Gemini36Flash,
+  GeminiModelId.Gemini35Flash,
+  GeminiModelId.Gemini35FlashLite,
+] as const;
+
+// ── Gemini thinking ──────────────────────────────────────────────────
+
+/** Values accepted by `generationConfig.thinkingConfig.thinkingLevel`. */
+export const GeminiThinkingLevel = {
+  Minimal: "minimal",
+  Low: "low",
+  Medium: "medium",
+  High: "high",
+} as const;
+
+export type GeminiThinkingLevel =
+  (typeof GeminiThinkingLevel)[keyof typeof GeminiThinkingLevel];
+
+export const GEMINI_THINKING_LEVELS = [
+  GeminiThinkingLevel.Minimal,
+  GeminiThinkingLevel.Low,
+  GeminiThinkingLevel.Medium,
+  GeminiThinkingLevel.High,
+] as const;
+
 // ── Eval judges ──────────────────────────────────────────────────────
 
 export const JudgeId = {
@@ -258,12 +306,23 @@ export function isOpenAiModelId(value: string): value is OpenAiModelId {
   return (OPENAI_MODEL_IDS as readonly string[]).includes(value);
 }
 
+export function isGeminiModelId(value: string): value is GeminiModelId {
+  return (GEMINI_MODEL_IDS as readonly string[]).includes(value);
+}
+
+export function isGeminiThinkingLevel(
+  value: string,
+): value is GeminiThinkingLevel {
+  return (GEMINI_THINKING_LEVELS as readonly string[]).includes(value);
+}
+
 function isJudgeId(value: string): value is JudgeId {
   return (JUDGE_IDS as readonly string[]).includes(value);
 }
 
 // Keep type-guards reachable for tree-shaking-safe consumers / future eval tooling.
 export const enumGuards = {
-
+  isGeminiModelId,
+  isGeminiThinkingLevel,
   isJudgeId,
 } as const;

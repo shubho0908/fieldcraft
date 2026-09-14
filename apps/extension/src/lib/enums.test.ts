@@ -5,6 +5,10 @@ import {
   FIT_SCORE_BANDS,
   FIT_VERDICTS,
   FitVerdict,
+  GEMINI_MODEL_IDS,
+  GEMINI_THINKING_LEVELS,
+  GeminiModelId,
+  GeminiThinkingLevel,
   HARD_BLOCKER_SCORE_CAP,
   JUDGE_IDS,
   OPENAI_MODEL_IDS,
@@ -18,11 +22,13 @@ import {
   enumGuards,
   isConfidence,
   isFitVerdict,
+  isGeminiModelId,
+  isGeminiThinkingLevel,
   isOpenAiModelId,
   isReasoningEffort,
   isSuggestionAction,
 } from "./enums";
-import { OPENAI_MODELS } from "./models";
+import { GEMINI_MODELS, OPENAI_MODELS, toGeminiThinkingLevel } from "./models";
 import { verdictForScore } from "./fit";
 
 describe("domain enums cross-validation", () => {
@@ -45,6 +51,30 @@ describe("domain enums cross-validation", () => {
         expect(isReasoningEffort(effort)).toBe(true);
       }
     }
+  });
+
+  it("model catalog IDs are exactly the GeminiModelId set", () => {
+    expect(GEMINI_MODELS.map((model) => model.id)).toEqual([...GEMINI_MODEL_IDS]);
+    for (const model of GEMINI_MODELS) {
+      expect(isGeminiModelId(model.id)).toBe(true);
+      for (const effort of model.supportedReasoningEfforts) {
+        expect(isReasoningEffort(effort)).toBe(true);
+        // Anything the UI offers must translate to a real Gemini level.
+        expect(isGeminiThinkingLevel(toGeminiThinkingLevel(effort))).toBe(true);
+      }
+    }
+  });
+
+  it("keeps the Gemini thinking level vocabulary unique and complete", () => {
+    expect(GEMINI_THINKING_LEVELS).toEqual([
+      GeminiThinkingLevel.Minimal,
+      GeminiThinkingLevel.Low,
+      GeminiThinkingLevel.Medium,
+      GeminiThinkingLevel.High,
+    ]);
+    expect(new Set(GEMINI_THINKING_LEVELS).size).toBe(
+      GEMINI_THINKING_LEVELS.length,
+    );
   });
 
   it("fit score bands cover 0–100 without gaps or overlaps", () => {
@@ -78,6 +108,16 @@ describe("domain enums cross-validation", () => {
     expect(isOpenAiModelId(OpenAiModelId.Gpt56Terra)).toBe(true);
     expect(isOpenAiModelId(OpenAiModelId.Gpt55Pro)).toBe(true);
     expect(isOpenAiModelId("gpt-5.4")).toBe(false);
+    expect(isGeminiModelId(GeminiModelId.Gemini38Flash)).toBe(true);
+    expect(isGeminiModelId(GeminiModelId.Gemini35FlashLite)).toBe(true);
+    // Gemini 3.8 Flash Cyber is Fairwind-only and deliberately not offered.
+    expect(isGeminiModelId("gemini-3.8-flash-cyber")).toBe(false);
+    expect(isGeminiThinkingLevel(GeminiThinkingLevel.High)).toBe(true);
+    expect(isGeminiThinkingLevel("ultra")).toBe(false);
+    expect(enumGuards.isGeminiModelId(GeminiModelId.Gemini38Flash)).toBe(true);
+    expect(enumGuards.isGeminiThinkingLevel(GeminiThinkingLevel.Minimal)).toBe(
+      true,
+    );
     expect(enumGuards.isJudgeId(JUDGE_IDS[0]!)).toBe(true);
     expect(enumGuards.isJudgeId("nope")).toBe(false);
   });

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  GeminiModelId,
+  GeminiThinkingLevel,
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
@@ -11,6 +13,7 @@ import {
   GEMINI_MODELS,
   isCustomProtocol,
   isKnownModel,
+  modelMaxOutputTokensCeiling,
   OPENAI_MODELS,
   resolveAnalysisConfig,
   resolveMaxOutputTokens,
@@ -19,6 +22,7 @@ import {
   reasoningEffortsForModel,
   sanitizeAnthropicBaseUrl,
   sanitizeCustomBaseUrl,
+  toGeminiThinkingLevel,
 } from "./models";
 
 describe("OpenAI model catalog", () => {
@@ -34,10 +38,11 @@ describe("OpenAI model catalog", () => {
 
   it("includes the current Gemini Pro and Flash choices", () => {
     expect(GEMINI_MODELS.map((model) => model.id)).toEqual([
-      "gemini-3.7-flash",
-      "gemini-3.6-flash",
-      "gemini-3.5-flash",
-      "gemini-3.5-flash-lite",
+      GeminiModelId.Gemini38Flash,
+      GeminiModelId.Gemini37Flash,
+      GeminiModelId.Gemini36Flash,
+      GeminiModelId.Gemini35Flash,
+      GeminiModelId.Gemini35FlashLite,
     ]);
   });
 
@@ -75,6 +80,97 @@ describe("OpenAI model catalog", () => {
       ReasoningEffort.High,
       ReasoningEffort.XHigh,
     ]);
+  });
+});
+
+describe("Gemini 3.8 Flash thinking levels", () => {
+  it("exposes exactly the tunable levels Google documents", () => {
+    const flash = resolveModel(GeminiModelId.Gemini38Flash);
+    expect(flash.supportedReasoningEfforts).toEqual([
+      ReasoningEffort.Low,
+      ReasoningEffort.Medium,
+      ReasoningEffort.High,
+    ]);
+    expect(flash.defaultReasoningEffort).toBe(ReasoningEffort.Medium);
+  });
+
+  it("never offers none, because ReasoningEffort.None maps to `minimal`", () => {
+    // Google documents that `minimal` is not supported on 3.8 Flash, so the
+    // effort that would translate to it must stay out of the supported set.
+    expect(
+      resolveModel(GeminiModelId.Gemini38Flash).supportedReasoningEfforts,
+    ).not.toContain(ReasoningEffort.None);
+    expect(toGeminiThinkingLevel(ReasoningEffort.None)).toBe(
+      GeminiThinkingLevel.Minimal,
+    );
+  });
+
+  it("clamps unsupported efforts to the documented default", () => {
+    expect(
+      resolveReasoningEffort(
+        GeminiModelId.Gemini38Flash,
+        ReasoningEffortSettingAuto,
+      ),
+    ).toBe(ReasoningEffort.Medium);
+    expect(
+      resolveReasoningEffort(GeminiModelId.Gemini38Flash, ReasoningEffort.None),
+    ).toBe(ReasoningEffort.Medium);
+    expect(
+      resolveReasoningEffort(GeminiModelId.Gemini38Flash, ReasoningEffort.Max),
+    ).toBe(ReasoningEffort.Medium);
+  });
+
+  it("offers auto plus the tunable levels in the settings dropdown", () => {
+    expect(
+      reasoningEffortsForModel(GeminiModelId.Gemini38Flash).map(
+        (option) => option.id,
+      ),
+    ).toEqual([
+      ReasoningEffortSettingAuto,
+      ReasoningEffort.Low,
+      ReasoningEffort.Medium,
+      ReasoningEffort.High,
+    ]);
+  });
+
+  it("resolves the analysis payload to a Gemini thinking level", () => {
+    expect(
+      resolveAnalysisConfig({
+        model: GeminiModelId.Gemini38Flash,
+        reasoningEffort: ReasoningEffort.High,
+      }),
+    ).toEqual({
+      modelId: GeminiModelId.Gemini38Flash,
+      reasoning: { effort: ReasoningEffort.High },
+    });
+  });
+
+  it("maps every catalog effort onto a level Gemini accepts", () => {
+    expect(toGeminiThinkingLevel(ReasoningEffort.None)).toBe(
+      GeminiThinkingLevel.Minimal,
+    );
+    expect(toGeminiThinkingLevel(ReasoningEffort.Low)).toBe(
+      GeminiThinkingLevel.Low,
+    );
+    expect(toGeminiThinkingLevel(ReasoningEffort.Medium)).toBe(
+      GeminiThinkingLevel.Medium,
+    );
+    expect(toGeminiThinkingLevel(ReasoningEffort.High)).toBe(
+      GeminiThinkingLevel.High,
+    );
+    expect(toGeminiThinkingLevel(ReasoningEffort.XHigh)).toBe(
+      GeminiThinkingLevel.High,
+    );
+    expect(toGeminiThinkingLevel(ReasoningEffort.Max)).toBe(
+      GeminiThinkingLevel.High,
+    );
+
+    const levels = new Set<string>(Object.values(GeminiThinkingLevel));
+    for (const effort of [ReasoningEffort.None, ...GEMINI_MODELS.flatMap(
+      (model) => [...model.supportedReasoningEfforts],
+    )]) {
+      expect(levels.has(toGeminiThinkingLevel(effort))).toBe(true);
+    }
   });
 });
 
@@ -128,7 +224,20 @@ describe("reasoning resolution", () => {
   it("keeps known model lookup stable", () => {
     expect(isKnownModel(OpenAiModelId.Gpt56Terra)).toBe(true);
     expect(isKnownModel("gpt-5.5-pro")).toBe(true);
+    expect(isKnownModel(GeminiModelId.Gemini38Flash)).toBe(true);
     expect(isKnownModel("gpt-5.4")).toBe(false);
+  });
+
+  it("keeps every model's default effort inside its supported set", () => {
+    // resolveReasoningEffort() falls back to defaultReasoningEffort for anything
+    // unsupported, so a default outside the supported set could be sent to a
+    // provider that rejects it.
+    for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS]) {
+      if (model.supportedReasoningEfforts.length === 0) continue;
+      expect(model.supportedReasoningEfforts).toContain(
+        model.defaultReasoningEffort,
+      );
+    }
   });
 });
 
@@ -136,7 +245,59 @@ describe("max output token resolution", () => {
   it("uses the model catalog default when no override is provided", () => {
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra)).toBe(16_384);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt55)).toBe(8_192);
-    expect(resolveMaxOutputTokens("gemini-3.5-flash")).toBe(8_192);
+    expect(resolveMaxOutputTokens(GeminiModelId.Gemini35Flash)).toBe(8_192);
+  });
+
+  it("clamps Gemini 3.8 Flash overrides to the documented 64k ceiling", () => {
+    expect(resolveModel(GeminiModelId.Gemini38Flash).maxOutputTokens).toBe(
+      65_536,
+    );
+    // Thinking tokens count against max_output_tokens, so the ceiling matters.
+    expect(
+      resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 100_000),
+    ).toBe(65_536);
+    expect(
+      resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 32_768),
+    ).toBe(32_768);
+  });
+
+  it("keeps Gemini 3.8 Flash's routine budget below its ceiling", () => {
+    const flash = resolveModel(GeminiModelId.Gemini38Flash);
+    expect(flash.maxOutputTokens).toBe(65_536);
+    expect(flash.defaultMaxOutputTokens).toBe(16_384);
+
+    // An ordinary run must not declare the full 64k allowance.
+    expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash)).toBe(16_384);
+    // Users can still raise it, up to the documented ceiling.
+    expect(
+      resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 40_000),
+    ).toBe(40_000);
+    expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 65_536)).toBe(
+      65_536,
+    );
+  });
+
+  it("never lets a routine budget exceed its model ceiling", () => {
+    for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS]) {
+      if (typeof model.defaultMaxOutputTokens !== "number") continue;
+      expect(model.defaultMaxOutputTokens).toBeLessThanOrEqual(
+        model.maxOutputTokens,
+      );
+      expect(resolveMaxOutputTokens(model.id)).toBe(
+        model.defaultMaxOutputTokens,
+      );
+    }
+  });
+
+  it("omits the ceiling for custom endpoints and quotes it for built-ins", () => {
+    expect(
+      modelMaxOutputTokensCeiling(`${CUSTOM_MODEL_PREFIX}llama-test`),
+    ).toBeUndefined();
+    expect(modelMaxOutputTokensCeiling(OpenAiModelId.Gpt56Terra)).toBe(16_384);
+    expect(modelMaxOutputTokensCeiling(GeminiModelId.Gemini38Flash)).toBe(
+      65_536,
+    );
+    expect(modelMaxOutputTokensCeiling("not-a-model")).toBe(16_384);
   });
 
   it("clamps built-in model overrides to the catalog maximum", () => {

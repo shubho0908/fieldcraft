@@ -4,16 +4,21 @@
  */
 
 import {
+  GeminiModelId,
+  GeminiThinkingLevel,
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
   isReasoningEffortSetting,
+  type GeminiThinkingLevel as GeminiThinkingLevelType,
   type ReasoningEffort as ReasoningEffortType,
   type ReasoningEffortSetting,
 } from "./enums";
 
 export type { ReasoningEffortSetting };
 export {
+  GeminiModelId,
+  GeminiThinkingLevel,
   OpenAiModelId,
   ReasoningEffort,
   ReasoningEffortSettingAuto,
@@ -58,8 +63,16 @@ export interface ModelOption {
   description: string;
   defaultReasoningEffort: ReasoningEffortType;
   supportedReasoningEfforts: readonly ReasoningEffortType[];
-  /** Default max output tokens for this model. Used when the user has not set an override. */
+  /** Hard provider ceiling for this model; the API rejects requests above it. */
   maxOutputTokens: number;
+  /**
+   * Routine request budget used when the user has not set an override.
+   *
+   * Kept separate from {@link maxOutputTokens} when a model's documented ceiling
+   * is far above what an analysis needs, so ordinary runs don't declare a huge
+   * response allowance. Omit it when the ceiling is already a sensible budget.
+   */
+  defaultMaxOutputTokens?: number;
 }
 
 /** @deprecated Use ModelOption */
@@ -182,11 +195,38 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
   },
 ] as const;
 
+/**
+ * Gemini 3.8 Flash thinking levels.
+ *
+ * Google documents tunable `low | medium | high` for this model and states that
+ * `minimal` is not supported, so `ReasoningEffort.None` is deliberately absent
+ * and resolves to the model default instead.
+ */
+const GEMINI_3_8_FLASH_EFFORTS = [
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+  ReasoningEffort.High,
+] as const satisfies readonly ReasoningEffortType[];
+
 /** Current Gemini text models that support structured output. */
 export const GEMINI_MODELS: readonly ModelOption[] = [
   {
     provider: Provider.Gemini,
-    id: "gemini-3.7-flash",
+    id: GeminiModelId.Gemini38Flash,
+    label: "Gemini 3.8 Flash",
+    description:
+      "Most intelligent Flash model for long-horizon engineering and agents",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: GEMINI_3_8_FLASH_EFFORTS,
+    // Documented 64k ceiling, but an analysis response is a bounded JSON object.
+    // 16,384 leaves headroom for thinking tokens (which count against this
+    // budget) without declaring a 64k allowance on every ordinary run.
+    maxOutputTokens: 65_536,
+    defaultMaxOutputTokens: 16_384,
+  },
+  {
+    provider: Provider.Gemini,
+    id: GeminiModelId.Gemini37Flash,
     label: "Gemini 3.7 Flash",
     description: "Most intelligent Gemini workhorse for coding and agents",
     defaultReasoningEffort: ReasoningEffort.None,
@@ -195,7 +235,7 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
   },
   {
     provider: Provider.Gemini,
-    id: "gemini-3.6-flash",
+    id: GeminiModelId.Gemini36Flash,
     label: "Gemini 3.6 Flash",
     description: "Fast workhorse for coding, knowledge work, and multimodal tasks",
     defaultReasoningEffort: ReasoningEffort.None,
@@ -204,7 +244,7 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
   },
   {
     provider: Provider.Gemini,
-    id: "gemini-3.5-flash",
+    id: GeminiModelId.Gemini35Flash,
     label: "Gemini 3.5 Flash",
     description: "Frontier performance at higher speed",
     defaultReasoningEffort: ReasoningEffort.None,
@@ -213,7 +253,7 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
   },
   {
     provider: Provider.Gemini,
-    id: "gemini-3.5-flash-lite",
+    id: GeminiModelId.Gemini35FlashLite,
     label: "Gemini 3.5 Flash-Lite",
     description: "Fast, economical high-volume analysis",
     defaultReasoningEffort: ReasoningEffort.None,
@@ -382,16 +422,61 @@ export function preferredEvalReasoningEffort(
   return model.defaultReasoningEffort;
 }
 
+/**
+ * Gemini `thinkingConfig.thinkingLevel` for each Fieldcraft reasoning effort.
+ *
+ * Fieldcraft's effort vocabulary mirrors OpenAI's (`none`…`max`) while Gemini
+ * only accepts `minimal | low | medium | high`, so `xhigh` and `max` both cap
+ * at `high`, and `none` maps to the cheapest level Gemini understands.
+ *
+ * Callers must pass an effort already clamped by {@link resolveReasoningEffort}.
+ * A model that rejects a level (3.8 Flash does not accept `minimal`) never lists
+ * the matching effort in `supportedReasoningEfforts`, so clamping prevents an
+ * unsupported level from ever reaching the API.
+ */
+const GEMINI_THINKING_LEVEL_BY_EFFORT: Record<
+  ReasoningEffortType,
+  GeminiThinkingLevelType
+> = {
+  [ReasoningEffort.None]: GeminiThinkingLevel.Minimal,
+  [ReasoningEffort.Low]: GeminiThinkingLevel.Low,
+  [ReasoningEffort.Medium]: GeminiThinkingLevel.Medium,
+  [ReasoningEffort.High]: GeminiThinkingLevel.High,
+  [ReasoningEffort.XHigh]: GeminiThinkingLevel.High,
+  [ReasoningEffort.Max]: GeminiThinkingLevel.High,
+};
+
+/** Translate a resolved reasoning effort into a Gemini thinking level. */
+export function toGeminiThinkingLevel(
+  effort: ReasoningEffortType,
+): GeminiThinkingLevelType {
+  return GEMINI_THINKING_LEVEL_BY_EFFORT[effort];
+}
+
 /** Hard sanity ceiling for any user-supplied max output tokens value. */
 const MAX_OUTPUT_TOKENS_SANITY = 1_000_000;
 
 /**
+ * Human-readable ceiling for the Settings "Max output tokens" hint.
+ *
+ * Returns `undefined` for custom endpoints: their real limit is whatever the
+ * third-party endpoint accepts (guarded only by the sanity limit), so quoting
+ * the custom placeholder's conservative default would be misleading.
+ */
+export function modelMaxOutputTokensCeiling(modelId: string): number | undefined {
+  const model = resolveModel(modelId);
+  if (model.provider === Provider.Custom) return undefined;
+  return model.maxOutputTokens;
+}
+
+/**
  * Resolve the maximum output tokens for a model.
  *
- * Built-in models are capped to their catalog default so users cannot accidentally
- * exceed a known provider limit. Custom providers are unknown and subscription-tier
- * dependent, so we default to a conservative value (4096) and allow the user to
- * raise it if their endpoint supports more.
+ * Built-in models start from their routine request budget and are always capped
+ * to their documented ceiling, so a user cannot exceed a known provider limit.
+ * Custom providers are unknown and subscription-tier dependent, so we default to
+ * a conservative value (4096) and allow the user to raise it if their endpoint
+ * supports more.
  */
 export function resolveMaxOutputTokens(
   modelId: string,
@@ -411,7 +496,7 @@ export function resolveMaxOutputTokens(
   }
 
   return Math.min(
-    userMax ?? model.maxOutputTokens,
+    userMax ?? model.defaultMaxOutputTokens ?? model.maxOutputTokens,
     model.maxOutputTokens,
     MAX_OUTPUT_TOKENS_SANITY,
   );

@@ -21,6 +21,9 @@ import {
   resolveAnalysisConfig,
   resolveMaxOutputTokens,
   resolveModel,
+  toGeminiThinkingLevel,
+  type ModelOption,
+  type ReasoningEffort,
 } from "./models";
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
 import { getApiKey, getExaApiKey, getInstallId, getSettings } from "./storage";
@@ -326,6 +329,30 @@ export async function analyzeJob(
 }
 
 /**
+ * Gemini accepts reasoning per request through `generationConfig.thinkingConfig`.
+ * Without it the API uses the model's own default thinking level, so a model
+ * with tunable levels (Gemini 3.8 Flash) would silently ignore the effort the
+ * user picked in Settings.
+ *
+ * Models that declare no thinking levels (3.7 Flash and older) deliberately get
+ * no thinkingConfig at all: sending one would change behavior for existing
+ * Gemini users, and the level `ReasoningEffort.None` maps to (`minimal`) is not
+ * accepted by every Gemini model.
+ *
+ * This stays a builder rather than an inline object literal: a shorthand ternary
+ * of two object literals widens to a union carrying optional `undefined` keys,
+ * which the AI SDK's `Record<string, JSONObject>` provider-options type rejects.
+ */
+function geminiProviderOptions(model: ModelOption, effort: ReasoningEffort) {
+  if (model.supportedReasoningEfforts.length === 0) return undefined;
+  return {
+    google: {
+      thinkingConfig: { thinkingLevel: toGeminiThinkingLevel(effort) },
+    },
+  };
+}
+
+/**
  * Core analysis path with injectable auth.
  * Uses the Vercel AI SDK so the same code can drive OpenAI and Gemini.
  */
@@ -371,6 +398,8 @@ export async function runJobAnalysis(
     }
   }
 
+  // `config.reasoning.effort` is already clamped to the model's supported set by
+  // resolveAnalysisConfig(); geminiProviderOptions() explains the Gemini side.
   const providerOptions =
     model.provider === Provider.OpenAI
       ? {
@@ -380,7 +409,9 @@ export async function runJobAnalysis(
             reasoningEffort: config.reasoning.effort,
           },
         }
-      : undefined;
+      : model.provider === Provider.Gemini
+        ? geminiProviderOptions(model, config.reasoning.effort)
+        : undefined;
 
   let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
 
