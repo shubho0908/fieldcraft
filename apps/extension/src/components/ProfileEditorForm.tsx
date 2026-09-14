@@ -181,6 +181,16 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     settings.model,
     settings.maxOutputTokens,
   );
+  // Only providers whose reasoning we actually forward get a selector: OpenAI
+  // sends `reasoningEffort`, Gemini sends `thinkingConfig.thinkingLevel`. Custom
+  // endpoints stay hidden because their protocol may support neither, and a
+  // model that exposes no level beyond Auto (3.7 Flash and older) has nothing
+  // meaningful to pick.
+  const forwardsReasoning =
+    settings.provider === Provider.OpenAI || settings.provider === Provider.Gemini;
+  const showReasoningEffort = forwardsReasoning && effortOptions.length > 1;
+  const showEvalReasoningEffort =
+    forwardsReasoning && evalEffortOptions.length > 1;
 
   return (
     <main className={`profile-editor ${onboarding ? "onboarding" : "editing"}`}>
@@ -626,7 +636,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 onChange={(event) => updateMaxOutputTokens(event.target.value)}
               />
             </Field>
-            {settings.provider === Provider.OpenAI && <Field
+            {showReasoningEffort && <Field
               label="Reasoning effort"
               hint="Reasoning effort · Auto uses the model default"
             >
@@ -669,7 +679,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 />
               </Field>
             )}
-            {settings.provider === Provider.OpenAI && <Field
+            {showEvalReasoningEffort && <Field
               label="Eval reasoning"
               hint="Default high · clamped if the model cannot use that effort"
             >

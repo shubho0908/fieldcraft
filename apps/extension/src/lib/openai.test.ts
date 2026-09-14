@@ -34,11 +34,14 @@ import {
   FitVerdict,
   HARD_BLOCKER_SCORE_CAP,
   PageFieldKind,
+  ReasoningEffort,
+  ReasoningEffortSettingAuto,
   SuggestionAction,
 } from "./enums";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
   DEFAULT_MODEL_ID,
+  GeminiModelId,
 } from "./models";
 
 describe("live connection probe", () => {
@@ -559,5 +562,141 @@ describe("runJobAnalysis max output tokens", () => {
 
     const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
     expect(call.maxOutputTokens).toBe(16_384);
+  });
+});
+
+describe("runJobAnalysis provider options", () => {
+  function stubAnalysis(text = "resp-stub") {
+    vi.mocked(generateText).mockResolvedValueOnce({
+      output: validAnalysisOutput,
+      finishReason: "stop",
+      response: { id: text },
+    } as never);
+  }
+
+  function firstCallProviderOptions() {
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      providerOptions?: unknown;
+    };
+    return call.providerOptions;
+  }
+
+  it("sends Gemini thinkingConfig so the chosen effort is not silently dropped", async () => {
+    stubAnalysis("resp-gemini-high");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Gemini,
+        model: GeminiModelId.Gemini38Flash,
+        reasoningEffort: ReasoningEffort.High,
+      },
+      { apiKey: "sk-gemini", installId: "install-1" },
+    );
+
+    expect(firstCallProviderOptions()).toEqual({
+      google: { thinkingConfig: { thinkingLevel: "high" } },
+    });
+  });
+
+  it("uses the documented Gemini default when the user picks auto", async () => {
+    stubAnalysis("resp-gemini-auto");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Gemini,
+        model: GeminiModelId.Gemini38Flash,
+        reasoningEffort: ReasoningEffortSettingAuto,
+      },
+      { apiKey: "sk-gemini", installId: "install-1" },
+    );
+
+    expect(firstCallProviderOptions()).toEqual({
+      google: { thinkingConfig: { thinkingLevel: "medium" } },
+    });
+  });
+
+  it("clamps an unsupported Gemini effort before it reaches the API", async () => {
+    stubAnalysis("resp-gemini-clamped");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Gemini,
+        model: GeminiModelId.Gemini38Flash,
+        // 3.8 Flash documents low/medium/high only.
+        reasoningEffort: ReasoningEffort.Max,
+      },
+      { apiKey: "sk-gemini", installId: "install-1" },
+    );
+
+    expect(firstCallProviderOptions()).toEqual({
+      google: { thinkingConfig: { thinkingLevel: "medium" } },
+    });
+  });
+
+  it("leaves older Gemini models on the API default instead of sending minimal", async () => {
+    stubAnalysis("resp-gemini-legacy");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Gemini,
+        model: GeminiModelId.Gemini37Flash,
+      },
+      { apiKey: "sk-gemini", installId: "install-1" },
+    );
+
+    // These models declare no thinking levels, and `minimal` is not accepted by
+    // every Gemini model, so no thinking config may be sent at all.
+    expect(firstCallProviderOptions()).toBeUndefined();
+  });
+
+  it("keeps the OpenAI namespace for OpenAI models", async () => {
+    stubAnalysis("resp-openai");
+
+    await runJobAnalysis(baseSnapshot, baseProfile, baseSettings, {
+      apiKey: "sk-test",
+      installId: "install-1",
+    });
+
+    expect(firstCallProviderOptions()).toEqual({
+      openai: {
+        store: false,
+        user: "install-1",
+        reasoningEffort: ReasoningEffort.Medium,
+      },
+    });
+  });
+
+  it("sends no provider options for custom endpoints", async () => {
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: JSON.stringify(validAnalysisOutput),
+      finishReason: "stop",
+      response: { id: "resp-custom" },
+    } as never);
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Custom,
+        model: "custom:sarvam-105b",
+        customBaseUrl: "https://api.sarvam.ai/v1",
+      },
+      { apiKey: "sk-test", installId: "install-1" },
+    );
+
+    expect(firstCallProviderOptions()).toBeUndefined();
   });
 });
