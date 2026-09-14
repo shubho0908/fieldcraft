@@ -247,8 +247,10 @@ describe("max output token resolution", () => {
     expect(resolveMaxOutputTokens(GeminiModelId.Gemini35Flash)).toBe(8_192);
   });
 
-  it("uses the documented 64k output ceiling for Gemini 3.8 Flash", () => {
-    expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash)).toBe(65_536);
+  it("clamps Gemini 3.8 Flash overrides to the documented 64k ceiling", () => {
+    expect(resolveModel(GeminiModelId.Gemini38Flash).maxOutputTokens).toBe(
+      65_536,
+    );
     // Thinking tokens count against max_output_tokens, so the ceiling matters.
     expect(
       resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 100_000),
@@ -256,6 +258,34 @@ describe("max output token resolution", () => {
     expect(
       resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 32_768),
     ).toBe(32_768);
+  });
+
+  it("keeps Gemini 3.8 Flash's routine budget below its ceiling", () => {
+    const flash = resolveModel(GeminiModelId.Gemini38Flash);
+    expect(flash.maxOutputTokens).toBe(65_536);
+    expect(flash.defaultMaxOutputTokens).toBe(16_384);
+
+    // An ordinary run must not declare the full 64k allowance.
+    expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash)).toBe(16_384);
+    // Users can still raise it, up to the documented ceiling.
+    expect(
+      resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 40_000),
+    ).toBe(40_000);
+    expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 65_536)).toBe(
+      65_536,
+    );
+  });
+
+  it("never lets a routine budget exceed its model ceiling", () => {
+    for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS]) {
+      if (typeof model.defaultMaxOutputTokens !== "number") continue;
+      expect(model.defaultMaxOutputTokens).toBeLessThanOrEqual(
+        model.maxOutputTokens,
+      );
+      expect(resolveMaxOutputTokens(model.id)).toBe(
+        model.defaultMaxOutputTokens,
+      );
+    }
   });
 
   it("clamps built-in model overrides to the catalog maximum", () => {

@@ -661,6 +661,26 @@ describe("runJobAnalysis provider options", () => {
     expect(firstCallProviderOptions()).toBeUndefined();
   });
 
+  it("sends Gemini 3.8 Flash's routine budget, not its 64k ceiling", async () => {
+    stubAnalysis("resp-gemini-budget");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Gemini,
+        model: GeminiModelId.Gemini38Flash,
+      },
+      { apiKey: "sk-gemini", installId: "install-1" },
+    );
+
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      maxOutputTokens: number;
+    };
+    expect(call.maxOutputTokens).toBe(16_384);
+  });
+
   it("keeps the OpenAI namespace for OpenAI models", async () => {
     stubAnalysis("resp-openai");
 

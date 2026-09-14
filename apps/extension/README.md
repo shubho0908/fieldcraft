@@ -116,7 +116,7 @@ Monorepo overview, web app, and release packaging: [../../README.md](../../READM
 - `src/lib/page.ts` performs generic ATS/form extraction and browser-compatible filling.
 - `src/lib/prompt.ts` defines the truthfulness, prompt-injection, writing, and field-action contract.
 - `src/lib/enums.ts` is the single source of truth for domain values (fit verdicts, actions, confidence, reasoning effort, OpenAI/Gemini model IDs, Gemini thinking levels, judge IDs).
-- `src/lib/models.ts` defines the multi-provider model catalog and per-tier defaults on top of those enums, plus the effort → provider vocabulary mapping (`toGeminiThinkingLevel`).
+- `src/lib/models.ts` defines the multi-provider model catalog and per-tier defaults on top of those enums, plus the effort → provider vocabulary mapping (`toGeminiThinkingLevel`). Each built-in model separates its hard output ceiling (`maxOutputTokens`) from the routine request budget (`defaultMaxOutputTokens`) so ordinary runs don't declare a huge response allowance.
 - `src/lib/fit.ts` enforces fit-score invariants after model output.
 - `src/lib/openai.ts` calls the selected AI provider through the Vercel AI SDK with structured outputs, response storage disabled for OpenAI, per-model reasoning (OpenAI `reasoningEffort`, Gemini `thinkingConfig.thinkingLevel`), and a privacy-preserving installation identifier.
 - `src/lib/ai-provider.ts` creates the correct OpenAI or Gemini language model for the AI SDK.
