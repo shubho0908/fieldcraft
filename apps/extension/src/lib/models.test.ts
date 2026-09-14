@@ -13,6 +13,7 @@ import {
   GEMINI_MODELS,
   isCustomProtocol,
   isKnownModel,
+  modelMaxOutputTokensCeiling,
   OPENAI_MODELS,
   resolveAnalysisConfig,
   resolveMaxOutputTokens,
@@ -286,6 +287,17 @@ describe("max output token resolution", () => {
         model.defaultMaxOutputTokens,
       );
     }
+  });
+
+  it("omits the ceiling for custom endpoints and quotes it for built-ins", () => {
+    expect(
+      modelMaxOutputTokensCeiling(`${CUSTOM_MODEL_PREFIX}llama-test`),
+    ).toBeUndefined();
+    expect(modelMaxOutputTokensCeiling(OpenAiModelId.Gpt56Terra)).toBe(16_384);
+    expect(modelMaxOutputTokensCeiling(GeminiModelId.Gemini38Flash)).toBe(
+      65_536,
+    );
+    expect(modelMaxOutputTokensCeiling("not-a-model")).toBe(16_384);
   });
 
   it("clamps built-in model overrides to the catalog maximum", () => {

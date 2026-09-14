@@ -457,6 +457,19 @@ export function toGeminiThinkingLevel(
 const MAX_OUTPUT_TOKENS_SANITY = 1_000_000;
 
 /**
+ * Human-readable ceiling for the Settings "Max output tokens" hint.
+ *
+ * Returns `undefined` for custom endpoints: their real limit is whatever the
+ * third-party endpoint accepts (guarded only by the sanity limit), so quoting
+ * the custom placeholder's conservative default would be misleading.
+ */
+export function modelMaxOutputTokensCeiling(modelId: string): number | undefined {
+  const model = resolveModel(modelId);
+  if (model.provider === Provider.Custom) return undefined;
+  return model.maxOutputTokens;
+}
+
+/**
  * Resolve the maximum output tokens for a model.
  *
  * Built-in models start from their routine request budget and are always capped

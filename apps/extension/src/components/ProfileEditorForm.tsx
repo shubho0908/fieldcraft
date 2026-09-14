@@ -29,9 +29,9 @@ import {
   CustomProtocol,
   Provider,
   customModelId,
+  modelMaxOutputTokensCeiling,
   modelsForProvider,
   resolveMaxOutputTokens,
-  resolveModel,
 } from "../lib/models";
 import { Select } from "./Select";
 import { OpenAIIcon } from "./OpenAIIcon";
@@ -182,7 +182,11 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     settings.model,
     settings.maxOutputTokens,
   );
-  const maxOutputTokensCeiling = resolveModel(settings.model).maxOutputTokens;
+  const maxOutputTokensCeiling = modelMaxOutputTokensCeiling(settings.model);
+  const maxOutputTokensHint =
+    typeof maxOutputTokensCeiling === "number"
+      ? `Default for this model: ${resolvedMaxOutputTokens.toLocaleString()}. Lower values reduce cost; higher values allow longer outputs, up to ${maxOutputTokensCeiling.toLocaleString()}.`
+      : `Default for this endpoint: ${resolvedMaxOutputTokens.toLocaleString()}. Lower values reduce cost; higher values allow longer outputs if your endpoint supports them.`;
   // Only providers whose reasoning we actually forward get a selector: OpenAI
   // sends `reasoningEffort`, Gemini sends `thinkingConfig.thinkingLevel`. Custom
   // endpoints stay hidden because their protocol may support neither, and a
@@ -627,7 +631,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
             )}
             <Field
               label="Max output tokens"
-              hint={`Default for this model: ${resolvedMaxOutputTokens.toLocaleString()}. Lower values reduce cost; higher values allow longer outputs, up to ${maxOutputTokensCeiling.toLocaleString()}.`}
+              hint={maxOutputTokensHint}
             >
               <input
                 type="number"
