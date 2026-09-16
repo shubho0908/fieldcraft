@@ -48,6 +48,8 @@ function providerIcon(provider: Provider): ReactNode {
       return <OpenAIIcon size={14} />;
     case Provider.Gemini:
       return <GeminiIcon size={14} />;
+    case Provider.Anthropic:
+      return <AnthropicIcon size={14} />;
     case Provider.Custom:
       return <Server size={14} />;
   }
@@ -177,7 +179,9 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     ? "Custom"
     : settings.provider === Provider.Gemini
       ? "Gemini"
-      : "OpenAI";
+      : settings.provider === Provider.Anthropic
+        ? "Anthropic"
+        : "OpenAI";
   const resolvedMaxOutputTokens = resolveMaxOutputTokens(
     settings.model,
     settings.maxOutputTokens,
@@ -193,7 +197,9 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
   // model that exposes no level beyond Auto (3.7 Flash and older) has nothing
   // meaningful to pick.
   const forwardsReasoning =
-    settings.provider === Provider.OpenAI || settings.provider === Provider.Gemini;
+    settings.provider === Provider.OpenAI ||
+    settings.provider === Provider.Gemini ||
+    settings.provider === Provider.Anthropic;
   const showReasoningEffort = forwardsReasoning && effortOptions.length > 1;
   const showEvalReasoningEffort =
     forwardsReasoning && evalEffortOptions.length > 1;
@@ -540,6 +546,7 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 options={[
                   { value: Provider.OpenAI, label: "OpenAI", icon: providerIcon(Provider.OpenAI) },
                   { value: Provider.Gemini, label: "Gemini", icon: providerIcon(Provider.Gemini) },
+                  { value: Provider.Anthropic, label: "Anthropic", icon: providerIcon(Provider.Anthropic) },
                   { value: Provider.Custom, label: "Custom endpoint", icon: providerIcon(Provider.Custom) },
                 ]}
                 onChange={(value) => updateProvider(value as Provider)}

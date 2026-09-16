@@ -1,5 +1,5 @@
 import { generateText, jsonSchema, Output, streamText } from "ai";
-import type { JSONSchema7 } from "@ai-sdk/provider";
+import type { JSONSchema7, SharedV4ProviderOptions } from "@ai-sdk/provider";
 import { JOB_ANALYSIS_SCHEMA } from "./analysis-schema";
 import { createAiModel } from "./ai-provider";
 import {
@@ -354,7 +354,7 @@ function geminiProviderOptions(model: ModelOption, effort: ReasoningEffort) {
 
 /**
  * Core analysis path with injectable auth.
- * Uses the Vercel AI SDK so the same code can drive OpenAI and Gemini.
+ * Uses the Vercel AI SDK so the same code can drive OpenAI, Gemini, and Anthropic.
  */
 export async function runJobAnalysis(
   snapshot: PageSnapshot,
@@ -400,18 +400,20 @@ export async function runJobAnalysis(
 
   // `config.reasoning.effort` is already clamped to the model's supported set by
   // resolveAnalysisConfig(); geminiProviderOptions() explains the Gemini side.
-  const providerOptions =
-    model.provider === Provider.OpenAI
-      ? {
-          openai: {
-            store: false,
-            user: auth.installId,
-            reasoningEffort: config.reasoning.effort,
-          },
-        }
-      : model.provider === Provider.Gemini
-        ? geminiProviderOptions(model, config.reasoning.effort)
-        : undefined;
+  let providerOptions: SharedV4ProviderOptions | undefined;
+  if (model.provider === Provider.OpenAI) {
+    providerOptions = {
+      openai: {
+        store: false,
+        user: auth.installId,
+        reasoningEffort: config.reasoning.effort,
+      },
+    };
+  } else if (model.provider === Provider.Gemini) {
+    providerOptions = geminiProviderOptions(model, config.reasoning.effort);
+  } else if (model.provider === Provider.Anthropic) {
+    providerOptions = { anthropic: { effort: config.reasoning.effort } };
+  }
 
   let parsed: Omit<JobAnalysis, "generatedAt" | "research">;
 
@@ -545,6 +547,7 @@ export async function testAiConnection(
 
 function providerLabel(provider: Provider): string {
   if (provider === Provider.Gemini) return "Gemini";
+  if (provider === Provider.Anthropic) return "Anthropic";
   if (provider === Provider.Custom) return "Custom";
   return "OpenAI";
 }

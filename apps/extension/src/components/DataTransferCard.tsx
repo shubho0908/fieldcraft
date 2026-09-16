@@ -240,6 +240,7 @@ export function DataTransferCard({ profile, settings, onRestored }: Props) {
 async function restoreApiKeys(keys: BackupApiKeys): Promise<void> {
   if (keys.openai) await saveApiKey(Provider.OpenAI, keys.openai, true);
   if (keys.gemini) await saveApiKey(Provider.Gemini, keys.gemini, true);
+  if (keys.anthropic) await saveApiKey(Provider.Anthropic, keys.anthropic, true);
   if (keys.custom) await saveApiKey(Provider.Custom, keys.custom, true);
   if (keys.exa) await saveExaApiKey(keys.exa);
 }
@@ -263,6 +264,7 @@ function describeProfileContent(profile: CandidateProfile): string {
 
 function labelProvider(provider: Provider): string {
   if (provider === Provider.Gemini) return "Gemini";
+  if (provider === Provider.Anthropic) return "Anthropic";
   if (provider === Provider.Custom) return "Custom endpoint";
   return "OpenAI";
 }
@@ -271,6 +273,7 @@ function keySlotList(keys: BackupApiKeys): string[] {
   const labels: Array<[keyof BackupApiKeys, string]> = [
     ["openai", "OpenAI"],
     ["gemini", "Gemini"],
+    ["anthropic", "Anthropic"],
     ["custom", "Custom"],
     ["exa", "Exa"],
   ];

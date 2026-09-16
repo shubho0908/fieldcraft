@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
-import { Provider } from "./models";
+import { AnthropicModelId, Provider } from "./models";
 import type { CandidateProfile } from "../types";
 import {
   BACKUP_FORMAT,
@@ -148,17 +148,44 @@ describe("parseBackup", () => {
   });
 });
 
+describe("Anthropic settings restore", () => {
+  test("keeps Anthropic analyze and eval models on the same provider", () => {
+    const parsed = parseBackup({
+      format: BACKUP_FORMAT,
+      schemaVersion: BACKUP_SCHEMA_VERSION,
+      exportedAt: "2026-09-16T00:00:00.000Z",
+      appVersion: "0.1.0",
+      profile: DEFAULT_PROFILE,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        provider: Provider.Anthropic,
+        model: AnthropicModelId.ClaudeSonnet5,
+        evalModel: DEFAULT_SETTINGS.evalModel,
+      },
+      apiKeys: { anthropic: "sk-ant-test" },
+    });
+
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.backup.settings.provider).toBe(Provider.Anthropic);
+    expect(parsed.backup.settings.model).toBe(AnthropicModelId.ClaudeSonnet5);
+    expect(parsed.backup.settings.evalModel).toBe(AnthropicModelId.ClaudeOpus5);
+    expect(parsed.backup.apiKeys.anthropic).toBe("sk-ant-test");
+  });
+});
+
 describe("sanitizeBackupApiKeys", () => {
   test("trims values and drops empty or non-string entries", () => {
     expect(
       sanitizeBackupApiKeys({
         openai: "  sk-test  ",
         gemini: "",
+        anthropic: "  sk-ant-test  ",
         custom: 42,
         exa: null,
         unknown: "ignored",
       }),
-    ).toEqual({ openai: "sk-test" });
+    ).toEqual({ openai: "sk-test", anthropic: "sk-ant-test" });
   });
 
   test("returns an empty object for garbage input", () => {

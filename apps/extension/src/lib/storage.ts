@@ -32,6 +32,7 @@ const KEYS = {
   apiKey: "fieldcraft.apiKey",
   openAiApiKey: "fieldcraft.openAiApiKey",
   geminiApiKey: "fieldcraft.geminiApiKey",
+  anthropicApiKey: "fieldcraft.anthropicApiKey",
   customApiKey: "fieldcraft.customApiKey",
   exaApiKey: "fieldcraft.exaApiKey",
   tabSessions: "fieldcraft.tabAnalysisSessions",
@@ -88,6 +89,7 @@ export async function getBootData(): Promise<{
       KEYS.settings,
       KEYS.openAiApiKey,
       KEYS.geminiApiKey,
+      KEYS.anthropicApiKey,
       KEYS.customApiKey,
       KEYS.apiKey,
       KEYS.exaApiKey,
@@ -96,6 +98,7 @@ export async function getBootData(): Promise<{
       ? sessionApi.get([
           KEYS.openAiApiKey,
           KEYS.geminiApiKey,
+          KEYS.anthropicApiKey,
           KEYS.customApiKey,
           KEYS.apiKey,
         ])
@@ -219,8 +222,12 @@ export function parseSettings(raw: Partial<ExtensionSettings> | undefined): Exte
     settings.model = defaultModelForProvider(settings.provider).id;
   }
 
-  if (!isKnownModel(settings.evalModel)) {
-    settings.evalModel = DEFAULT_SETTINGS.evalModel;
+  if (
+    !isKnownModel(settings.evalModel) ||
+    (settings.provider !== Provider.Custom &&
+      resolveModel(settings.evalModel).provider !== settings.provider)
+  ) {
+    settings.evalModel = defaultModelForProvider(settings.provider).id;
   }
 
   if (!isReasoningEffortSetting(settings.reasoningEffort)) {
@@ -327,6 +334,7 @@ export async function clearApiKey(provider: Provider): Promise<void> {
 
 function apiKeyStorageKey(provider: Provider): string {
   if (provider === Provider.Gemini) return KEYS.geminiApiKey;
+  if (provider === Provider.Anthropic) return KEYS.anthropicApiKey;
   if (provider === Provider.Custom) return KEYS.customApiKey;
   return KEYS.openAiApiKey;
 }
@@ -357,6 +365,7 @@ export async function getDurableApiKeys(): Promise<BackupApiKeys> {
   const local = await chrome.storage.local.get([
     KEYS.openAiApiKey,
     KEYS.geminiApiKey,
+    KEYS.anthropicApiKey,
     KEYS.customApiKey,
     // Legacy single-key name; migrate it into the OpenAI slot when present.
     KEYS.apiKey,
@@ -367,6 +376,8 @@ export async function getDurableApiKeys(): Promise<BackupApiKeys> {
   if (openai) keys.openai = openai;
   const gemini = String(local[KEYS.geminiApiKey] ?? "").trim();
   if (gemini) keys.gemini = gemini;
+  const anthropic = String(local[KEYS.anthropicApiKey] ?? "").trim();
+  if (anthropic) keys.anthropic = anthropic;
   const custom = String(local[KEYS.customApiKey] ?? "").trim();
   if (custom) keys.custom = custom;
   const exa = String(local[KEYS.exaApiKey] ?? "").trim();

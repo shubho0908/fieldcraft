@@ -31,6 +31,7 @@ export interface ResumeAttachment {
 export interface BackupApiKeys {
   openai?: string;
   gemini?: string;
+  anthropic?: string;
   custom?: string;
   exa?: string;
 }

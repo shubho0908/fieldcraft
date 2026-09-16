@@ -166,5 +166,12 @@ describe("createAiModel", () => {
     });
     expect(createOpenAI).toHaveBeenLastCalledWith({ apiKey: "sk-openai" });
     expect(openaiResponses).toHaveBeenCalledWith("gpt-5.6-terra");
+
+    createAiModel({
+      model: { provider: Provider.Anthropic, id: "claude-opus-5" } as any,
+      apiKey: "sk-ant-test",
+    });
+    expect(createAnthropic).toHaveBeenLastCalledWith({ apiKey: "sk-ant-test" });
+    expect(anthropicModel).toHaveBeenCalledWith("claude-opus-5");
   });
 });

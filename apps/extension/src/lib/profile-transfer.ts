@@ -29,7 +29,7 @@ export type ParseBackupResult =
   | { ok: true; backup: ParsedBackup }
   | { ok: false; error: string };
 
-const API_KEY_SLOTS = ["openai", "gemini", "custom", "exa"] as const;
+const API_KEY_SLOTS = ["openai", "gemini", "anthropic", "custom", "exa"] as const;
 
 export interface BuildBackupInput {
   profile: CandidateProfile;

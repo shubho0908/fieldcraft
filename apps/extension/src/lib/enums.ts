@@ -212,6 +212,24 @@ export const GEMINI_MODEL_IDS = [
   GeminiModelId.Gemini35FlashLite,
 ] as const;
 
+// ── Anthropic model IDs ───────────────────────────────────────────────
+
+/** Current first-party Claude models offered by the Anthropic provider. */
+export const AnthropicModelId = {
+  ClaudeOpus5: "claude-opus-5",
+  ClaudeSonnet5: "claude-sonnet-5",
+  ClaudeHaiku45: "claude-haiku-4-5-20251001",
+} as const;
+
+export type AnthropicModelId =
+  (typeof AnthropicModelId)[keyof typeof AnthropicModelId];
+
+export const ANTHROPIC_MODEL_IDS = [
+  AnthropicModelId.ClaudeOpus5,
+  AnthropicModelId.ClaudeSonnet5,
+  AnthropicModelId.ClaudeHaiku45,
+] as const;
+
 // ── Gemini thinking ──────────────────────────────────────────────────
 
 /** Values accepted by `generationConfig.thinkingConfig.thinkingLevel`. */
@@ -306,6 +324,10 @@ export function isOpenAiModelId(value: string): value is OpenAiModelId {
   return (OPENAI_MODEL_IDS as readonly string[]).includes(value);
 }
 
+export function isAnthropicModelId(value: string): value is AnthropicModelId {
+  return (ANTHROPIC_MODEL_IDS as readonly string[]).includes(value);
+}
+
 export function isGeminiModelId(value: string): value is GeminiModelId {
   return (GEMINI_MODEL_IDS as readonly string[]).includes(value);
 }
@@ -322,6 +344,7 @@ function isJudgeId(value: string): value is JudgeId {
 
 // Keep type-guards reachable for tree-shaking-safe consumers / future eval tooling.
 export const enumGuards = {
+  isAnthropicModelId,
   isGeminiModelId,
   isGeminiThinkingLevel,
   isJudgeId,
