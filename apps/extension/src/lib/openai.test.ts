@@ -701,6 +701,28 @@ describe("runJobAnalysis provider options", () => {
     });
   });
 
+  it.each([
+    ReasoningEffortSettingAuto,
+    ReasoningEffort.None,
+    ReasoningEffort.High,
+  ])("omits unsupported Anthropic effort for Haiku with %s", async (reasoningEffort) => {
+    stubAnalysis("resp-anthropic-haiku");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Anthropic,
+        model: AnthropicModelId.ClaudeHaiku45,
+        reasoningEffort,
+      },
+      { apiKey: "sk-ant-test", installId: "install-1" },
+    );
+
+    expect(firstCallProviderOptions()).toBeUndefined();
+  });
+
   it("keeps the OpenAI namespace for OpenAI models", async () => {
     stubAnalysis("resp-openai");
 

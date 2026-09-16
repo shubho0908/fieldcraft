@@ -411,7 +411,10 @@ export async function runJobAnalysis(
     };
   } else if (model.provider === Provider.Gemini) {
     providerOptions = geminiProviderOptions(model, config.reasoning.effort);
-  } else if (model.provider === Provider.Anthropic) {
+  } else if (
+    model.provider === Provider.Anthropic &&
+    model.supportedReasoningEfforts.length > 0
+  ) {
     providerOptions = { anthropic: { effort: config.reasoning.effort } };
   }
 
