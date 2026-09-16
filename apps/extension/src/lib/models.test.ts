@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AnthropicModelId,
   GeminiModelId,
   GeminiThinkingLevel,
   OpenAiModelId,
@@ -7,6 +8,7 @@ import {
   ReasoningEffortSettingAuto,
 } from "./enums";
 import {
+  ANTHROPIC_MODELS,
   CUSTOM_MODEL_PREFIX,
   CustomProtocol,
   DEFAULT_MODEL_ID,
@@ -80,6 +82,28 @@ describe("OpenAI model catalog", () => {
       ReasoningEffort.High,
       ReasoningEffort.XHigh,
     ]);
+  });
+});
+
+describe("Anthropic model catalog", () => {
+  it("offers the current first-party Claude lineup with Opus as the default", () => {
+    expect(ANTHROPIC_MODELS.map((model) => model.id)).toEqual([
+      AnthropicModelId.ClaudeOpus5,
+      AnthropicModelId.ClaudeSonnet5,
+      AnthropicModelId.ClaudeHaiku45,
+    ]);
+    expect(ANTHROPIC_MODELS[0].label).toBe("Claude Opus 5");
+  });
+
+  it("exposes adaptive effort for Opus and Sonnet but not Haiku", () => {
+    expect(resolveModel(AnthropicModelId.ClaudeOpus5).supportedReasoningEfforts).toEqual([
+      ReasoningEffort.Low,
+      ReasoningEffort.Medium,
+      ReasoningEffort.High,
+      ReasoningEffort.XHigh,
+      ReasoningEffort.Max,
+    ]);
+    expect(resolveModel(AnthropicModelId.ClaudeHaiku45).supportedReasoningEfforts).toEqual([]);
   });
 });
 
@@ -232,7 +256,7 @@ describe("reasoning resolution", () => {
     // resolveReasoningEffort() falls back to defaultReasoningEffort for anything
     // unsupported, so a default outside the supported set could be sent to a
     // provider that rejects it.
-    for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS]) {
+    for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS, ...ANTHROPIC_MODELS]) {
       if (model.supportedReasoningEfforts.length === 0) continue;
       expect(model.supportedReasoningEfforts).toContain(
         model.defaultReasoningEffort,
@@ -278,7 +302,7 @@ describe("max output token resolution", () => {
   });
 
   it("never lets a routine budget exceed its model ceiling", () => {
-    for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS]) {
+    for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS, ...ANTHROPIC_MODELS]) {
       if (typeof model.defaultMaxOutputTokens !== "number") continue;
       expect(model.defaultMaxOutputTokens).toBeLessThanOrEqual(
         model.maxOutputTokens,

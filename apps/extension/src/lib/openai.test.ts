@@ -17,7 +17,7 @@ import {
 import { createAiModel } from "./ai-provider";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
 import type { ExtensionSettings, PageSnapshot } from "../types";
-import { Provider } from "./models";
+import { AnthropicModelId, Provider } from "./models";
 
 vi.mock("ai", () => ({
   generateText: vi.fn(),
@@ -679,6 +679,48 @@ describe("runJobAnalysis provider options", () => {
       maxOutputTokens: number;
     };
     expect(call.maxOutputTokens).toBe(16_384);
+  });
+
+  it("sends Anthropic adaptive effort for Claude models", async () => {
+    stubAnalysis("resp-anthropic");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Anthropic,
+        model: AnthropicModelId.ClaudeOpus5,
+        reasoningEffort: ReasoningEffort.XHigh,
+      },
+      { apiKey: "sk-ant-test", installId: "install-1" },
+    );
+
+    expect(firstCallProviderOptions()).toEqual({
+      anthropic: { effort: ReasoningEffort.XHigh },
+    });
+  });
+
+  it.each([
+    ReasoningEffortSettingAuto,
+    ReasoningEffort.None,
+    ReasoningEffort.High,
+  ])("omits unsupported Anthropic effort for Haiku with %s", async (reasoningEffort) => {
+    stubAnalysis("resp-anthropic-haiku");
+
+    await runJobAnalysis(
+      baseSnapshot,
+      baseProfile,
+      {
+        ...baseSettings,
+        provider: Provider.Anthropic,
+        model: AnthropicModelId.ClaudeHaiku45,
+        reasoningEffort,
+      },
+      { apiKey: "sk-ant-test", installId: "install-1" },
+    );
+
+    expect(firstCallProviderOptions()).toBeUndefined();
   });
 
   it("keeps the OpenAI namespace for OpenAI models", async () => {

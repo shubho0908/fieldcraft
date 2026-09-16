@@ -314,7 +314,9 @@ export default function ProfileEditor({
       const providerName =
         settings.provider === Provider.Gemini
           ? "Gemini"
-          : settings.provider === Provider.Custom
+          : settings.provider === Provider.Anthropic
+            ? "Anthropic"
+            : settings.provider === Provider.Custom
             ? "Custom"
             : "OpenAI";
       setError(`Enter a ${providerName} API key first.`);

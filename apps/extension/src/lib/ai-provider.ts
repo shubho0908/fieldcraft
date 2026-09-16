@@ -33,6 +33,11 @@ export function createAiModel(options: CreateAiModelOptions): LanguageModel {
     return google(model.id);
   }
 
+  if (model.provider === Provider.Anthropic) {
+    const anthropic = createAnthropic({ apiKey });
+    return anthropic(model.id);
+  }
+
   if (model.provider === Provider.Custom) {
     const actualModelId = isCustomModelId(model.id)
       ? customModelId(model.id)

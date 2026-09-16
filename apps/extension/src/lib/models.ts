@@ -4,6 +4,7 @@
  */
 
 import {
+  AnthropicModelId,
   GeminiModelId,
   GeminiThinkingLevel,
   OpenAiModelId,
@@ -17,6 +18,7 @@ import {
 
 export type { ReasoningEffortSetting };
 export {
+  AnthropicModelId,
   GeminiModelId,
   GeminiThinkingLevel,
   OpenAiModelId,
@@ -28,6 +30,7 @@ export {
 export const Provider = {
   OpenAI: "openai",
   Gemini: "gemini",
+  Anthropic: "anthropic",
   Custom: "custom",
 } as const;
 
@@ -262,6 +265,48 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
   },
 ] as const;
 
+const ANTHROPIC_ADAPTIVE_EFFORTS = [
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+  ReasoningEffort.High,
+  ReasoningEffort.XHigh,
+  ReasoningEffort.Max,
+] as const satisfies readonly ReasoningEffortType[];
+
+/** Current Claude models available through Anthropic's first-party API. */
+export const ANTHROPIC_MODELS: readonly ModelOption[] = [
+  {
+    provider: Provider.Anthropic,
+    id: AnthropicModelId.ClaudeOpus5,
+    label: "Claude Opus 5",
+    description: "Best default for complex agentic and engineering work",
+    defaultReasoningEffort: ReasoningEffort.High,
+    supportedReasoningEfforts: ANTHROPIC_ADAPTIVE_EFFORTS,
+    maxOutputTokens: 131_072,
+    defaultMaxOutputTokens: 16_384,
+  },
+  {
+    provider: Provider.Anthropic,
+    id: AnthropicModelId.ClaudeSonnet5,
+    label: "Claude Sonnet 5",
+    description: "Fast, capable balance of intelligence and cost",
+    defaultReasoningEffort: ReasoningEffort.High,
+    supportedReasoningEfforts: ANTHROPIC_ADAPTIVE_EFFORTS,
+    maxOutputTokens: 131_072,
+    defaultMaxOutputTokens: 16_384,
+  },
+  {
+    provider: Provider.Anthropic,
+    id: AnthropicModelId.ClaudeHaiku45,
+    label: "Claude Haiku 4.5",
+    description: "Fastest Claude model for lightweight analysis",
+    defaultReasoningEffort: ReasoningEffort.None,
+    supportedReasoningEfforts: [],
+    maxOutputTokens: 65_536,
+    defaultMaxOutputTokens: 8_192,
+  },
+] as const;
+
 /** Custom provider placeholder. The real model id lives after `custom:` in settings.model. */
 const CUSTOM_MODEL_PLACEHOLDER: ModelOption = {
   provider: Provider.Custom,
@@ -277,6 +322,7 @@ const CUSTOM_MODEL_PLACEHOLDER: ModelOption = {
 export const AI_MODELS: readonly ModelOption[] = [
   ...OPENAI_MODELS,
   ...GEMINI_MODELS,
+  ...ANTHROPIC_MODELS,
   CUSTOM_MODEL_PLACEHOLDER,
 ] as const;
 
