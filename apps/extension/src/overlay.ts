@@ -1,3 +1,5 @@
+export {};
+
 const OVERLAY_ID = "fieldcraft-overlay-host";
 
 function getOverlayUrl(): string {
@@ -14,9 +16,14 @@ function createOverlay(): HTMLIFrameElement {
   iframe.setAttribute(
     "style",
     [
+      "all: initial !important",
       "position: fixed !important",
       "top: 0 !important",
       "right: 0 !important",
+      "left: auto !important",
+      "bottom: auto !important",
+      "margin: 0 !important",
+      "padding: 0 !important",
       "width: 400px !important",
       "max-width: 100vw !important",
       "height: 100vh !important",
@@ -29,17 +36,17 @@ function createOverlay(): HTMLIFrameElement {
   );
 
   // Block the iframe from receiving focus until the user explicitly opens it.
-  iframe.style.display = "none";
+  iframe.style.setProperty("display", "none", "important");
   iframe.setAttribute("aria-hidden", "true");
   iframe.setAttribute("title", "Fieldcraft");
 
-  (document.body || document.documentElement).appendChild(iframe);
+  document.documentElement.appendChild(iframe);
   return iframe;
 }
 
 function showOverlay(): HTMLIFrameElement {
   const iframe = createOverlay();
-  iframe.style.display = "block";
+  iframe.style.setProperty("display", "block", "important");
   iframe.setAttribute("aria-hidden", "false");
   return iframe;
 }
@@ -47,7 +54,7 @@ function showOverlay(): HTMLIFrameElement {
 function hideOverlay(): void {
   const iframe = document.getElementById(OVERLAY_ID) as HTMLIFrameElement | null;
   if (!iframe) return;
-  iframe.style.display = "none";
+  iframe.style.setProperty("display", "none", "important");
   iframe.setAttribute("aria-hidden", "true");
 }
 

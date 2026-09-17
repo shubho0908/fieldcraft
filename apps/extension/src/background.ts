@@ -18,7 +18,7 @@ import {
   isNotificationsApiSupported,
   isSidePanelApiSupported,
   toggleOverlayOnActiveTab,
-  hideOverlayOnActiveTab,
+  sendToggleOverlayToTab,
 } from "./lib/ui-host";
 import {
   clearTabSessionsIfSessionStorageMissing,
@@ -152,7 +152,7 @@ chrome.commands.onCommand.addListener((command) => {
 // Toolbar icon click on browsers without a native side panel toggles the overlay.
 if (!isSidePanelApiSupported()) {
   chrome.action.onClicked.addListener((tab) => {
-    if (tab.id) void toggleOverlayOnActiveTab();
+    if (tab.id != null) void sendToggleOverlayToTab(tab.id);
   });
 }
 
@@ -188,9 +188,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 
 chrome.runtime.onMessage.addListener(
-  (request: RuntimeRequest, _sender, sendResponse) => {
+  (request: RuntimeRequest, sender, sendResponse) => {
     if (request.type === "FIELDCRAFT_OVERLAY_CLOSE") {
-      void hideOverlayOnActiveTab().then(() => sendResponse({ ok: true }));
+      if (sender.tab?.id == null) {
+        sendResponse({ ok: false, error: "Could not identify the overlay tab" });
+        return false;
+      }
+      void chrome.tabs.sendMessage(sender.tab.id, { type: "FIELDCRAFT_HIDE_OVERLAY" })
+        .then(() => sendResponse({ ok: true }))
+        .catch((error: unknown) =>
+          sendResponse({ ok: false, error: errorMessage(error, "Could not close the overlay") }),
+        );
       return true;
     }
 
@@ -269,7 +277,7 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (request.type === "FIELDCRAFT_RESOLVE_ACTIVE_TAB") {
-      void resolveActiveBrowserTab()
+      void resolveActiveBrowserTab(sender)
         .then((tab) => sendResponse({ ok: true, tab }))
         .catch((error: unknown) =>
           sendResponse({
@@ -563,11 +571,19 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 /**
- * Resolve the browser tab the side panel should bind to.
- * Only the active tab in the last-focused / current window — never a background
- * window, which would enable Analyze against a page the user is not looking at.
+ * Tab-owned extension frames always resolve their sender tab. Native side panels
+ * have no sender tab and follow the active tab in the last-focused/current window.
  */
-async function resolveActiveBrowserTab(): Promise<ResolvedActiveTab | null> {
+async function resolveActiveBrowserTab(sender: chrome.runtime.MessageSender): Promise<ResolvedActiveTab | null> {
+  if (sender.tab) {
+    const url = tabHttpUrl(sender.tab);
+    return sender.tab.id != null && url
+      ? { id: sender.tab.id, url, title: sender.tab.title }
+      : null;
+  }
+  // An overlay without browser-provided ownership must not follow another tab.
+  if (sender.url && new URL(sender.url).searchParams.get("host") === "overlay") return null;
+
   const candidates: chrome.tabs.Tab[] = [];
 
   // lastFocusedWindow is not supported by all WebExtensions implementations

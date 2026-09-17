@@ -59,7 +59,8 @@ export default function getManifest(target: ExtensionTarget): ManifestV3Export {
     // rendered by a content-script overlay iframe that loads the same
     // sidepanel.html. The side_panel manifest key is kept here only so CRXJS
     // processes sidepanel.html as an HTML entry; a post-build step strips it.
-    manifest.permissions = ["activeTab", "alarms", "storage", "tabs"];
+    // Safari supports unlimitedStorage; resume attachments can exceed its default quota.
+    manifest.permissions = ["activeTab", "alarms", "storage", "tabs", "unlimitedStorage"];
     manifest.side_panel = { default_path: "sidepanel.html" };
     manifest.content_scripts = [
       ...(manifest.content_scripts as typeof baseManifest.content_scripts),
@@ -73,7 +74,7 @@ export default function getManifest(target: ExtensionTarget): ManifestV3Export {
     // step; adding it here would make CRXJS treat it as a static asset instead
     // of an HTML entry and skip script bundling.
   } else {
-    // Chrome/Chromium path: native side panel, notifications, and unlimitedStorage.
+    // Chrome/Chromium path: native side panel and notifications.
     manifest.permissions = ["activeTab", "alarms", "notifications", "sidePanel", "storage", "tabs", "unlimitedStorage"];
     manifest.side_panel = { default_path: "sidepanel.html" };
   }

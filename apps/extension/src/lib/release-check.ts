@@ -156,7 +156,7 @@ export function showUpdateNotification(release: RemoteRelease): string {
     const isChrome = isSidePanelApiSupported();
     const message = isChrome
       ? "Click to download the zip, then load it unpacked in chrome://extensions."
-      : "Click to download the Safari build, then wrap it with xcrun safari-web-extension-converter.";
+      : "Click to download the Safari build, then wrap it with xcrun safari-web-extension-packager.";
     void chrome.notifications.create(id, {
       type: "basic",
       iconUrl: "icons/icon-128.png",
