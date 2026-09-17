@@ -3,6 +3,7 @@ import { subscribeChromeEvent } from "../lib/chrome-events";
 import { getActiveTab, tabBindingKey } from "../lib/chrome-tabs";
 import { isAnalyzableTabUrl } from "../lib/page";
 import { normalizeSession } from "../lib/tab-sessions";
+import { isOverlayHost } from "../lib/ui-host";
 import type { ResolvedActiveTab, RuntimeRequest, TabAnalysisSession } from "../types";
 
 type TabBinding = { id: number; url: string };
@@ -12,9 +13,16 @@ export function useDashboardBinding() {
   const [bindIssue, setBindIssue] = useState("");
   const [session, setSession] = useState<TabAnalysisSession | null>(null);
   const bindingKeyRef = useRef("");
+  const sessionRequestRef = useRef(0);
 
   useEffect(() => {
+    const overlay = isOverlayHost();
+    let disposed = false;
+    let bindingRequest = 0;
+    let ownerTabId: number | undefined;
+
     function clearBinding(reason: string) {
+      sessionRequestRef.current += 1;
       bindingKeyRef.current = "";
       setBinding(null);
       setSession(null);
@@ -22,6 +30,13 @@ export function useDashboardBinding() {
     }
 
     function applyBinding(tab: { id: number; url: string }) {
+      if (overlay) {
+        if (ownerTabId != null && ownerTabId !== tab.id) {
+          clearBinding("Could not identify this overlay's tab. Reopen Fieldcraft.");
+          return;
+        }
+        ownerTabId = tab.id;
+      }
       if (!isAnalyzableTabUrl(tab.url)) {
         clearBinding("Open a public http(s) page, then try again.");
         return;
@@ -38,18 +53,20 @@ export function useDashboardBinding() {
       setBinding(nextBinding);
       setBindIssue("");
       setSession(null);
+      const sessionRequest = ++sessionRequestRef.current;
       void chrome.runtime
         .sendMessage({
           type: "FIELDCRAFT_GET_TAB_SESSION",
           tabId: nextBinding.id,
         } satisfies RuntimeRequest)
         .then((response) => {
-          if (bindingKeyRef.current !== key) return;
+          if (disposed || sessionRequestRef.current !== sessionRequest || bindingKeyRef.current !== key) return;
           if (!response?.ok) throw new Error(response?.error || "Could not read tab state");
-          setSession(normalizeSession((response.session as TabAnalysisSession | null) ?? null));
+          const next = normalizeSession((response.session as TabAnalysisSession | null) ?? null);
+          setSession(next?.url === nextBinding.url ? next : null);
         })
         .catch(() => {
-          if (bindingKeyRef.current === key) setSession(null);
+          if (!disposed && sessionRequestRef.current === sessionRequest && bindingKeyRef.current === key) setSession(null);
         });
     }
 
@@ -64,10 +81,12 @@ export function useDashboardBinding() {
     }
 
     async function refreshBoundTab() {
+      const request = ++bindingRequest;
       try {
         const response = await chrome.runtime.sendMessage({
           type: "FIELDCRAFT_RESOLVE_ACTIVE_TAB",
         } satisfies RuntimeRequest);
+        if (disposed || request !== bindingRequest) return;
         if (!response?.ok) {
           clearBinding(response?.error || "Could not read the active tab.");
           return;
@@ -79,7 +98,17 @@ export function useDashboardBinding() {
         }
         applyBinding(tab);
       } catch {
-        bindFromChromeTab(await getActiveTab());
+        if (disposed || request !== bindingRequest) return;
+        if (overlay) {
+          clearBinding("Could not read this overlay's tab. Reopen Fieldcraft.");
+          return;
+        }
+        try {
+          const tab = await getActiveTab();
+          if (!disposed && request === bindingRequest) bindFromChromeTab(tab);
+        } catch {
+          if (!disposed && request === bindingRequest) clearBinding("Could not read the active tab.");
+        }
       }
     }
 
@@ -90,19 +119,27 @@ export function useDashboardBinding() {
     };
     const onUpdated = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
       if (!bindingKeyRef.current.startsWith(`${tabId}:`)) return;
+      if (!changeInfo.url && changeInfo.status !== "complete") return;
+      const request = ++bindingRequest;
       if (changeInfo.url) {
         applyBinding({ id: tabId, url: changeInfo.url });
         return;
       }
       if (changeInfo.status === "complete") {
-        void chrome.tabs.get(tabId).then(bindFromChromeTab).catch(() => undefined);
+        void chrome.tabs.get(tabId).then((tab) => {
+          if (!disposed && request === bindingRequest) bindFromChromeTab(tab);
+        }).catch(() => undefined);
       }
     };
 
-    const stopActivated = subscribeChromeEvent(chrome.tabs.onActivated, onActivated);
+    const stopActivated = overlay ? undefined : subscribeChromeEvent(chrome.tabs.onActivated, onActivated);
     const stopUpdated = subscribeChromeEvent(chrome.tabs.onUpdated, onUpdated);
     return () => {
-      stopActivated();
+      disposed = true;
+      bindingRequest += 1;
+      sessionRequestRef.current += 1;
+      bindingKeyRef.current = "";
+      stopActivated?.();
       stopUpdated();
     };
   }, []);
@@ -115,6 +152,8 @@ export function useDashboardBinding() {
       // Safari <16.4 (and some other contexts) fall back to chrome.storage.local
       // for tab sessions, so we react to both session and local changes here.
       if (area === "managed" || !changes["fieldcraft.tabAnalysisSessions"] || !binding) return;
+      if (bindingKeyRef.current !== tabBindingKey(binding.id, binding.url)) return;
+      sessionRequestRef.current += 1;
       const sessions = changes["fieldcraft.tabAnalysisSessions"].newValue as
         | Record<string, TabAnalysisSession>
         | undefined;

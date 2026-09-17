@@ -87,13 +87,3 @@ export async function toggleOverlayOnActiveTab(): Promise<void> {
   if (!tab?.id) return;
   await sendToggleOverlayToTab(tab.id);
 }
-
-export async function hideOverlayOnActiveTab(): Promise<void> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-  try {
-    await chrome.tabs.sendMessage(tab.id, { type: "FIELDCRAFT_HIDE_OVERLAY" });
-  } catch {
-    // Tab may not have the overlay content script (e.g., internal pages).
-  }
-}

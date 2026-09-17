@@ -128,7 +128,7 @@ jobs:
           body: |
             Automated build from `main` at ${{ github.sha }}.
             - `fieldcraft-extension-latest.zip` — Chrome/Edge (unpacked extension)
-            - `fieldcraft-extension-safari-latest.zip` — Safari raw WebExtension bundle (run `xcrun safari-web-extension-converter` on macOS to wrap it in an `.app`)
+            - `fieldcraft-extension-safari-latest.zip` — Safari raw WebExtension bundle (run `xcrun safari-web-extension-packager` on macOS to wrap it in an `.app`)
 
       - name: Release versioned build
         if: github.ref_type == 'tag'
