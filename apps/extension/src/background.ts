@@ -257,7 +257,7 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (request.type === "FIELDCRAFT_TEST_API") {
-      void testConfiguredConnections(request.model)
+      void testConfiguredConnections(request.model, request.reasoningEffort)
         .then((result) =>
           sendResponse({
             ok: true,
@@ -292,13 +292,22 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
-async function testConfiguredConnections(model: string): Promise<{
+async function testConfiguredConnections(
+  model: string,
+  reasoningEffort?: import("./lib/enums").ReasoningEffortSetting,
+): Promise<{
   model: string;
   responseId?: string;
   exaTested: boolean;
   exaRequestId?: string;
 }> {
-  const aiTest = testAiConnection(model);
+  const stored = await getSettings();
+  if (stored.model !== model) {
+    throw new Error(
+      `Model mismatch: Settings has "${stored.model}" but the test requested "${model}". Re-select the model and try again.`,
+    );
+  }
+  const aiTest = testAiConnection(model, reasoningEffort);
   const exaApiKey = await getExaApiKey();
   const exaTest = exaApiKey ? testExaConnection(exaApiKey) : undefined;
   const [ai, exa] = await Promise.all([aiTest, exaTest]);

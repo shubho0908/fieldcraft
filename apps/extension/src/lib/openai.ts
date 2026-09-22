@@ -18,12 +18,16 @@ import {
   CONNECTION_TEST_REASONING_EFFORT,
   CustomProtocol,
   Provider,
+  isKnownModel,
+  isReasoningEffortSetting,
   resolveAnalysisConfig,
   resolveMaxOutputTokens,
   resolveModel,
+  resolveReasoningEffort,
   toGeminiThinkingLevel,
   type ModelOption,
   type ReasoningEffort,
+  type ReasoningEffortSetting,
 } from "./models";
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
 import { getApiKey, getExaApiKey, getInstallId, getSettings } from "./storage";
@@ -487,12 +491,30 @@ export async function runJobAnalysis(
  */
 export async function testAiConnection(
   modelId: string,
+  reasoningSetting?: ReasoningEffortSetting,
 ): Promise<ConnectionTestResult> {
+  if (!isKnownModel(modelId)) {
+    throw new Error(
+      `Unknown model "${modelId}". Re-select the model in Settings and try again.`,
+    );
+  }
   const model = resolveModel(modelId);
+  if (model.id !== modelId) {
+    throw new Error(
+      `Model mismatch: requested "${modelId}" but resolved "${model.id}". Re-select the model in Settings and try again.`,
+    );
+  }
   const apiKey = await getApiKey(model.provider);
   if (!apiKey) throw new Error(`Enter and save a ${providerLabel(model.provider)} API key first.`);
 
   const settings = await getSettings();
+  const effectiveSetting: ReasoningEffortSetting =
+    reasoningSetting !== undefined && isReasoningEffortSetting(reasoningSetting)
+      ? reasoningSetting
+      : isReasoningEffortSetting(settings.reasoningEffort)
+        ? settings.reasoningEffort
+        : CONNECTION_TEST_REASONING_EFFORT;
+  const resolvedEffort = resolveReasoningEffort(model.id, effectiveSetting);
   const aiModel = createAiModel({
     model,
     apiKey,
@@ -508,6 +530,24 @@ export async function testAiConnection(
     model.provider === Provider.Custom &&
     settings.customProtocol === CustomProtocol.Anthropic;
 
+  let probeProviderOptions: SharedV4ProviderOptions | undefined;
+  if (model.provider === Provider.OpenAI) {
+    probeProviderOptions = {
+      openai: {
+        store: false,
+        user: await getInstallId(),
+        reasoningEffort: resolvedEffort,
+      },
+    };
+  } else if (model.provider === Provider.Gemini) {
+    probeProviderOptions = geminiProviderOptions(model, resolvedEffort);
+  } else if (
+    model.provider === Provider.Anthropic &&
+    model.supportedReasoningEfforts.length > 0
+  ) {
+    probeProviderOptions = { anthropic: { effort: resolvedEffort } };
+  }
+
   const result = isAnthropicCustom
     ? await streamText({
         model: aiModel,
@@ -522,16 +562,7 @@ export async function testAiConnection(
         prompt: CONNECTION_TEST_PROMPT,
         tools: NO_MODEL_TOOLS,
         maxOutputTokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
-        providerOptions:
-          model.provider === Provider.OpenAI
-            ? {
-                openai: {
-                  store: false,
-                  user: await getInstallId(),
-                  reasoningEffort: CONNECTION_TEST_REASONING_EFFORT,
-                },
-              }
-            : undefined,
+        providerOptions: probeProviderOptions,
         headers:
           model.provider === Provider.Custom ? settings.customHeaders : undefined,
       });
