@@ -337,6 +337,7 @@ export default function ProfileEditor({
       const response = await chrome.runtime.sendMessage({
         type: "FIELDCRAFT_TEST_API",
         model: settings.model,
+        reasoningEffort: settings.reasoningEffort,
       });
       if (!response?.ok) throw new Error(response?.error || "Connection failed");
       // Background performs a real provider connection test; surface the model used.

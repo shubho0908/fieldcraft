@@ -245,7 +245,7 @@ export type RuntimeRequest =
       suggestions: FieldSuggestion[];
     }
   | { type: "FIELDCRAFT_DIRECT_FILL"; tabId: number; url: string }
-  | { type: "FIELDCRAFT_TEST_API"; model: string }
+  | { type: "FIELDCRAFT_TEST_API"; model: string; reasoningEffort?: ReasoningEffortSetting }
   | { type: "FIELDCRAFT_RESOLVE_ACTIVE_TAB" }
   | { type: "FIELDCRAFT_OVERLAY_CLOSE" };
 
