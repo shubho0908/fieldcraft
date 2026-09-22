@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generateText } from "ai";
 import { DEFAULT_SETTINGS } from "./defaults";
-import { GeminiModelId, OpenAiModelId, ReasoningEffort } from "./enums";
+import { AnthropicModelId, GeminiModelId, OpenAiModelId, ReasoningEffort } from "./enums";
 import { Provider } from "./models";
 
 vi.mock("ai", () => ({
@@ -126,5 +126,42 @@ describe("testAiConnection model alignment (Gemini mismatch fix)", () => {
     expect(call.providerOptions).toEqual({
       google: { thinkingConfig: { thinkingLevel: "low" } },
     });
+  });
+
+  it("forwards Anthropic adaptive effort for reasoning-capable Claude models", async () => {
+    vi.mocked(getApiKey).mockResolvedValue("sk-ant-test");
+    vi.mocked(getSettings).mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      provider: Provider.Anthropic,
+      model: AnthropicModelId.ClaudeOpus5,
+      reasoningEffort: ReasoningEffort.XHigh,
+    });
+
+    const result = await testAiConnection(AnthropicModelId.ClaudeOpus5, ReasoningEffort.XHigh);
+
+    expect(result.model).toBe(AnthropicModelId.ClaudeOpus5);
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      providerOptions?: unknown;
+    };
+    expect(call.providerOptions).toEqual({
+      anthropic: { effort: ReasoningEffort.XHigh },
+    });
+  });
+
+  it("sends no provider options for Anthropic models without reasoning levels", async () => {
+    vi.mocked(getApiKey).mockResolvedValue("sk-ant-test");
+    vi.mocked(getSettings).mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      provider: Provider.Anthropic,
+      model: AnthropicModelId.ClaudeHaiku45,
+      reasoningEffort: ReasoningEffort.High,
+    });
+
+    await testAiConnection(AnthropicModelId.ClaudeHaiku45, ReasoningEffort.High);
+
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      providerOptions?: unknown;
+    };
+    expect(call.providerOptions).toBeUndefined();
   });
 });
