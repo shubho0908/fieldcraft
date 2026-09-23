@@ -28,14 +28,58 @@ import {
 } from "./models";
 
 describe("OpenAI model catalog", () => {
-  it("keeps only the requested GPT-5.6 and GPT-5.5 series", () => {
+  it("lists GPT-6 first with GPT-5.6 retained", () => {
     expect(OPENAI_MODELS.map((model) => model.id)).toEqual([
+      OpenAiModelId.Gpt6Sol,
+      OpenAiModelId.Gpt6Astra,
+      OpenAiModelId.Gpt6Luna,
       OpenAiModelId.Gpt56Terra,
       OpenAiModelId.Gpt56Sol,
       OpenAiModelId.Gpt56Luna,
-      OpenAiModelId.Gpt55,
-      OpenAiModelId.Gpt55Pro,
     ]);
+  });
+
+  it("uses GPT-6 Sol as the default", () => {
+    const sol = resolveModel(OpenAiModelId.Gpt6Sol);
+    expect(DEFAULT_MODEL_ID).toBe(OpenAiModelId.Gpt6Sol);
+    expect(DEFAULT_MODEL_ID).toBe(OPENAI_MODELS[0].id);
+    expect(sol.maxOutputTokens).toBe(128_000);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol)).toBe(16_384);
+    expect(resolveModel("not-a-model").id).toBe(DEFAULT_MODEL_ID);
+  });
+
+  it("supports the full effort range on GPT-6 Sol and Luna", () => {
+    for (const id of [OpenAiModelId.Gpt6Sol, OpenAiModelId.Gpt6Luna]) {
+      expect(resolveModel(id).supportedReasoningEfforts).toEqual([
+        ReasoningEffort.None,
+        ReasoningEffort.Low,
+        ReasoningEffort.Medium,
+        ReasoningEffort.High,
+        ReasoningEffort.XHigh,
+        ReasoningEffort.Max,
+      ]);
+      expect(resolveModel(id).defaultReasoningEffort).toBe(
+        ReasoningEffort.Medium,
+      );
+    }
+  });
+
+  it("excludes none from GPT-6 Astra", () => {
+    expect(
+      resolveModel(OpenAiModelId.Gpt6Astra).supportedReasoningEfforts,
+    ).toEqual([
+      ReasoningEffort.Low,
+      ReasoningEffort.Medium,
+      ReasoningEffort.High,
+      ReasoningEffort.XHigh,
+      ReasoningEffort.Max,
+    ]);
+    expect(resolveReasoningEffort(OpenAiModelId.Gpt6Astra, ReasoningEffort.None)).toBe(
+      ReasoningEffort.Medium,
+    );
+    expect(
+      reasoningEffortsForModel(OpenAiModelId.Gpt6Astra).map((o) => o.id),
+    ).not.toContain(ReasoningEffort.None);
   });
 
   it("includes the current Gemini Pro and Flash choices", () => {
@@ -48,12 +92,13 @@ describe("OpenAI model catalog", () => {
     ]);
   });
 
-  it("defaults to Terra", () => {
+  it("defaults to GPT-6 Sol", () => {
     expect(DEFAULT_MODEL_ID).toBe(OPENAI_MODELS[0].id);
+    expect(DEFAULT_MODEL_ID).toBe(OpenAiModelId.Gpt6Sol);
     expect(resolveModel("not-a-model").id).toBe(DEFAULT_MODEL_ID);
   });
 
-  it("exposes GPT-5.6 efforts including max", () => {
+  it("exposes full efforts on GPT-5.6 Sol", () => {
     const sol = resolveModel(OpenAiModelId.Gpt56Sol);
     expect(sol.supportedReasoningEfforts).toEqual([
       ReasoningEffort.None,
@@ -65,45 +110,53 @@ describe("OpenAI model catalog", () => {
     ]);
     expect(sol.defaultReasoningEffort).toBe(ReasoningEffort.High);
   });
-
-  it("limits GPT-5.5 to xhigh and below", () => {
-    expect(resolveModel(OpenAiModelId.Gpt55).supportedReasoningEfforts).toEqual([
-      ReasoningEffort.None,
-      ReasoningEffort.Low,
-      ReasoningEffort.Medium,
-      ReasoningEffort.High,
-      ReasoningEffort.XHigh,
-    ]);
-  });
-
-  it("limits GPT-5.5 Pro to the documented efforts", () => {
-    expect(resolveModel(OpenAiModelId.Gpt55Pro).supportedReasoningEfforts).toEqual([
-      ReasoningEffort.Medium,
-      ReasoningEffort.High,
-      ReasoningEffort.XHigh,
-    ]);
-  });
 });
 
 describe("Anthropic model catalog", () => {
-  it("offers the current first-party Claude lineup with Opus as the default", () => {
+  it("lists Opus 5.5 first", () => {
     expect(ANTHROPIC_MODELS.map((model) => model.id)).toEqual([
+      AnthropicModelId.ClaudeOpus55,
       AnthropicModelId.ClaudeOpus5,
       AnthropicModelId.ClaudeSonnet5,
       AnthropicModelId.ClaudeHaiku45,
     ]);
-    expect(ANTHROPIC_MODELS[0].label).toBe("Claude Opus 5");
+    expect(ANTHROPIC_MODELS[0].label).toBe("Claude Opus 5.5");
   });
 
-  it("exposes adaptive effort for Opus and Sonnet but not Haiku", () => {
-    expect(resolveModel(AnthropicModelId.ClaudeOpus5).supportedReasoningEfforts).toEqual([
-      ReasoningEffort.Low,
-      ReasoningEffort.Medium,
-      ReasoningEffort.High,
-      ReasoningEffort.XHigh,
-      ReasoningEffort.Max,
-    ]);
+  it("pins Opus 5.5 to the 128k ceiling and medium default", () => {
+    const opus55 = resolveModel(AnthropicModelId.ClaudeOpus55);
+    expect(opus55.maxOutputTokens).toBe(128_000);
+    expect(opus55.defaultReasoningEffort).toBe(ReasoningEffort.Medium);
+    expect(resolveMaxOutputTokens(AnthropicModelId.ClaudeOpus55)).toBe(16_384);
+  });
+
+  it("exposes adaptive effort for Opus 5.5/Opus/Sonnet but not Haiku", () => {
+    for (const id of [
+      AnthropicModelId.ClaudeOpus55,
+      AnthropicModelId.ClaudeOpus5,
+      AnthropicModelId.ClaudeSonnet5,
+    ]) {
+      expect(resolveModel(id).supportedReasoningEfforts).toEqual([
+        ReasoningEffort.Low,
+        ReasoningEffort.Medium,
+        ReasoningEffort.High,
+        ReasoningEffort.XHigh,
+        ReasoningEffort.Max,
+      ]);
+    }
     expect(resolveModel(AnthropicModelId.ClaudeHaiku45).supportedReasoningEfforts).toEqual([]);
+  });
+
+  it("clamps none/auto on Opus 5.5 to medium", () => {
+    expect(
+      resolveReasoningEffort(AnthropicModelId.ClaudeOpus55, ReasoningEffort.None),
+    ).toBe(ReasoningEffort.Medium);
+    expect(
+      resolveReasoningEffort(
+        AnthropicModelId.ClaudeOpus55,
+        ReasoningEffortSettingAuto,
+      ),
+    ).toBe(ReasoningEffort.Medium);
   });
 });
 
@@ -118,9 +171,7 @@ describe("Gemini 3.8 Flash thinking levels", () => {
     expect(flash.defaultReasoningEffort).toBe(ReasoningEffort.Medium);
   });
 
-  it("never offers none, because ReasoningEffort.None maps to `minimal`", () => {
-    // Google documents that `minimal` is not supported on 3.8 Flash, so the
-    // effort that would translate to it must stay out of the supported set.
+  it("never offers none on 3.8 Flash", () => {
     expect(
       resolveModel(GeminiModelId.Gemini38Flash).supportedReasoningEfforts,
     ).not.toContain(ReasoningEffort.None);
@@ -210,17 +261,17 @@ describe("reasoning resolution", () => {
 
   it("clamps unsupported effort to model default", () => {
     expect(
-      resolveReasoningEffort(OpenAiModelId.Gpt55, ReasoningEffort.Max),
+      resolveReasoningEffort(OpenAiModelId.Gpt6Astra, ReasoningEffort.None),
     ).toBe(ReasoningEffort.Medium);
   });
 
   it("filters effort options per model and always includes auto", () => {
-    const fiveFive = reasoningEffortsForModel(OpenAiModelId.Gpt55).map(
+    const astra = reasoningEffortsForModel(OpenAiModelId.Gpt6Astra).map(
       (option) => option.id,
     );
-    expect(fiveFive[0]).toBe(ReasoningEffortSettingAuto);
-    expect(fiveFive).not.toContain(ReasoningEffort.Max);
-    expect(fiveFive).toContain(ReasoningEffort.XHigh);
+    expect(astra[0]).toBe(ReasoningEffortSettingAuto);
+    expect(astra).not.toContain(ReasoningEffort.None);
+    expect(astra).toContain(ReasoningEffort.XHigh);
   });
 
   it("builds Responses reasoning payload with effort only", () => {
@@ -236,26 +287,23 @@ describe("reasoning resolution", () => {
 
     expect(
       resolveAnalysisConfig({
-        model: OpenAiModelId.Gpt55,
+        model: OpenAiModelId.Gpt56Luna,
         reasoningEffort: ReasoningEffortSettingAuto,
       }),
     ).toEqual({
-      modelId: OpenAiModelId.Gpt55,
-      reasoning: { effort: ReasoningEffort.Medium },
+      modelId: OpenAiModelId.Gpt56Luna,
+      reasoning: { effort: ReasoningEffort.Low },
     });
   });
 
   it("keeps known model lookup stable", () => {
     expect(isKnownModel(OpenAiModelId.Gpt56Terra)).toBe(true);
-    expect(isKnownModel("gpt-5.5-pro")).toBe(true);
+    expect(isKnownModel("gpt-5.5-pro")).toBe(false);
     expect(isKnownModel(GeminiModelId.Gemini38Flash)).toBe(true);
     expect(isKnownModel("gpt-5.4")).toBe(false);
   });
 
   it("keeps every model's default effort inside its supported set", () => {
-    // resolveReasoningEffort() falls back to defaultReasoningEffort for anything
-    // unsupported, so a default outside the supported set could be sent to a
-    // provider that rejects it.
     for (const model of [...OPENAI_MODELS, ...GEMINI_MODELS, ...ANTHROPIC_MODELS]) {
       if (model.supportedReasoningEfforts.length === 0) continue;
       expect(model.supportedReasoningEfforts).toContain(
@@ -267,16 +315,16 @@ describe("reasoning resolution", () => {
 
 describe("max output token resolution", () => {
   it("uses the model catalog default when no override is provided", () => {
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol)).toBe(16_384);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra)).toBe(16_384);
-    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt55)).toBe(8_192);
+    expect(resolveMaxOutputTokens(AnthropicModelId.ClaudeHaiku45)).toBe(8_192);
     expect(resolveMaxOutputTokens(GeminiModelId.Gemini35Flash)).toBe(8_192);
   });
 
-  it("clamps Gemini 3.8 Flash overrides to the documented 64k ceiling", () => {
+  it("clamps Gemini 3.8 Flash overrides to the 64k ceiling", () => {
     expect(resolveModel(GeminiModelId.Gemini38Flash).maxOutputTokens).toBe(
       65_536,
     );
-    // Thinking tokens count against max_output_tokens, so the ceiling matters.
     expect(
       resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 100_000),
     ).toBe(65_536);
@@ -290,9 +338,7 @@ describe("max output token resolution", () => {
     expect(flash.maxOutputTokens).toBe(65_536);
     expect(flash.defaultMaxOutputTokens).toBe(16_384);
 
-    // An ordinary run must not declare the full 64k allowance.
     expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash)).toBe(16_384);
-    // Users can still raise it, up to the documented ceiling.
     expect(
       resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 40_000),
     ).toBe(40_000);
@@ -313,18 +359,36 @@ describe("max output token resolution", () => {
     }
   });
 
+  it("clamps GPT-6 and Opus 5.5 overrides to the 128k ceiling", () => {
+    expect(resolveModel(OpenAiModelId.Gpt6Sol).maxOutputTokens).toBe(128_000);
+    expect(resolveModel(AnthropicModelId.ClaudeOpus55).maxOutputTokens).toBe(
+      128_000,
+    );
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, 200_000)).toBe(128_000);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, 40_000)).toBe(40_000);
+    expect(
+      resolveMaxOutputTokens(AnthropicModelId.ClaudeOpus55, 200_000),
+    ).toBe(128_000);
+  });
+
   it("omits the ceiling for custom endpoints and quotes it for built-ins", () => {
     expect(
       modelMaxOutputTokensCeiling(`${CUSTOM_MODEL_PREFIX}llama-test`),
     ).toBeUndefined();
+    expect(modelMaxOutputTokensCeiling(OpenAiModelId.Gpt6Sol)).toBe(128_000);
+    expect(modelMaxOutputTokensCeiling(AnthropicModelId.ClaudeOpus55)).toBe(
+      128_000,
+    );
     expect(modelMaxOutputTokensCeiling(OpenAiModelId.Gpt56Terra)).toBe(16_384);
     expect(modelMaxOutputTokensCeiling(GeminiModelId.Gemini38Flash)).toBe(
       65_536,
     );
-    expect(modelMaxOutputTokensCeiling("not-a-model")).toBe(16_384);
+    expect(modelMaxOutputTokensCeiling("not-a-model")).toBe(128_000);
   });
 
   it("clamps built-in model overrides to the catalog maximum", () => {
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, 200_000)).toBe(128_000);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, 4_096)).toBe(4_096);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, 100_000)).toBe(16_384);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, 4_096)).toBe(4_096);
   });
@@ -337,6 +401,8 @@ describe("max output token resolution", () => {
   });
 
   it("ignores invalid overrides and falls back to the default", () => {
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, -1)).toBe(16_384);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, NaN)).toBe(16_384);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, -1)).toBe(16_384);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, NaN)).toBe(16_384);
     expect(resolveMaxOutputTokens("not-a-model")).toBe(16_384);

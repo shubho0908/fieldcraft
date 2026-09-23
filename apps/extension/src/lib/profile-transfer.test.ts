@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "./defaults";
-import { AnthropicModelId, Provider } from "./models";
+import { AnthropicModelId, OpenAiModelId, Provider } from "./models";
 import type { CandidateProfile } from "../types";
 import {
   BACKUP_FORMAT,
@@ -169,8 +169,35 @@ describe("Anthropic settings restore", () => {
     if (!parsed.ok) return;
     expect(parsed.backup.settings.provider).toBe(Provider.Anthropic);
     expect(parsed.backup.settings.model).toBe(AnthropicModelId.ClaudeSonnet5);
-    expect(parsed.backup.settings.evalModel).toBe(AnthropicModelId.ClaudeOpus5);
+    expect(parsed.backup.settings.evalModel).toBe(AnthropicModelId.ClaudeOpus55);
     expect(parsed.backup.apiKeys.anthropic).toBe("sk-ant-test");
+  });
+});
+
+describe("retired GPT-5.5 migration", () => {
+  test("restores stored gpt-5.5/gpt-5.5-pro IDs onto GPT-6 Sol", () => {
+    for (const retired of ["gpt-5.5", "gpt-5.5-pro"]) {
+      const parsed = parseBackup({
+        format: BACKUP_FORMAT,
+        schemaVersion: BACKUP_SCHEMA_VERSION,
+        exportedAt: "2026-09-22T00:00:00.000Z",
+        appVersion: "0.1.0",
+        profile: DEFAULT_PROFILE,
+        settings: {
+          ...DEFAULT_SETTINGS,
+          provider: Provider.OpenAI,
+          model: retired,
+          evalModel: retired,
+        },
+        apiKeys: {},
+      });
+
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+      expect(parsed.backup.settings.provider).toBe(Provider.OpenAI);
+      expect(parsed.backup.settings.model).toBe(OpenAiModelId.Gpt6Sol);
+      expect(parsed.backup.settings.evalModel).toBe(OpenAiModelId.Gpt6Sol);
+    }
   });
 });
 

@@ -95,17 +95,37 @@ describe("testAiConnection model alignment (Gemini mismatch fix)", () => {
     vi.mocked(getSettings).mockResolvedValue({
       ...DEFAULT_SETTINGS,
       provider: Provider.OpenAI,
-      model: OpenAiModelId.Gpt56Sol,
+      model: OpenAiModelId.Gpt6Sol,
       reasoningEffort: ReasoningEffort.High,
     });
 
-    await testAiConnection(OpenAiModelId.Gpt56Sol, ReasoningEffort.High);
+    await testAiConnection(OpenAiModelId.Gpt6Sol, ReasoningEffort.High);
 
     const call = vi.mocked(generateText).mock.calls[0][0] as {
       providerOptions?: unknown;
     };
     expect(call.providerOptions).toEqual({
       openai: expect.objectContaining({ reasoningEffort: ReasoningEffort.High }),
+    });
+  });
+
+  it("clamps none on GPT-6 Astra", async () => {
+    vi.mocked(getApiKey).mockResolvedValue("sk-openai");
+    vi.mocked(getSettings).mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      provider: Provider.OpenAI,
+      model: OpenAiModelId.Gpt6Astra,
+      reasoningEffort: ReasoningEffort.None,
+    });
+
+    const result = await testAiConnection(OpenAiModelId.Gpt6Astra, ReasoningEffort.None);
+
+    expect(result.model).toBe(OpenAiModelId.Gpt6Astra);
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      providerOptions?: unknown;
+    };
+    expect(call.providerOptions).toEqual({
+      openai: expect.objectContaining({ reasoningEffort: ReasoningEffort.Medium }),
     });
   });
 
@@ -133,18 +153,42 @@ describe("testAiConnection model alignment (Gemini mismatch fix)", () => {
     vi.mocked(getSettings).mockResolvedValue({
       ...DEFAULT_SETTINGS,
       provider: Provider.Anthropic,
-      model: AnthropicModelId.ClaudeOpus5,
+      model: AnthropicModelId.ClaudeOpus55,
       reasoningEffort: ReasoningEffort.XHigh,
     });
 
-    const result = await testAiConnection(AnthropicModelId.ClaudeOpus5, ReasoningEffort.XHigh);
+    const result = await testAiConnection(AnthropicModelId.ClaudeOpus55, ReasoningEffort.XHigh);
 
-    expect(result.model).toBe(AnthropicModelId.ClaudeOpus5);
+    expect(result.model).toBe(AnthropicModelId.ClaudeOpus55);
     const call = vi.mocked(generateText).mock.calls[0][0] as {
       providerOptions?: unknown;
     };
     expect(call.providerOptions).toEqual({
       anthropic: { effort: ReasoningEffort.XHigh },
+    });
+  });
+
+  it("clamps none on Opus 5.5 to medium", async () => {
+    vi.mocked(getApiKey).mockResolvedValue("sk-ant-test");
+    vi.mocked(getSettings).mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      provider: Provider.Anthropic,
+      model: AnthropicModelId.ClaudeOpus55,
+      reasoningEffort: ReasoningEffort.None,
+    });
+
+    const result = await testAiConnection(
+      AnthropicModelId.ClaudeOpus55,
+      ReasoningEffort.None,
+    );
+
+    expect(result.model).toBe(AnthropicModelId.ClaudeOpus55);
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      providerOptions?: unknown;
+    };
+    // None would hit Anthropic's 400 `thinking.type.disabled is not supported`.
+    expect(call.providerOptions).toEqual({
+      anthropic: { effort: ReasoningEffort.Medium },
     });
   });
 

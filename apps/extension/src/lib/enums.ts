@@ -167,21 +167,23 @@ export const REASONING_EFFORT_SETTINGS = [
 // ── OpenAI model IDs ─────────────────────────────────────────────────
 
 export const OpenAiModelId = {
+  Gpt6Sol: "gpt-6-sol",
+  Gpt6Astra: "gpt-6-astra",
+  Gpt6Luna: "gpt-6-luna",
   Gpt56Terra: "gpt-5.6-terra",
   Gpt56Sol: "gpt-5.6-sol",
   Gpt56Luna: "gpt-5.6-luna",
-  Gpt55: "gpt-5.5",
-  Gpt55Pro: "gpt-5.5-pro",
 } as const;
 
 export type OpenAiModelId = (typeof OpenAiModelId)[keyof typeof OpenAiModelId];
 
 export const OPENAI_MODEL_IDS = [
+  OpenAiModelId.Gpt6Sol,
+  OpenAiModelId.Gpt6Astra,
+  OpenAiModelId.Gpt6Luna,
   OpenAiModelId.Gpt56Terra,
   OpenAiModelId.Gpt56Sol,
   OpenAiModelId.Gpt56Luna,
-  OpenAiModelId.Gpt55,
-  OpenAiModelId.Gpt55Pro,
 ] as const;
 
 // ── Gemini model IDs ─────────────────────────────────────────────────
@@ -214,8 +216,8 @@ export const GEMINI_MODEL_IDS = [
 
 // ── Anthropic model IDs ───────────────────────────────────────────────
 
-/** Current first-party Claude models offered by the Anthropic provider. */
 export const AnthropicModelId = {
+  ClaudeOpus55: "claude-opus-5-5",
   ClaudeOpus5: "claude-opus-5",
   ClaudeSonnet5: "claude-sonnet-5",
   ClaudeHaiku45: "claude-haiku-4-5-20251001",
@@ -225,6 +227,7 @@ export type AnthropicModelId =
   (typeof AnthropicModelId)[keyof typeof AnthropicModelId];
 
 export const ANTHROPIC_MODEL_IDS = [
+  AnthropicModelId.ClaudeOpus55,
   AnthropicModelId.ClaudeOpus5,
   AnthropicModelId.ClaudeSonnet5,
   AnthropicModelId.ClaudeHaiku45,

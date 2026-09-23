@@ -126,6 +126,23 @@ export const REASONING_EFFORT_OPTIONS: readonly ReasoningEffortOption[] = [
   },
 ] as const;
 
+const GPT_6_SOL_LUNA_EFFORTS = [
+  ReasoningEffort.None,
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+  ReasoningEffort.High,
+  ReasoningEffort.XHigh,
+  ReasoningEffort.Max,
+] as const satisfies readonly ReasoningEffortType[];
+
+const GPT_6_ASTRA_EFFORTS = [
+  ReasoningEffort.Low,
+  ReasoningEffort.Medium,
+  ReasoningEffort.High,
+  ReasoningEffort.XHigh,
+  ReasoningEffort.Max,
+] as const satisfies readonly ReasoningEffortType[];
+
 const GPT_5_6_EFFORTS = [
   ReasoningEffort.None,
   ReasoningEffort.Low,
@@ -135,27 +152,43 @@ const GPT_5_6_EFFORTS = [
   ReasoningEffort.Max,
 ] as const satisfies readonly ReasoningEffortType[];
 
-const GPT_5_5_EFFORTS = [
-  ReasoningEffort.None,
-  ReasoningEffort.Low,
-  ReasoningEffort.Medium,
-  ReasoningEffort.High,
-  ReasoningEffort.XHigh,
-] as const satisfies readonly ReasoningEffortType[];
-
-const GPT_5_5_PRO_EFFORTS = [
-  ReasoningEffort.Medium,
-  ReasoningEffort.High,
-  ReasoningEffort.XHigh,
-] as const satisfies readonly ReasoningEffortType[];
-
 /** Supported OpenAI Responses models and per-tier analysis defaults. */
 export const OPENAI_MODELS: readonly ModelOption[] = [
   {
     provider: Provider.OpenAI,
+    id: OpenAiModelId.Gpt6Sol,
+    label: "GPT-6 Sol",
+    description: "Best default · complex coding and agentic workflows",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: GPT_6_SOL_LUNA_EFFORTS,
+    maxOutputTokens: 128_000,
+    defaultMaxOutputTokens: 16_384,
+  },
+  {
+    provider: Provider.OpenAI,
+    id: OpenAiModelId.Gpt6Astra,
+    label: "GPT-6 Astra",
+    description: "Most capable · hardest end-to-end work",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: GPT_6_ASTRA_EFFORTS,
+    maxOutputTokens: 128_000,
+    defaultMaxOutputTokens: 16_384,
+  },
+  {
+    provider: Provider.OpenAI,
+    id: OpenAiModelId.Gpt6Luna,
+    label: "GPT-6 Luna",
+    description: "Most efficient · focused high-volume tasks",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: GPT_6_SOL_LUNA_EFFORTS,
+    maxOutputTokens: 128_000,
+    defaultMaxOutputTokens: 16_384,
+  },
+  {
+    provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Terra,
-    label: "GPT-5.6 Terra",
-    description: "Balanced quality and cost",
+    label: "GPT-5.6 Terra (legacy)",
+    description: "Prior balanced default · kept for existing settings",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
     maxOutputTokens: 16_384,
@@ -163,8 +196,8 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
   {
     provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Sol,
-    label: "GPT-5.6 Sol",
-    description: "Best quality",
+    label: "GPT-5.6 Sol (legacy)",
+    description: "Prior best quality · kept for existing settings",
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
     maxOutputTokens: 16_384,
@@ -172,39 +205,14 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
   {
     provider: Provider.OpenAI,
     id: OpenAiModelId.Gpt56Luna,
-    label: "GPT-5.6 Luna",
-    description: "Lowest cost",
+    label: "GPT-5.6 Luna (legacy)",
+    description: "Prior lowest cost · kept for existing settings",
     defaultReasoningEffort: ReasoningEffort.Low,
     supportedReasoningEfforts: GPT_5_6_EFFORTS,
     maxOutputTokens: 16_384,
   },
-  {
-    provider: Provider.OpenAI,
-    id: OpenAiModelId.Gpt55,
-    label: "GPT-5.5",
-    description: "Prior frontier, stable fallback",
-    defaultReasoningEffort: ReasoningEffort.Medium,
-    supportedReasoningEfforts: GPT_5_5_EFFORTS,
-    maxOutputTokens: 8_192,
-  },
-  {
-    provider: Provider.OpenAI,
-    id: OpenAiModelId.Gpt55Pro,
-    label: "GPT-5.5 Pro",
-    description: "Highest-quality GPT-5.5 analysis",
-    defaultReasoningEffort: ReasoningEffort.High,
-    supportedReasoningEfforts: GPT_5_5_PRO_EFFORTS,
-    maxOutputTokens: 8_192,
-  },
 ] as const;
 
-/**
- * Gemini 3.8 Flash thinking levels.
- *
- * Google documents tunable `low | medium | high` for this model and states that
- * `minimal` is not supported, so `ReasoningEffort.None` is deliberately absent
- * and resolves to the model default instead.
- */
 const GEMINI_3_8_FLASH_EFFORTS = [
   ReasoningEffort.Low,
   ReasoningEffort.Medium,
@@ -221,9 +229,6 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
       "Most intelligent Flash model for long-horizon engineering and agents",
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GEMINI_3_8_FLASH_EFFORTS,
-    // Documented 64k ceiling, but an analysis response is a bounded JSON object.
-    // 16,384 leaves headroom for thinking tokens (which count against this
-    // budget) without declaring a 64k allowance on every ordinary run.
     maxOutputTokens: 65_536,
     defaultMaxOutputTokens: 16_384,
   },
@@ -277,9 +282,19 @@ const ANTHROPIC_ADAPTIVE_EFFORTS = [
 export const ANTHROPIC_MODELS: readonly ModelOption[] = [
   {
     provider: Provider.Anthropic,
+    id: AnthropicModelId.ClaudeOpus55,
+    label: "Claude Opus 5.5",
+    description: "New leading model · long-running agentic coding",
+    defaultReasoningEffort: ReasoningEffort.Medium,
+    supportedReasoningEfforts: ANTHROPIC_ADAPTIVE_EFFORTS,
+    maxOutputTokens: 128_000,
+    defaultMaxOutputTokens: 16_384,
+  },
+  {
+    provider: Provider.Anthropic,
     id: AnthropicModelId.ClaudeOpus5,
-    label: "Claude Opus 5",
-    description: "Best default for complex agentic and engineering work",
+    label: "Claude Opus 5 (legacy)",
+    description: "Prior flagship",
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: ANTHROPIC_ADAPTIVE_EFFORTS,
     maxOutputTokens: 131_072,
@@ -451,10 +466,6 @@ export function resolveReasoningEffort(
   return model.defaultReasoningEffort;
 }
 
-/**
- * Eval preference: DEFAULT_EVAL_REASONING_EFFORT when the model supports it,
- * otherwise the model’s own default effort.
- */
 export function preferredEvalReasoningEffort(
   modelId: string,
 ): ReasoningEffortSetting {
@@ -468,18 +479,6 @@ export function preferredEvalReasoningEffort(
   return model.defaultReasoningEffort;
 }
 
-/**
- * Gemini `thinkingConfig.thinkingLevel` for each Fieldcraft reasoning effort.
- *
- * Fieldcraft's effort vocabulary mirrors OpenAI's (`none`…`max`) while Gemini
- * only accepts `minimal | low | medium | high`, so `xhigh` and `max` both cap
- * at `high`, and `none` maps to the cheapest level Gemini understands.
- *
- * Callers must pass an effort already clamped by {@link resolveReasoningEffort}.
- * A model that rejects a level (3.8 Flash does not accept `minimal`) never lists
- * the matching effort in `supportedReasoningEfforts`, so clamping prevents an
- * unsupported level from ever reaching the API.
- */
 const GEMINI_THINKING_LEVEL_BY_EFFORT: Record<
   ReasoningEffortType,
   GeminiThinkingLevelType
@@ -492,38 +491,20 @@ const GEMINI_THINKING_LEVEL_BY_EFFORT: Record<
   [ReasoningEffort.Max]: GeminiThinkingLevel.High,
 };
 
-/** Translate a resolved reasoning effort into a Gemini thinking level. */
 export function toGeminiThinkingLevel(
   effort: ReasoningEffortType,
 ): GeminiThinkingLevelType {
   return GEMINI_THINKING_LEVEL_BY_EFFORT[effort];
 }
 
-/** Hard sanity ceiling for any user-supplied max output tokens value. */
 const MAX_OUTPUT_TOKENS_SANITY = 1_000_000;
 
-/**
- * Human-readable ceiling for the Settings "Max output tokens" hint.
- *
- * Returns `undefined` for custom endpoints: their real limit is whatever the
- * third-party endpoint accepts (guarded only by the sanity limit), so quoting
- * the custom placeholder's conservative default would be misleading.
- */
 export function modelMaxOutputTokensCeiling(modelId: string): number | undefined {
   const model = resolveModel(modelId);
   if (model.provider === Provider.Custom) return undefined;
   return model.maxOutputTokens;
 }
 
-/**
- * Resolve the maximum output tokens for a model.
- *
- * Built-in models start from their routine request budget and are always capped
- * to their documented ceiling, so a user cannot exceed a known provider limit.
- * Custom providers are unknown and subscription-tier dependent, so we default to
- * a conservative value (4096) and allow the user to raise it if their endpoint
- * supports more.
- */
 export function resolveMaxOutputTokens(
   modelId: string,
   userValue?: number,
@@ -548,10 +529,6 @@ export function resolveMaxOutputTokens(
   );
 }
 
-/**
- * Resolve the model and reasoning effort for an analysis call.
- * Invalid user choices are clamped to the model's supported set.
- */
 export function resolveAnalysisConfig(input: {
   model: string;
   reasoningEffort: ReasoningEffortSetting;

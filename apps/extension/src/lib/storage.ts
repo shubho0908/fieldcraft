@@ -63,11 +63,10 @@ export async function clearTabSessionsIfSessionStorageMissing(): Promise<void> {
   await chrome.storage.local.remove(KEYS.tabSessions);
 }
 
-// OpenAI documents gpt-5.6 as an alias for the canonical GPT-5.6 Sol ID.
-// Preserve an existing user's intentional Sol choice while keeping the catalog
-// itself on stable, explicit model IDs.
 const LEGACY_MODEL_ALIASES: Readonly<Record<string, string>> = {
   "gpt-5.6": "gpt-5.6-sol",
+  "gpt-5.5": "gpt-6-sol",
+  "gpt-5.5-pro": "gpt-6-sol",
 };
 
 /**
