@@ -199,6 +199,31 @@ describe("retired GPT-5.5 migration", () => {
       expect(parsed.backup.settings.evalModel).toBe(OpenAiModelId.Gpt6Sol);
     }
   });
+
+  test("leaves custom-provider model IDs that collide with retired IDs untouched", () => {
+    const parsed = parseBackup({
+      format: BACKUP_FORMAT,
+      schemaVersion: BACKUP_SCHEMA_VERSION,
+      exportedAt: "2026-09-22T00:00:00.000Z",
+      appVersion: "0.1.0",
+      profile: DEFAULT_PROFILE,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        provider: Provider.Custom,
+        model: "gpt-5.5",
+        evalModel: "gpt-5.5-pro",
+        customBaseUrl: "https://llm.example.com/v1",
+      },
+      apiKeys: {},
+    });
+
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.backup.settings.provider).toBe(Provider.Custom);
+    expect(parsed.backup.settings.model).toBe("custom:gpt-5.5");
+    // Custom settings sync the eval model to the analyze model.
+    expect(parsed.backup.settings.evalModel).toBe("custom:gpt-5.5");
+  });
 });
 
 describe("sanitizeBackupApiKeys", () => {

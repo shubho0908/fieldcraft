@@ -175,8 +175,16 @@ export function parseSettings(raw: Partial<ExtensionSettings> | undefined): Exte
     ...(raw ?? {}),
   } as ExtensionSettings;
 
-  settings.model = LEGACY_MODEL_ALIASES[settings.model] ?? settings.model;
-  settings.evalModel = LEGACY_MODEL_ALIASES[settings.evalModel] ?? settings.evalModel;
+  // Retired model IDs map to their replacements only for built-in providers.
+  // A custom endpoint may legitimately serve a model with the same ID (e.g.
+  // `gpt-5.5`), so rewriting it here would corrupt the custom model request.
+  const aliasRetiredModelId = (modelId: string): string =>
+    settings.provider === Provider.Custom
+      ? modelId
+      : LEGACY_MODEL_ALIASES[modelId] ?? modelId;
+
+  settings.model = aliasRetiredModelId(settings.model);
+  settings.evalModel = aliasRetiredModelId(settings.evalModel);
 
   if (!isCustomProtocol(settings.customProtocol)) {
     settings.customProtocol = DEFAULT_SETTINGS.customProtocol;
