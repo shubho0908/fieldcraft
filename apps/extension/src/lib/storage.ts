@@ -63,11 +63,10 @@ export async function clearTabSessionsIfSessionStorageMissing(): Promise<void> {
   await chrome.storage.local.remove(KEYS.tabSessions);
 }
 
-// OpenAI documents gpt-5.6 as an alias for the canonical GPT-5.6 Sol ID.
-// Preserve an existing user's intentional Sol choice while keeping the catalog
-// itself on stable, explicit model IDs.
 const LEGACY_MODEL_ALIASES: Readonly<Record<string, string>> = {
   "gpt-5.6": "gpt-5.6-sol",
+  "gpt-5.5": "gpt-6-sol",
+  "gpt-5.5-pro": "gpt-6-sol",
 };
 
 /**
@@ -176,8 +175,16 @@ export function parseSettings(raw: Partial<ExtensionSettings> | undefined): Exte
     ...(raw ?? {}),
   } as ExtensionSettings;
 
-  settings.model = LEGACY_MODEL_ALIASES[settings.model] ?? settings.model;
-  settings.evalModel = LEGACY_MODEL_ALIASES[settings.evalModel] ?? settings.evalModel;
+  // Retired model IDs map to their replacements only for built-in providers.
+  // A custom endpoint may legitimately serve a model with the same ID (e.g.
+  // `gpt-5.5`), so rewriting it here would corrupt the custom model request.
+  const aliasRetiredModelId = (modelId: string): string =>
+    settings.provider === Provider.Custom
+      ? modelId
+      : LEGACY_MODEL_ALIASES[modelId] ?? modelId;
+
+  settings.model = aliasRetiredModelId(settings.model);
+  settings.evalModel = aliasRetiredModelId(settings.evalModel);
 
   if (!isCustomProtocol(settings.customProtocol)) {
     settings.customProtocol = DEFAULT_SETTINGS.customProtocol;

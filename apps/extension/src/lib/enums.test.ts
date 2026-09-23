@@ -105,8 +105,11 @@ describe("domain enums cross-validation", () => {
     expect(isConfidence("extreme")).toBe(false);
     expect(isReasoningEffort(ReasoningEffort.Max)).toBe(true);
     expect(isReasoningEffort("ultra")).toBe(false);
+    expect(isOpenAiModelId(OpenAiModelId.Gpt6Sol)).toBe(true);
+    expect(isOpenAiModelId(OpenAiModelId.Gpt6Astra)).toBe(true);
+    expect(isOpenAiModelId(OpenAiModelId.Gpt6Luna)).toBe(true);
     expect(isOpenAiModelId(OpenAiModelId.Gpt56Terra)).toBe(true);
-    expect(isOpenAiModelId(OpenAiModelId.Gpt55Pro)).toBe(true);
+    expect(isOpenAiModelId("gpt-5.5-pro")).toBe(false);
     expect(isOpenAiModelId("gpt-5.4")).toBe(false);
     expect(isGeminiModelId(GeminiModelId.Gemini38Flash)).toBe(true);
     expect(isGeminiModelId(GeminiModelId.Gemini35FlashLite)).toBe(true);

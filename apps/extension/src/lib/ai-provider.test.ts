@@ -161,17 +161,26 @@ describe("createAiModel", () => {
     expect(createGoogleGenerativeAI).toHaveBeenCalledWith({ apiKey: "sk-gemini" });
 
     createAiModel({
-      model: { provider: Provider.OpenAI, id: "gpt-5.6-terra" } as any,
+      model: { provider: Provider.OpenAI, id: "gpt-6-sol" } as any,
       apiKey: "sk-openai",
     });
     expect(createOpenAI).toHaveBeenLastCalledWith({ apiKey: "sk-openai" });
-    expect(openaiResponses).toHaveBeenCalledWith("gpt-5.6-terra");
+    expect(openaiResponses).toHaveBeenCalledWith("gpt-6-sol");
 
     createAiModel({
-      model: { provider: Provider.Anthropic, id: "claude-opus-5" } as any,
+      model: { provider: Provider.Anthropic, id: "claude-opus-5-5" } as any,
       apiKey: "sk-ant-test",
     });
     expect(createAnthropic).toHaveBeenLastCalledWith({ apiKey: "sk-ant-test" });
-    expect(anthropicModel).toHaveBeenCalledWith("claude-opus-5");
+    expect(anthropicModel).toHaveBeenCalledWith("claude-opus-5-5");
+  });
+
+  it("routes legacy GPT-5.6 Terra through Responses (no Chat fallback)", () => {
+    createAiModel({
+      model: { provider: Provider.OpenAI, id: "gpt-5.6-terra" } as any,
+      apiKey: "sk-openai",
+    });
+    expect(openaiResponses).toHaveBeenCalledWith("gpt-5.6-terra");
+    expect(openaiChat).not.toHaveBeenCalledWith("gpt-5.6-terra");
   });
 });

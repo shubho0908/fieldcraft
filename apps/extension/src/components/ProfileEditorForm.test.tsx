@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "../lib/defaults";
 import {
   AnthropicModelId,
+  OpenAiModelId,
   Provider,
   modelsForProvider,
   reasoningEffortsForModel,
@@ -13,8 +14,8 @@ function renderAnthropicForm() {
   const settings = {
     ...DEFAULT_SETTINGS,
     provider: Provider.Anthropic,
-    model: AnthropicModelId.ClaudeOpus5,
-    evalModel: AnthropicModelId.ClaudeOpus5,
+    model: AnthropicModelId.ClaudeOpus55,
+    evalModel: AnthropicModelId.ClaudeOpus55,
   };
   const noop = vi.fn();
   const props: ProfileEditorFormProps = {
@@ -69,9 +70,10 @@ describe("ProfileEditorForm Anthropic provider", () => {
   it("renders Anthropic as a first-class provider with its Claude catalog", () => {
     const html = renderAnthropicForm();
     expect(html).toContain("Anthropic");
-    expect(html).toContain("Claude Opus 5");
+    expect(html).toContain("Claude Opus 5.5");
     expect(modelsForProvider(Provider.Anthropic).map((model) => model.label)).toEqual([
-      "Claude Opus 5",
+      "Claude Opus 5.5",
+      "Claude Opus 5 (legacy)",
       "Claude Sonnet 5",
       "Claude Haiku 4.5",
     ]);
@@ -82,5 +84,15 @@ describe("ProfileEditorForm Anthropic provider", () => {
     const html = renderAnthropicForm();
     expect(html).not.toContain("Custom base URL");
     expect(html).not.toContain("Endpoint protocol");
+  });
+
+  it("lists GPT-6 Sol first for the OpenAI provider (Sept 22 rollout)", () => {
+    const labels = modelsForProvider(Provider.OpenAI).map((model) => model.label);
+    expect(labels.slice(0, 3)).toEqual([
+      "GPT-6 Sol",
+      "GPT-6 Astra",
+      "GPT-6 Luna",
+    ]);
+    expect(modelsForProvider(Provider.OpenAI)[0].id).toBe(OpenAiModelId.Gpt6Sol);
   });
 });
