@@ -77,7 +77,7 @@ Load the development output shown by CRXJS in `chrome://extensions` (usually `ap
 - `bun run eval` — deterministic judges (no network)
 - `bun run eval:live` — optional live AI-provider run of the fixture pack (skipped without a configured API key)
 
-The production-extension browser regressions require Node 20+ (CI uses Node 22). From `apps/extension`:
+The production-extension browser regressions and the PDF unit tests require Node 26 (CI uses Node 26): the pinned PDF.js build calls ES2025 `Uint8Array.prototype.toHex`, which older Node releases do not provide. Chrome runs the same code path natively. From `apps/extension`:
 
 ```bash
 bun run build

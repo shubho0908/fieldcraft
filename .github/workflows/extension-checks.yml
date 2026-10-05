@@ -28,8 +28,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
-
+          # The pinned PDF.js build calls ES2025 Uint8Array.prototype.toHex,
+          # which older Node releases do not provide.
+          node-version: 26
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
