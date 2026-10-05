@@ -317,8 +317,11 @@ async function parsePdf(bytes: Uint8Array): Promise<Result> {
           const result = await ocr.recognize(canvas, { rotateAuto: false, rotateRadians: 0 }, { text: true, blocks: true });
           const raster = rasterSpans(result.data, native, scale, canvas.width / scale, canvas.height / scale);
           const rasterLetters = raster.spans.reduce((count, span) => count + (span.text.match(/\p{L}/gu)?.length || 0), 0);
-          const readableRaster = rasterLetters >= 20
-            && (native.length > 0 || (Number.isFinite(result.data.confidence) && result.data.confidence >= 65));
+          // A reliable native page can contain a single image-only date or
+          // phone number. Per-word confidence already gates these additions.
+          const readableRaster = reliableNative
+            ? raster.spans.length > 0
+            : rasterLetters >= 20 && Number.isFinite(result.data.confidence) && result.data.confidence >= 65;
           if (!readableRaster && !reliableNative) {
             fail(`PDF page ${number} could not be read reliably by local English OCR. Upload a clearer scan or a text-based PDF; no partial text was saved.`);
           }

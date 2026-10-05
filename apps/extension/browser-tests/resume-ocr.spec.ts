@@ -1,5 +1,5 @@
 import { test, expect, uploadResume, saveResume, savedProfile } from "./extension";
-import { portraitResume } from "./portrait-resume";
+import { portraitResume, shortFactsResume } from "./portrait-resume";
 
 const nativeTokens = ["ada+qa@example.test", "35.07%", "2021-09-17", "INV-0010"];
 
@@ -58,6 +58,19 @@ test("a substantial textless portrait cannot erase readable exact embedded facts
   await expect(page.getByRole("alert")).toHaveCount(0);
   const profile = await saveResume(page, filename, text, bytes);
   expectExactNativeFacts(profile.resumeText);
+});
+
+test("confident short image-only facts survive beside readable native text", async ({ extensionPage: page }) => {
+  const bytes = await shortFactsResume();
+  const filename = "native-text-with-short-facts.pdf";
+  const preview = await uploadResume(page, filename, bytes);
+  const text = await preview.inputValue();
+  expect(text).toContain("2026-10-05");
+  expect(text).toMatch(/\+44\s+20\s+7946\s+0958/);
+  expect(text).toContain("AWS");
+  for (const token of nativeTokens) expect(text.split(token).length - 1).toBe(1);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await saveResume(page, filename, text, bytes);
 });
 
 test("unreadable scanned replacement keeps the previous saved resume and original file", async ({ extensionPage: page }) => {
