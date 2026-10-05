@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { crx } from "@crxjs/vite-plugin";
 import getManifest from "./src/manifest";
+import { resumeParserAssets } from "./scripts/resume-parser-assets";
 
 const packageJson = JSON.parse(readFileSync("./package.json", "utf8")) as {
   version: string;
@@ -22,7 +23,7 @@ export default defineConfig({
   define: {
     __FIELDCRAFT_VERSION__: JSON.stringify(buildVersion),
   },
-  plugins: [react(), crx({ manifest: getManifest(extensionTarget) })],
+  plugins: [react(), resumeParserAssets(), crx({ manifest: getManifest(extensionTarget) })],
   build: {
     sourcemap: false,
     target: "es2022",

@@ -91,6 +91,8 @@ export type ProfileEditorFormProps = {
   error: string;
   saving: boolean;
   testing: boolean;
+  parsingResume: boolean;
+  resumeWarnings: string[];
   testStatus: string;
   apiKeyExists: boolean;
   exaApiKey: string;
@@ -140,6 +142,8 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
     error,
     saving,
     testing,
+    parsingResume,
+    resumeWarnings,
     testStatus,
     apiKeyExists,
     exaApiKey,
@@ -302,8 +306,42 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
           <div className="form-stack">
             <SectionHeading
               title="What you have actually done"
-              body="Paste plain text, including dates, outcomes, stacks, and project details. This is the hard boundary for every candidate claim."
+              body="Upload your resume to extract its text automatically on this device. Review the result: dates, outcomes, stacks, and project details are the boundary for every candidate claim."
             />
+            <div className="attachment-card" aria-busy={parsingResume}>
+              <div className="attachment-icon"><FileText size={19} /></div>
+              <div className="attachment-copy">
+                <strong>{profile.resumeAttachment?.name || "Upload your resume"}</strong>
+                <span>
+                  {parsingResume
+                    ? "Extracting text locally… scanned pages can take longer"
+                    : profile.resumeAttachment
+                      ? `${Math.ceil(profile.resumeAttachment.size / 1024)} KB · original file kept locally`
+                      : "PDF, DOC, or DOCX · max 8 MB · automatic text extraction"}
+                </span>
+              </div>
+              <label className="mini-button">
+                <Upload size={15} />
+                {profile.resumeAttachment ? "Replace" : "Choose"}
+                <input
+                  className="visually-hidden"
+                  type="file"
+                  aria-label="Upload resume"
+                  disabled={parsingResume}
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    attachResume(file);
+                  }}
+                />
+              </label>
+            </div>
+            {(parsingResume || resumeWarnings.length > 0) && (
+              <p role="status" aria-live="polite">
+                {parsingResume ? "Extracting your resume. Please wait before continuing." : resumeWarnings.join(" ")}
+              </p>
+            )}
             <Field label="Professional headline">
               <input
                 value={profile.headline}
@@ -318,12 +356,13 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 placeholder="Product Engineer, Full-stack AI Engineer"
               />
             </Field>
-            <Field label="Resume text" required hint={`${profile.resumeText.length.toLocaleString()} characters`}>
+            <Field label="Resume text preview" required hint={`${profile.resumeText.length.toLocaleString()} characters · review and edit if needed`}>
               <textarea
                 className="resume-textarea"
                 value={profile.resumeText}
+                disabled={parsingResume}
                 onChange={(event) => setProfile({ ...profile, resumeText: event.target.value })}
-                placeholder="Paste the complete text version of your resume…"
+                placeholder="Your uploaded resume text will appear here automatically."
               />
             </Field>
             <Field label="Extra proof points" hint="Optional">
@@ -333,27 +372,6 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
                 placeholder="Useful details not on the resume: architecture decisions, metrics, customer context, demos, public links…"
               />
             </Field>
-            <div className="attachment-card">
-              <div className="attachment-icon"><FileText size={19} /></div>
-              <div className="attachment-copy">
-                <strong>{profile.resumeAttachment?.name || "Attach resume for upload fields"}</strong>
-                <span>
-                  {profile.resumeAttachment
-                    ? `${Math.ceil(profile.resumeAttachment.size / 1024)} KB · saved locally`
-                    : "PDF, DOC, or DOCX · max 8 MB"}
-                </span>
-              </div>
-              <label className="mini-button">
-                <Upload size={15} />
-                {profile.resumeAttachment ? "Replace" : "Choose"}
-                <input
-                  className="visually-hidden"
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf"
-                  onChange={(event) => void attachResume(event.target.files?.[0])}
-                />
-              </label>
-            </div>
           </div>
         )}
 
@@ -793,18 +811,20 @@ export function ProfileEditorForm(props: ProfileEditorFormProps) {
 
       {error && <div className="form-error" role="alert">{error}</div>}
 
-      {children}
+      <fieldset disabled={parsingResume} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+        {children}
+      </fieldset>
 
       <footer className="editor-footer">
         <button
           type="button"
           className="secondary-button"
           onClick={() => (step > 0 ? setStep(step - 1) : onCancel?.())}
-          disabled={step === 0 && !onCancel}
+          disabled={parsingResume || (step === 0 && !onCancel)}
         >
           <ArrowLeft size={17} /> {step > 0 ? "Back" : "Cancel"}
         </button>
-        <button type="button" className="primary-button" onClick={() => void next()} disabled={saving}>
+        <button type="button" className="primary-button" onClick={() => void next()} disabled={saving || parsingResume}>
           {saving ? "Saving…" : step === STEPS.length - 1 ? (onboarding ? "Finish setup" : "Save changes") : "Continue"}
           {!saving && (step === STEPS.length - 1 ? <Check size={17} /> : <ArrowRight size={17} />)}
         </button>

@@ -6,6 +6,7 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 
 - Toggle the Fieldcraft side panel with **⌥F** (macOS) or **Ctrl+Shift+F** (Windows). Same gesture opens and closes it. Rebind under `chrome://extensions/shortcuts` if the default conflicts.
 - Keeps a structured candidate profile, full resume text, proof points, work-authorization defaults, compensation/notice-period facts, canonical answers, and an optional resume attachment in Chrome extension storage.
+- Uploading a PDF, DOCX, or Word 97–2003 DOC automatically extracts readable resume text locally; scanned PDF pages use packaged English OCR. The original file stays available for application uploads.
 - Extracts visible JD content and up to 100 application controls from Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Jobvite, iCIMS, BambooHR, Wellfound, LinkedIn, and generic forms.
 - Uses the Vercel AI SDK with structured output, supporting OpenAI (Responses API, GPT-6 Sol/Astra/Luna with legacy GPT-5.6 retained), Gemini (3.8/3.7/3.6/3.5 Flash — 3.8 Flash exposes tunable low/medium/high thinking levels), Anthropic (Claude Opus 5.5 with legacy Opus 5 / Sonnet 5 / Haiku 4.5 retained), and any OpenAI-compatible custom provider (Fireworks, Together, Groq, OpenRouter, etc.) with a configurable base URL, model ID, and API key, with optional Exa company research.
 - Produces an honest fit score, hard blockers, company brief with clickable sources, missing-fact list, and one reviewed suggestion per detected field.
@@ -31,8 +32,8 @@ Product-site downloads are documented in the [monorepo root README](../../README
 ## First setup
 
 1. Add identity and public work links.
-2. Paste the full text version of the resume. This is the source-of-truth boundary for candidate claims.
-3. Optionally attach the actual resume file for file-upload fields.
+2. Upload your resume (PDF, DOCX, or Word 97–2003 DOC, up to 8 MB). Fieldcraft extracts its text automatically on your device; no API key or manual text extraction is needed.
+3. Review the editable resume text preview, especially OCR warnings, dates, metrics, lists, and multi-column layouts. The extracted/reviewed text is the source-of-truth boundary for candidate claims. Saving retains both this text and the original attachment; a failed replacement changes neither. Existing text-only profiles remain editable.
 4. Add explicit work authorization, sponsorship, notice period, compensation, relocation, and reusable answers. Blank means “ask me during review.”
 5. Add an OpenAI, Gemini, or custom OpenAI-compatible API key and choose the provider, model, and quality/cost tier. For a custom provider, enter the API **root** URL (e.g. `https://api.fireworks.ai/inference/v1` or `https://openrouter.ai/api/v1`), the provider's model ID, and the API key. Do not include `/chat/completions`; the SDK adds it automatically. Add a separate Exa API key if you enable company research.
 
@@ -75,6 +76,18 @@ Load the development output shown by CRXJS in `chrome://extensions` (usually `ap
 
 - `bun run eval` — deterministic judges (no network)
 - `bun run eval:live` — optional live AI-provider run of the fixture pack (skipped without a configured API key)
+
+The production-extension browser regressions and the PDF unit tests require Node 26 (CI uses Node 26): the pinned PDF.js build calls ES2025 `Uint8Array.prototype.toHex`, which older Node releases do not provide. Chrome runs the same code path natively. From `apps/extension`:
+
+```bash
+bun run build
+bunx playwright install chromium
+bun run test:browser
+```
+
+On Linux, use `bunx playwright install --with-deps chromium` to install browser system dependencies too. The suite launches isolated Chromium profiles, uploads real PDFs through the packaged sidepanel under MV3 CSP, verifies successful English OCR, preserves exact embedded facts beside large images, and checks saving/reloading and failed replacement. It runs offline without API keys. PR checks and release packaging both run it.
+
+Synthetic resume fixtures and browser tests remain in source control for reproducible verification. Releases package only `dist`; these test documents, test runners, and browser profiles are not shipped.
 
 Live eval options (env):
 
@@ -138,6 +151,10 @@ Monorepo overview, web app, and release packaging: [../../README.md](../../READM
 
 ## Practical limitations
 
+- Extraction preserves readable text boundaries (paragraphs, lists, tables, and page breaks), not the original visual design. PDF reading order uses viewport coordinates, including page rotation and crop offsets; complex layouts still require review.
+- Scanned PDFs use local English OCR with a minimum confidence check. OCR cannot guarantee exact characters or numbers; other scan languages are not supported. On mixed pages, embedded text is retained verbatim and only spatially separate, confident OCR words are added. If image content is unreadable but the embedded text is usable, a warning identifies that unrecognized image text was not added; unreadable scan-only pages are rejected. Encrypted, corrupt, or excessive-complexity files are rejected rather than saved as partial candidate truth. PDFs are limited to 50 pages.
+- Word images are not OCRed. DOCX drawing/text-box limitations and legacy DOC layout conversions produce review warnings; export a text-based PDF when important facts are embedded in images.
+- PDF and OCR workers, fonts, character maps, WebAssembly, and English language data are packaged with the extension; parsing does not use a CDN or upload document bytes.
 - Chrome blocks content scripts on internal pages and the Chrome Web Store.
 - A few custom JavaScript comboboxes require clicking the displayed option after text is inserted.
 - Cross-origin forms embedded inside inaccessible iframes cannot be read from the top page.

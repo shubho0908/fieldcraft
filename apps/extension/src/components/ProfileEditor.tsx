@@ -1,6 +1,6 @@
 import { ProfileEditorForm } from "./ProfileEditorForm";
 import { DataTransferCard } from "./DataTransferCard";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -45,6 +45,7 @@ import {
   serializeCustomHeaderLines,
 } from "../lib/custom-headers";
 import type { CandidateProfile, ExtensionSettings } from "../types";
+import { MAX_RESUME_BYTES, parseResume } from "../lib/resume-parser";
 
 interface Props {
   initialProfile: CandidateProfile;
@@ -81,6 +82,12 @@ export default function ProfileEditor({
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [parsingResume, setParsingResume] = useState(false);
+  const [resumeWarnings, setResumeWarnings] = useState<string[]>([]);
+  const resumeOperation = useRef(0);
+  const resumeBusy = useRef(false);
+
+  useEffect(() => () => { resumeOperation.current += 1; }, []);
   const [testing, setTesting] = useState(false);
   const [testStatus, setTestStatus] = useState("");
   const [customHeadersText, setCustomHeadersText] = useState(() =>
@@ -223,13 +230,14 @@ export default function ProfileEditor({
   }
 
   function validateStep(): boolean {
+    if (resumeBusy.current) return false;
     setError("");
     if (step === 0 && (!profile.identity.fullName.trim() || !profile.identity.email.trim())) {
       setError("Your name and email are required.");
       return false;
     }
     if (step === 1 && profile.resumeText.trim().length < 100) {
-      setError("Paste the full text of your resume so answers can stay grounded.");
+      setError("Upload your resume and review the extracted text before continuing.");
       return false;
     }
     if (step === 3) {
@@ -369,22 +377,43 @@ export default function ProfileEditor({
   }
 
   async function attachResume(file?: File) {
-    if (!file) return;
+    if (!file || resumeBusy.current) return;
     setError("");
-    if (file.size > 8 * 1024 * 1024) {
+    if (file.size > MAX_RESUME_BYTES) {
       setError("Keep the resume file under 8 MB.");
       return;
     }
-    const dataUrl = await fileToDataUrl(file);
-    setProfile((current) => ({
-      ...current,
-      resumeAttachment: {
-        name: file.name,
-        mimeType: file.type || "application/octet-stream",
-        size: file.size,
-        dataUrl,
-      },
-    }));
+    const operation = ++resumeOperation.current;
+    resumeBusy.current = true;
+    setParsingResume(true);
+    try {
+      const [{ text, warnings }, dataUrl] = await Promise.all([
+        parseResume(file),
+        fileToDataUrl(file),
+      ]);
+      if (operation !== resumeOperation.current) return;
+      // File and candidate truth must always refer to the same successful upload.
+      setProfile((current) => ({
+        ...current,
+        resumeText: text,
+        resumeAttachment: {
+          name: file.name,
+          mimeType: file.type || "application/octet-stream",
+          size: file.size,
+          dataUrl,
+        },
+      }));
+      setResumeWarnings(warnings);
+    } catch (cause) {
+      if (operation === resumeOperation.current) {
+        setError(cause instanceof Error ? cause.message : "Could not extract your resume. Your previous resume has not changed.");
+      }
+    } finally {
+      if (operation === resumeOperation.current) {
+        resumeBusy.current = false;
+        setParsingResume(false);
+      }
+    }
   }
 
   /**
@@ -416,6 +445,8 @@ export default function ProfileEditor({
       error={error}
       saving={saving}
       testing={testing}
+      parsingResume={parsingResume}
+      resumeWarnings={resumeWarnings}
       testStatus={testStatus}
       apiKeyExists={activeApiKeyExists}
       exaApiKey={exaApiKey}
