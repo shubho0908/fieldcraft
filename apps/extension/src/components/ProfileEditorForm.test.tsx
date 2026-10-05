@@ -31,6 +31,8 @@ function renderAnthropicForm() {
     error: "",
     saving: false,
     testing: false,
+    parsingResume: false,
+    resumeWarnings: [],
     testStatus: "",
     apiKeyExists: false,
     exaApiKey: "",

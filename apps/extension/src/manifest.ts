@@ -15,6 +15,10 @@ const baseManifest = {
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png",
   },
+  content_security_policy: {
+    // Local OCR executes packaged WebAssembly; no remote scripts or eval.
+    extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+  },
   action: {
     default_title: "Open Fieldcraft",
     default_icon: {

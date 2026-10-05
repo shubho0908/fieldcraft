@@ -1,0 +1,9 @@
+{
+  "name": "legacy-word-parser",
+  "version": "0.1.0",
+  "private": true,
+  "license": "0BSD",
+  "main": "docToText.cjs",
+  "browser": "docToText.cjs",
+  "types": "index.d.ts"
+}
