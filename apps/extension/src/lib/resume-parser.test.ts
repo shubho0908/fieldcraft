@@ -62,6 +62,31 @@ describe("parseResume: actual PDF documents", () => {
     expect(result.text).not.toContain("SKILLS EXPERIENCE");
   });
 
+  test.each([90, 270])("normalizes /Rotate %i, counter-rotated text and a nonzero CropBox before ordering columns", async (rotation) => {
+    // These are real PDF content matrices, not mutated TextItem mocks. Their
+    // cropped landscape page renders as an upright portrait, with two column
+    // bands separated by a spanning heading.
+    const result = await parseResume(await fixture(`rotated-${rotation}-resume.pdf`));
+    const ordered = [
+      "Ada Example - Rotated Software Engineer",
+      "ada+qa@example.test | London | INV-0010",
+      "SKILLS", "TypeScript and React", "Accessible interfaces", "Distributed systems",
+      "EXPERIENCE", "Senior Engineer at Northwind", "Improved performance by 35.07%", "Started on 2021-09-17",
+      "EDUCATION AND PROJECTS ACROSS BOTH COLUMNS",
+      "Computer Science degree", "University of Example", "Research and mentoring",
+      "Reliable API delivery", "PostgreSQL production systems", "Led accessible product launches",
+    ];
+    let previous = -1;
+    for (const text of ordered) {
+      const index = result.text.indexOf(text);
+      expect(index, text).toBeGreaterThan(previous);
+      expect(result.text.split(text)).toHaveLength(2);
+      previous = index;
+    }
+    expect(result.text).not.toContain("SKILLS EXPERIENCE");
+    expect(result.warnings).toEqual([]);
+  });
+
   test("retains page boundaries and text from later pages", async () => {
     const result = await parseResume(await fixture("two-page-resume.pdf"));
     expect(result.text).toContain("\f");

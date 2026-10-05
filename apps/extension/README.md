@@ -77,6 +77,18 @@ Load the development output shown by CRXJS in `chrome://extensions` (usually `ap
 - `bun run eval` — deterministic judges (no network)
 - `bun run eval:live` — optional live AI-provider run of the fixture pack (skipped without a configured API key)
 
+The production-extension browser regressions require Node 20+ (CI uses Node 22). From `apps/extension`:
+
+```bash
+bun run build
+bunx playwright install chromium
+bun run test:browser
+```
+
+On Linux, use `bunx playwright install --with-deps chromium` to install browser system dependencies too. The suite launches isolated Chromium profiles, uploads real PDFs through the packaged sidepanel under MV3 CSP, verifies successful English OCR, preserves exact embedded facts beside large images, and checks saving/reloading and failed replacement. It runs offline without API keys. PR checks and release packaging both run it.
+
+Synthetic resume fixtures and browser tests remain in source control for reproducible verification. Releases package only `dist`; these test documents, test runners, and browser profiles are not shipped.
+
 Live eval options (env):
 
 | Env | Default | Description |
@@ -139,8 +151,8 @@ Monorepo overview, web app, and release packaging: [../../README.md](../../READM
 
 ## Practical limitations
 
-- Extraction preserves readable text boundaries (paragraphs, lists, tables, and page breaks), not the original visual design. PDF reading order is inferred from coordinates; complex layouts require review.
-- Scanned PDFs use local English OCR with a minimum confidence check. OCR cannot guarantee exact characters or numbers; other scan languages are not supported. Unreadable, encrypted, corrupt, or excessive-complexity files are rejected rather than saved as partial candidate truth. PDFs are limited to 50 pages.
+- Extraction preserves readable text boundaries (paragraphs, lists, tables, and page breaks), not the original visual design. PDF reading order uses viewport coordinates, including page rotation and crop offsets; complex layouts still require review.
+- Scanned PDFs use local English OCR with a minimum confidence check. OCR cannot guarantee exact characters or numbers; other scan languages are not supported. On mixed pages, embedded text is retained verbatim and only spatially separate, confident OCR words are added. If image content is unreadable but the embedded text is usable, a warning identifies that unrecognized image text was not added; unreadable scan-only pages are rejected. Encrypted, corrupt, or excessive-complexity files are rejected rather than saved as partial candidate truth. PDFs are limited to 50 pages.
 - Word images are not OCRed. DOCX drawing/text-box limitations and legacy DOC layout conversions produce review warnings; export a text-based PDF when important facts are embedded in images.
 - PDF and OCR workers, fonts, character maps, WebAssembly, and English language data are packaged with the extension; parsing does not use a CDN or upload document bytes.
 - Chrome blocks content scripts on internal pages and the Chrome Web Store.

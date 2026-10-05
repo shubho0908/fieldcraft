@@ -1,5 +1,6 @@
-import type { TextItem } from "pdfjs-dist/types/src/display/api";
-import type { Worker as OcrWorker } from "tesseract.js";
+import type { TextContent, TextItem } from "pdfjs-dist/types/src/display/api";
+import type { PageViewport } from "pdfjs-dist/types/src/display/display_utils";
+import type { Page as OcrPage, Worker as OcrWorker } from "tesseract.js";
 import { readDocStreams } from "./resume-doc-container";
 import { readDocxArchive } from "./resume-docx-archive";
 
@@ -73,14 +74,47 @@ function asset(path: string): string {
   return new URL(`resume-parser/${path}`, document.baseURI).href;
 }
 
-type Span = { text: string; x: number; y: number; end: number; height: number; eol: boolean };
-function pdfPageText(items: TextItem[], width: number): string {
-  const spans: Span[] = items.filter((item) => item.str.trim()).map((item) => ({
-    text: item.str, x: item.transform[4], y: item.transform[5],
-    end: item.transform[4] + item.width,
-    height: Math.max(Math.abs(item.height), 1), eol: item.hasEOL,
-  }));
+type Span = {
+  text: string; x: number; end: number; top: number; bottom: number;
+  y: number; height: number; dir: string;
+};
+
+function nativeSpans(content: TextContent, viewport: PageViewport): Span[] {
+  const spans: Span[] = [];
+  const [a, b, c, d] = viewport.transform;
+  for (const item of content.items) {
+    if (!("str" in item) || !item.str.trim()) continue;
+    const [u, v, w, z, px, py] = item.transform;
+    const [x, y] = viewport.convertToViewportPoint(px, py);
+    const style = content.styles[item.fontName];
+    // Match PDF.js's text layer: transform both the baseline and font metrics
+    // into the rendering viewport (including /Rotate, CropBox and UserUnit).
+    const angle = Math.atan2(b * u + d * v, a * u + c * v) + (style?.vertical ? Math.PI / 2 : 0);
+    const height = Math.max(Math.hypot(a * w + c * z, b * w + d * z), 1);
+    const ascent = Number.isFinite(style?.ascent) ? style.ascent : 0.8;
+    const descent = Number.isFinite(style?.descent) ? style.descent : -0.2;
+    const advance = (style?.vertical ? item.height : item.width) * viewport.scale * viewport.userUnit;
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    const corners = [
+      [x + dy * height * ascent, y - dx * height * ascent],
+      [x + dy * height * descent, y - dx * height * descent],
+      [x + dx * advance + dy * height * ascent, y + dy * advance - dx * height * ascent],
+      [x + dx * advance + dy * height * descent, y + dy * advance - dx * height * descent],
+    ];
+    spans.push({
+      text: item.str, x: Math.min(...corners.map((point) => point[0])),
+      end: Math.max(...corners.map((point) => point[0])),
+      top: Math.min(...corners.map((point) => point[1])),
+      bottom: Math.max(...corners.map((point) => point[1])),
+      y, height, dir: item.dir,
+    });
+  }
+  return spans;
+}
+
+function pdfPageText(spans: Span[], width: number): string {
   if (!spans.length) return "";
+  const rtl = spans.filter((span) => span.dir === "rtl").length > spans.length / 2;
   // Look for a genuine vertical gutter supported by several lines on both
   // sides. A title spanning it remains a full-width band above the columns.
   let split: number | undefined;
@@ -92,14 +126,18 @@ function pdfPageText(items: TextItem[], width: number): string {
     const leftRows = new Set(left.map((span) => Math.round(span.y / 6)));
     const rightRows = new Set(right.map((span) => Math.round(span.y / 6)));
     if (leftRows.size < 3 || rightRows.size < 3) continue;
-    const columnTop = Math.min(Math.max(...left.map((s) => s.y)), Math.max(...right.map((s) => s.y)));
-    const columnBottom = Math.max(Math.min(...left.map((s) => s.y)), Math.min(...right.map((s) => s.y)));
-    if (crossing.some((span) => span.y < columnTop && span.y > columnBottom)) continue;
+    const columnTop = Math.max(Math.min(...left.map((s) => s.y)), Math.min(...right.map((s) => s.y)));
+    const columnBottom = Math.min(Math.max(...left.map((s) => s.y)), Math.max(...right.map((s) => s.y)));
+    // A standalone full-width heading separates column bands; it is not a
+    // violation of their gutter. Reject only crossings sharing a column row.
+    if (crossing.some((span) => span.y > columnTop && span.y < columnBottom
+      && (left.some((other) => Math.abs(other.y - span.y) <= Math.min(other.height, span.height) * 0.35)
+        || right.some((other) => Math.abs(other.y - span.y) <= Math.min(other.height, span.height) * 0.35)))) continue;
     const gutter = Math.min(...right.map((s) => s.x)) - Math.max(...left.map((s) => s.end));
     if (gutter > best) { best = gutter; split = x; }
   }
   function lines(group: Span[]): string {
-    const ordered = group.sort((a, b) => b.y - a.y || a.x - b.x);
+    const ordered = group.sort((a, b) => a.y - b.y || a.x - b.x);
     const rows: { y: number; height: number; spans: Span[] }[] = [];
     for (const span of ordered) {
       const row = rows[rows.length - 1];
@@ -107,32 +145,88 @@ function pdfPageText(items: TextItem[], width: number): string {
       else rows.push({ y: span.y, height: span.height, spans: [span] });
     }
     return rows.map((row, index) => {
-      row.spans.sort((a, b) => a.x - b.x);
+      const rowRtl = row.spans.filter((span) => span.dir === "rtl").length > row.spans.length / 2;
+      row.spans.sort((a, b) => rowRtl ? b.end - a.end : a.x - b.x);
       let text = "";
       for (let i = 0; i < row.spans.length; i++) {
         const current = row.spans[i];
         const previous = row.spans[i - 1];
-        const gap = previous && current.x - previous.end;
+        const gap = previous && (rowRtl ? previous.x - current.end : current.x - previous.end);
         text += previous && gap > Math.min(previous.height, current.height) * 0.12 && !/\s$/.test(text) && !/^\s/.test(current.text) ? ` ${current.text}` : current.text;
       }
       const previous = rows[index - 1];
-      return `${previous && previous.y - row.y > Math.max(previous.height, row.height) * 1.7 ? "\n" : ""}${text}`;
+      return `${previous && row.y - previous.y > Math.max(previous.height, row.height) * 1.7 ? "\n" : ""}${text}`;
     }).join("\n");
   }
   if (split === undefined) return lines(spans);
   const full = spans.filter((span) => span.x <= split! && span.end >= split!);
   // Full-width headings separate independent column bands. Within each band
   // read down the left column, then down the right, never across their rows.
-  const boundaries = [...new Set(full.map((span) => span.y))].sort((a, b) => b - a);
+  const boundaries = [...new Set(full.map((span) => span.y))].sort((a, b) => a - b);
   const output: string[] = [];
-  let top = Infinity;
-  for (const bottom of [...boundaries, -Infinity]) {
-    const band = spans.filter((span) => span.y < top - 1 && span.y > bottom + 1);
-    output.push(lines(band.filter((span) => span.end < split!)), lines(band.filter((span) => span.x > split!)));
+  let top = -Infinity;
+  for (const bottom of [...boundaries, Infinity]) {
+    const band = spans.filter((span) => span.y > top + 1 && span.y < bottom - 1);
+    const left = lines(band.filter((span) => span.end < split!));
+    const right = lines(band.filter((span) => span.x > split!));
+    output.push(...(rtl ? [right, left] : [left, right]));
     if (Number.isFinite(bottom)) output.push(lines(spans.filter((span) => Math.abs(span.y - bottom) <= 1)));
     top = bottom;
   }
   return output.filter(Boolean).join("\n\n");
+}
+
+function rasterSpans(data: OcrPage, native: Span[], scale: number, width: number, height: number): { spans: Span[]; uncertain: boolean } {
+  // A bounded vertical index avoids comparing every OCR word with every
+  // native span. Exclusion is geometric, never fuzzy matching of facts.
+  const rows = new Map<number, Span[]>();
+  let entries = 0;
+  for (const span of native) {
+    const padding = Math.max(1, span.height * 0.12);
+    for (let row = Math.floor((span.top - padding) / 64); row <= Math.floor((span.bottom + padding) / 64); row++) {
+      if (++entries > 250_000) fail("The PDF exceeds safe text geometry limits. Export a simpler PDF.");
+      const bucket = rows.get(row);
+      if (bucket) bucket.push(span);
+      else rows.set(row, [span]);
+    }
+  }
+  const spans: Span[] = [];
+  let words = 0, characters = 0, comparisons = 0;
+  let uncertain = !data.blocks?.length;
+  for (const block of data.blocks ?? []) {
+    for (const paragraph of block.paragraphs) {
+      for (const line of paragraph.lines) {
+        for (const word of line.words) {
+          if (++words > 100_000 || (characters += word.text.length) > MAX_DOCUMENT_TEXT) fail("The OCR result exceeds safe text complexity limits. Upload a shorter resume.");
+          if (!word.text.trim()) continue;
+          const { x0, y0, x1, y1 } = word.bbox;
+          const x = x0 / scale, end = x1 / scale, top = y0 / scale, bottom = y1 / scale;
+          if (![x, end, top, bottom].every(Number.isFinite) || x < 0 || top < 0 || end > width || bottom > height || end <= x || bottom <= top) { uncertain = true; continue; }
+          let covered = false;
+          for (let row = Math.floor(top / 64); row <= Math.floor(bottom / 64) && !covered; row++) {
+            for (const span of rows.get(row) ?? []) {
+              if (++comparisons > 2_000_000) fail("The PDF exceeds safe OCR geometry limits. Export a simpler PDF.");
+              const padding = Math.max(1, span.height * 0.12);
+              const overlap = Math.max(0, Math.min(end, span.end + padding) - Math.max(x, span.x - padding))
+                * Math.max(0, Math.min(bottom, span.bottom + padding) - Math.max(top, span.top - padding));
+              if (overlap > (end - x) * (bottom - top) * 0.2) { covered = true; break; }
+            }
+          }
+          if (covered) continue;
+          if (!Number.isFinite(word.confidence) || word.confidence < 65) { uncertain = true; continue; }
+          const baseline = line.baseline;
+          const fraction = baseline.x1 === baseline.x0 ? 0 : ((x0 + x1) / 2 - baseline.x0) / (baseline.x1 - baseline.x0);
+          const y = (baseline.y0 + fraction * (baseline.y1 - baseline.y0)) / scale;
+          spans.push({
+            text: word.text, x, end, top, bottom, y: Number.isFinite(y) ? y : bottom,
+            height: Math.max((line.rowAttributes?.rowHeight || y1 - y0) / scale, 1),
+            dir: paragraph.is_ltr === false ? "rtl" : "ltr",
+          });
+        }
+      }
+    }
+  }
+  return { spans, uncertain };
 }
 
 async function parsePdf(bytes: Uint8Array): Promise<Result> {
@@ -163,12 +257,14 @@ async function parsePdf(bytes: Uint8Array): Promise<Result> {
       const content = await page.getTextContent();
       const items = content.items.filter((item): item is TextItem => "str" in item);
       if (items.length > 100_000 || items.reduce((length, item) => length + item.str.length, 0) > MAX_DOCUMENT_TEXT) fail(`PDF page ${number} exceeds safe text complexity limits. Upload a shorter resume.`);
-      let text = pdfPageText(items, viewport.width);
+      const native = nativeSpans(content, viewport);
+      let text = pdfPageText(native, viewport.width);
+      const reliableNative = text.length >= 100 && (text.match(/\p{L}/gu)?.length || 0) >= 30;
       const operators = await page.getOperatorList();
       if (operators.fnArray.length > 200_000) fail(`PDF page ${number} exceeds safe graphics complexity limits. Export a simpler PDF.`);
       // Track the graphics matrix to distinguish a photo/logo from a scanned
-      // text region. For mixed pages, OCR the entire rendered page once so text
-      // inside the image is not silently lost or duplicated with its text layer.
+      // text region. OCR reads the rendered page; its spatial word boxes are
+      // merged with, never substituted for, exact native text spans.
       let matrix = [1, 0, 0, 1, 0, 0];
       const stack: number[][] = [];
       let imageArea = 0;
@@ -183,7 +279,8 @@ async function parsePdf(bytes: Uint8Array): Promise<Result> {
           matrix = [g * a + j * b, h * a + k * b, g * c + j * d, h * c + k * d, g * e + j * f + l, h * e + k * f + m];
         } else if (operation === pdf.OPS.paintImageXObject || operation === pdf.OPS.paintInlineImageXObject || operation === pdf.OPS.paintImageMaskXObject) {
           hasImage = true;
-          imageArea += Math.abs(matrix[0] * matrix[3] - matrix[1] * matrix[2]);
+          const viewportAreaScale = Math.abs(viewport.transform[0] * viewport.transform[3] - viewport.transform[1] * viewport.transform[2]);
+          imageArea += Math.abs(matrix[0] * matrix[3] - matrix[1] * matrix[2]) * viewportAreaScale;
         } else if (operation === pdf.OPS.paintImageXObjectRepeat || operation === pdf.OPS.paintImageMaskXObjectRepeat || operation === pdf.OPS.paintInlineImageXObjectGroup || operation === pdf.OPS.paintImageMaskXObjectGroup) {
           // Optimized image groups use their own per-image transforms. OCR the
           // page rather than guessing their coverage and dropping scan text.
@@ -204,8 +301,8 @@ async function parsePdf(bytes: Uint8Array): Promise<Result> {
         const rasterViewport = page.getViewport({ scale });
         canvas.width = Math.ceil(rasterViewport.width);
         canvas.height = Math.ceil(rasterViewport.height);
-        await page.render({ canvas, canvasContext: context, viewport: rasterViewport }).promise;
         try {
+          await page.render({ canvas, canvasContext: context, viewport: rasterViewport }).promise;
           if (!ocr) {
             // OCR is loaded only for pages that actually require recognition.
             const { createWorker, OEM } = await import("tesseract.js");
@@ -215,12 +312,23 @@ async function parsePdf(bytes: Uint8Array): Promise<Result> {
               langPath: asset("ocr/"), cacheMethod: "none", gzip: true,
             });
           }
-          const result = await ocr.recognize(canvas);
-          text = result.data.text.trim();
-          if (result.data.confidence < 65 || (text.match(/\p{L}/gu)?.length || 0) < 20) {
+          // Tesseract 6 disables geometry by default. Request actual word/line
+          // boxes explicitly; they use the same raster viewport as the canvas.
+          const result = await ocr.recognize(canvas, { rotateAuto: false, rotateRadians: 0 }, { text: true, blocks: true });
+          const raster = rasterSpans(result.data, native, scale, canvas.width / scale, canvas.height / scale);
+          const rasterLetters = raster.spans.reduce((count, span) => count + (span.text.match(/\p{L}/gu)?.length || 0), 0);
+          const readableRaster = rasterLetters >= 20
+            && (native.length > 0 || (Number.isFinite(result.data.confidence) && result.data.confidence >= 65));
+          if (!readableRaster && !reliableNative) {
             fail(`PDF page ${number} could not be read reliably by local English OCR. Upload a clearer scan or a text-based PDF; no partial text was saved.`);
           }
-          warnings.push(`Page ${number} used local English OCR. Recognition may change characters, numbers or layout; review the extracted text carefully. Other languages are not supported by the bundled OCR model.`);
+          if (readableRaster) {
+            text = pdfPageText([...native, ...raster.spans], viewport.width);
+            warnings.push(`Page ${number} used local English OCR for image text; its embedded text was preserved exactly. Recognition may change characters, numbers or layout in images; review the extracted text carefully. Other languages are not supported by the bundled OCR model.`);
+          }
+          if (!readableRaster || raster.uncertain) {
+            warnings.push(`Page ${number} image content could not be read reliably in full by local English OCR. Its embedded text was preserved exactly; unrecognized image text was not added. Review the original images or upload a clearer scan.`);
+          }
         } catch (error) {
           if (error instanceof Error && error.message.includes("no partial text")) throw error;
           fail(`Local OCR could not read PDF page ${number}. The extension requires its packaged OCR worker, English language data and WebAssembly CSP permission. No document bytes were uploaded and no partial text was saved.`);

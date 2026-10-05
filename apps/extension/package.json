@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "build:safari": "tsc --noEmit && EXTENSION_TARGET=safari vite build && node scripts/strip-safari-sidepanel.mjs",
     "test": "vitest run",
+    "test:browser": "bunx playwright test",
     "test:watch": "vitest",
     "eval": "vitest run src/lib/eval/eval.test.ts",
     "eval:live": "vitest run src/lib/eval/live.eval.test.ts",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.7.1",
     "@napi-rs/canvas": "0.1.88",
+    "@playwright/test": "1.63.0",
     "@types/chrome": "^0.0.287",
     "@types/jsdom": "21.1.7",
     "@types/react": "^18.3.18",

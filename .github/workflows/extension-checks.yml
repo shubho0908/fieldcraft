@@ -1,0 +1,56 @@
+name: Extension checks
+
+on:
+  pull_request:
+    paths:
+      - 'apps/extension/**'
+      - 'packages/config/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bun.lockb'
+      - '.github/workflows/extension-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: avrea-ubuntu-latest-1-vcpu
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run --filter fieldcraft-extension check
+
+      - name: Test
+        run: bun run --filter fieldcraft-extension test
+
+      - name: Build Chrome extension
+        run: bun run --filter fieldcraft-extension build
+
+      - name: Install browser and system dependencies
+        working-directory: apps/extension
+        run: bunx playwright install --with-deps chromium
+
+      - name: Verify packaged extension uploads and local OCR
+        run: bun run --filter fieldcraft-extension test:browser
