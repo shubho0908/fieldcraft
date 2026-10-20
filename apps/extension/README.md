@@ -14,6 +14,12 @@ Fieldcraft is a local-first Chrome MV3 extension that reads a job/application pa
 - Supports two autofill modes: **Analyze with AI** (research, fit score, drafted answers) and **Direct-fill** (instant profile-to-form mapping without an AI call).
 - Requires field-level review. Sensitive or unsupported facts are never guessed, and the extension never presses Submit.
 
+### If the shortcut does nothing
+
+- **Helium / Chrome / Edge:** open `chrome://extensions/shortcuts` (`helium://extensions/shortcuts` in Helium). Under **Fieldcraft → Toggle the Fieldcraft side panel**, check that the shortcut is assigned to **⌥F** on macOS or **Ctrl+Shift+F** on Windows. A suggested key in the manifest does not guarantee that the browser registered it. Another extension, or an old unpacked installation, can retain the binding. Keep unpacked builds in the same folder when updating: changing folders changes the extension ID and can leave the shortcut assigned to the old installation.
+- **Safari:** install the Safari build as a packaged Safari web extension app, enable it in **Safari → Settings → Extensions**, and allow access to the website being used. Safari renders Fieldcraft as a page overlay, so open a regular HTTP(S) page and reload it after installing/updating. Browser settings pages, the Start Page, and other protected pages cannot host the overlay. In Safari 26 or later, inspect the extension's keyboard shortcut in Safari's extension settings. The Chrome build ZIP cannot be loaded directly into Safari.
+- Test the toolbar button too. If the button opens Fieldcraft but the keyboard shortcut does not, inspect the binding before changing website permissions. Background failures are logged with a `[Fieldcraft]` prefix in the extension's background/service-worker console.
+
 ## Install the ready build
 
 From a published ZIP (GitHub Releases / product site download) or a local production build:

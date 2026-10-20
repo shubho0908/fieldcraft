@@ -54,7 +54,9 @@ export function openSidePanel(windowId: number): void {
   // and doesn't break the gesture context.
   const api = sidePanelApi();
   if (!api) return;
-  api.open({ windowId }).catch(() => {});
+  api.open({ windowId }).catch((error: unknown) => {
+    console.warn("[Fieldcraft] Could not open side panel:", error);
+  });
 }
 
 /**

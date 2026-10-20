@@ -125,18 +125,31 @@ if (typeof chrome !== "undefined" && "windows" in chrome) {
 // Ctrl+Shift+F (Windows) / Option+F (macOS) — open or close the Fieldcraft panel.
 // On Chrome/Edge this uses the native side panel. On Safari (and any browser
 // without chrome.sidePanel) it toggles a content-script overlay iframe.
-chrome.commands.onCommand.addListener((command) => {
+chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== SIDE_PANEL_TOGGLE_COMMAND) return;
 
   if (!isSidePanelApiSupported()) {
-    void toggleOverlayOnActiveTab();
+    // Use the tab attached to this command; querying later can target another
+    // tab if focus changes while Safari wakes the background worker.
+    if (tab?.id != null) {
+      void sendToggleOverlayToTab(tab.id).then((result) => {
+        if (!result.ok) console.warn("[Fieldcraft] Could not toggle overlay:", result.error);
+      });
+    } else {
+      void toggleOverlayOnActiveTab();
+    }
     return;
   }
 
-  const windowId = _lastFocusedWindowId;
+  // Chrome supplies the active tab with the command, including on a cold MV3
+  // start. Its window is authoritative; the startup focus lookup may still be
+  // pending, or the cache may refer to a window that just lost focus.
+  const windowId = tab?.windowId ?? _lastFocusedWindowId;
   if (windowId == null) {
     // Cache not ready — try async toggle (close still works via port fallback).
-    void toggleSidePanel(sidePanelPorts);
+    void toggleSidePanel(sidePanelPorts).catch((error: unknown) => {
+      console.warn("[Fieldcraft] Could not toggle side panel:", error);
+    });
     return;
   }
 
