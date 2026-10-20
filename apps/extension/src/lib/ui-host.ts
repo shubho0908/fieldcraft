@@ -83,7 +83,12 @@ export async function sendToggleOverlayToTab(tabId: number): Promise<{ ok: boole
 }
 
 export async function toggleOverlayOnActiveTab(): Promise<void> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-  await sendToggleOverlayToTab(tab.id);
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id == null) return;
+    const result = await sendToggleOverlayToTab(tab.id);
+    if (!result.ok) console.warn("[Fieldcraft] Could not toggle overlay:", result.error);
+  } catch (error) {
+    console.warn("[Fieldcraft] Could not resolve the overlay tab:", error);
+  }
 }
