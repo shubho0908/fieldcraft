@@ -6,7 +6,7 @@ import { runJobAnalysis } from "../openai";
 import type { ExtensionSettings, JobAnalysis } from "../../types";
 import { EVAL_FIXTURES } from "./fixtures";
 import { evaluateAnalysis, report, result } from "./judges";
-import { auditGrounding, groundingSources, judgeSourceProvenance } from "./grounding";
+import { auditGrounding, groundingSources } from "./grounding";
 import type { EvalReport, GroundingSource } from "./types";
 
 export { DEFAULT_EVAL_MODEL_ID as DEFAULT_EVAL_MODEL, DEFAULT_EVAL_REASONING_EFFORT as DEFAULT_EVAL_REASONING };
@@ -154,7 +154,7 @@ export async function runLiveEval(options: LiveEvalOptions): Promise<LiveEvalCas
         const sources = groundingSources(fixture, researchSources);
         const audit = await auditGrounding(fixture, analysis, sources, { apiKey: judgeApiKey, model: judgeModel, customBaseUrl: resolved.customBaseUrl, customProtocol: resolved.customProtocol, customHeaders: resolved.customHeaders });
         const evaluated = evaluateAnalysis(fixture, analysis, audit);
-        const evaluatedReport = report(fixture.id, [...evaluated.results, judgeSourceProvenance(analysis, sources, fixture)]);
+        const evaluatedReport = evaluated;
         runs.push({ run, score: analysis.fit.score, verdict: analysis.fit.score === null ? null : analysis.fit.verdict, report: evaluatedReport, analysis });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Live evaluation failed";

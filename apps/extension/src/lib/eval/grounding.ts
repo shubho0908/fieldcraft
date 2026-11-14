@@ -77,7 +77,7 @@ export async function auditGrounding(fixture: EvalFixture, analysis: JobAnalysis
   const response = await generateText({
     model: createAiModel({ model, apiKey: options.apiKey, baseURL: options.customBaseUrl, protocol: options.customProtocol, headers: options.customHeaders }),
     instructions: model.provider === Provider.Custom ? `${GROUNDING_INSTRUCTIONS}\nReturn a JSON object: {"findings":[{"id":"unit id","status":"supported|unsupported|no_factual_claim","reason":"explanation","citations":[{"sourceId":"source id","quote":"exact excerpt"}]}]}. No markdown.` : GROUNDING_INSTRUCTIONS,
-    prompt: JSON.stringify({ currentDate: fixture.snapshot.capturedAt.slice(0, 10), employer: fixture.company, units: analysisUnits(analysis), sources }),
+    prompt: JSON.stringify({ currentDate: new Date().toISOString().slice(0, 10), employer: fixture.company, units: analysisUnits(analysis), sources }),
     tools: {}, maxOutputTokens: 24000,
     ...(model.provider === Provider.OpenAI ? { providerOptions: { openai: { store: false } } } : {}),
     ...(model.provider === Provider.Custom ? {} : { output: Output.object({ schema: GROUNDING_SCHEMA }) }),

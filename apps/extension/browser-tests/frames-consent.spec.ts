@@ -137,3 +137,23 @@ test("a same-URL iframe reload invalidates captured answers instead of filling a
   await expect(page.frameLocator('iframe[title="Application"]').locator("#name")).toHaveValue("");
   await page.close();
 });
+
+test("captures actual public Greenhouse markup inside a cross-origin iframe", async () => {
+  const html = await readFile(fileURLToPath(new URL("../src/lib/__fixtures__/ats/public-greenhouse.html", import.meta.url)), "utf8");
+  const page = await context.newPage();
+  await page.route(`${origin}/greenhouse-shell`, (route) => route.fulfill({ contentType: "text/html; charset=utf-8", body: `<!doctype html><title>Company careers</title><iframe title="Greenhouse application" style="width:900px;height:900px" src="${embeddedOrigin}/greenhouse-public"></iframe>` }));
+  await page.route(`${embeddedOrigin}/greenhouse-public`, (route) => route.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+  await page.goto(`${origin}/greenhouse-shell`);
+  await expect(page.frameLocator('iframe[title="Greenhouse application"]').getByLabel("First Name", { exact: true })).toBeVisible();
+  const tabId = await worker.evaluate(async (url) => (await chrome.tabs.query({})).find((tab) => tab.url === url)!.id!, page.url());
+  expect(await request({ type: "FIELDCRAFT_DIRECT_FILL", tabId, url: page.url() })).toMatchObject({ ok: true });
+  const session = await tabSession(tabId);
+  expect(session.snapshot!.fields).toHaveLength(25);
+  expect(session.snapshot!.fields.every((field) => field.frameId !== 0)).toBe(true);
+  expect(session.snapshot!.fields.slice(0, 3).map((field) => field.label)).toEqual(["First Name", "Last Name", "Email"]);
+  expect(session.snapshot!.jobDescriptionDetected).toBe(true);
+  const opening = session.snapshot!.jobDescriptionText!.slice(0, 100);
+  expect(session.snapshot!.pageText.split(opening).length - 1).toBe(1);
+  expect(session.selectedFieldIds).toEqual([]);
+  await expect(page.frameLocator('iframe[title="Greenhouse application"]').getByLabel("First Name", { exact: true })).toHaveValue("");
+});

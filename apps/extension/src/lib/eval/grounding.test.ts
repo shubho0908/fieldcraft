@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { analysisUnits, judgeGrounding } from "./grounding";
+import { analysisUnits, judgeGrounding, judgeSourceProvenance } from "./grounding";
+import { EVAL_FIXTURES } from "./fixtures";
 import { toSafeAnalysis } from "../analysis";
 import type { GroundingAudit } from "./types";
 
@@ -9,6 +10,11 @@ function audit(): GroundingAudit {
   return { sources, findings: analysisUnits(analysis).map((unit) => ({ id: unit.id, status: "supported", reason: "Explicit evidence", citations: [{ sourceId: unit.id.startsWith("fit.") ? "p" : "j", quote: unit.text }] })) };
 }
 describe("independent grounding audit validation", () => {
+  it("checks source provenance as a unit invariant, not a sanitized-run accuracy metric", () => {
+    const fixture = EVAL_FIXTURES[0];
+    const invalid = { ...analysis, company: { ...analysis.company, sources: [{ title: "Job", url: fixture.snapshot.url }] } };
+    expect(judgeSourceProvenance(invalid, sources, fixture).ok).toBe(false);
+  });
   it("accepts complete audits with exact evidence in allowed sources", () => { expect(judgeGrounding(analysis, audit()).ok).toBe(true); });
   it("rejects omitted units and duplicate findings", () => {
     const missing = audit(); missing.findings.pop(); expect(judgeGrounding(analysis, missing).ok).toBe(false);
