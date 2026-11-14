@@ -16,6 +16,9 @@ const SENSITIVE_PATTERN =
   /\b(?:gender|sex|race|racial|ethnicity|ethnic|hispanic|latino|latina|latinx|disability|disabilities|disabled|veterans?|religion|religious|sexual orientation|lgbtq\w*|transgender|pronouns?|date of birth|birth\s?date|age|how old|18(?: years)? (?:of age )?or older|marital(?: status)?|nationality)\b/iu;
 
 const JOB_TEXT_SELECTORS = [
+  ".job__description",
+  ".ashby-job-posting-description",
+  ".show-more-less-html__markup",
   "[data-automation-id='jobPostingDescription']",
   "[data-testid*='job-description']",
   "[class*='job-description']",
@@ -315,6 +318,7 @@ function capturePageContext(doc: Document, fields: PageField[]) {
   for (const selector of JOB_TEXT_SELECTORS) {
     const candidates = queryAll<HTMLElement>(doc, selector)
       .filter((node) => isVisible(node) && !isExcludedText(node))
+      .filter((node) => !["main", "article"].includes(selector) || !queryAll<HTMLInputElement>(doc, "input").some((input) => node.contains(input) && /search.*(?:roles|jobs|positions)/i.test(`${input.placeholder} ${input.getAttribute("aria-label") ?? ""}`)))
       .map((node) => ({ node, text: visibleText(node, true) }))
       .filter(({ text }) => text.length > 120 && /\b(?:responsibilities|requirements|qualifications|about (?:the|this) role|what you(?:'|’)ll do|experience|we(?:'|’)re hiring)\b/iu.test(text));
     const candidate = candidates.find(({ node }) => !candidates.some((other) => other.node !== node && node.contains(other.node)));
@@ -887,7 +891,10 @@ function markFilled(element: HTMLElement): void {
 }
 
 function parseBoolean(value: string): boolean {
-  return /^(true|yes|y|1|checked)$/i.test(value.trim());
+  const normalized = value.trim();
+  if (/^(true|yes|y|1|checked)$/i.test(normalized)) return true;
+  if (/^(false|no|n|0|unchecked)$/i.test(normalized)) return false;
+  throw new Error("No exact matching checkbox choice. Select an explicit yes or no answer.");
 }
 
 function cleanText(value: string): string {

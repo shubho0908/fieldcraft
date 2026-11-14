@@ -1,4 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+it("does not turn an unknown checkbox answer into a negative attestation", async () => {
+  document.body.innerHTML = '<label>Authorization confirmation<input type="checkbox" checked></label>';
+  const field = collectFields(document)[0];
+  const results = await fillPageFields([{ fieldId: field.id, label: field.label, action: "review", value: "I do not know", confidence: "high", evidence: "Explicit review", warning: "Confirm" }], document, undefined, new Set([field.id]));
+  expect(results[0].status).toBe("failed");
+  expect((document.querySelector("input") as HTMLInputElement).checked).toBe(true);
+});
 import { collectFields, collectPageSnapshot, detectAts, extractRelevantPageText, fillPageFields } from "./page";
 import { Confidence, SuggestionAction } from "./enums";
 import type { FieldSuggestion, PageField } from "../types";
