@@ -97,8 +97,8 @@ export function isElementVisible(
 
   let { left, right, top, bottom } = rect;
   // Inner scrolling changes where an element sits in an outer content box.
-  // Undo it before testing the outer origin: the reachable position is the
-  // one with those inner scrollers back at zero.
+  // Track the extremes inner scrollers can produce: the rightmost position
+  // tests a left origin, and the leftmost tests a right (RTL) origin.
   let innerScrollX = 0;
   let innerMinScrollX = 0;
   let innerScrollY = 0;

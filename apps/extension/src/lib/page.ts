@@ -360,7 +360,7 @@ function capturePageContext(doc: Document, fields: PageField[]) {
   // Only split loose blocks by card when every one of them has a card. A
   // single posting can put its apply control in one wrapper; without a card
   // for its other sections, keep the whole scope together.
-  const useCards = looseRoots.length > 1 && looseRoots.every((root) => cards.get(root));
+  const useCards = looseRoots.length > 1 && looseRoots.every((root) => Boolean(cards.get(root)));
   const postingGroups = new Map<Element, HTMLElement[]>();
   for (const root of roots) {
     const group = postingArticle(root) ?? (useCards ? cards.get(root) : null) ?? postingScope(root) ?? doc.body ?? doc.documentElement;
