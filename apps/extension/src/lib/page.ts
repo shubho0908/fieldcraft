@@ -347,23 +347,38 @@ function capturePageContext(doc: Document, fields: PageField[]) {
     return /\b(?:apply(?: now)?|view (?:this )?(?:job|role|position|posting)|job details)\b/i.test(label) ||
       jobHref.test(control.getAttribute("href") ?? "");
   };
-  const postingCard = (node: Element): Element | null => {
+  const postingTarget = (control: Element, card: Element): string => {
+    const jobId = control.getAttribute("data-job-id") ?? control.getAttribute("data-posting-id") ??
+      card.getAttribute("data-job-id") ?? card.getAttribute("data-posting-id");
+    if (jobId) return `job:${jobId}`;
+    const raw = control.getAttribute("href") ?? control.getAttribute("formaction") ??
+      control.closest("form")?.getAttribute("action") ?? "";
+    if (!raw || raw === "#" || /^javascript:/i.test(raw)) return "";
+    try {
+      return `url:${new URL(raw, control.ownerDocument.baseURI).href}`;
+    } catch {
+      return `url:${raw}`;
+    }
+  };
+  const postingCard = (node: Element): { card: Element; target: string } | null => {
     for (let parent = composedParent(node); parent; parent = composedParent(parent)) {
       if (parent.matches("main, body")) break;
-      if (queryAll<HTMLElement>(parent, "a[href], button, [role='button'], input[type='submit'], input[type='button']").some(isPostingCardControl)) return parent;
+      const control = queryAll<HTMLElement>(parent, "a[href], button, [role='button'], input[type='submit'], input[type='button']").find(isPostingCardControl);
+      if (control) return { card: parent, target: postingTarget(control, parent) };
     }
     return null;
   };
-  const cards = new Map<HTMLElement, Element | null>();
+  const cards = new Map<HTMLElement, { card: Element; target: string } | null>();
   for (const root of roots) cards.set(root, postingCard(root));
   const looseRoots = roots.filter((root) => !postingArticle(root));
-  // Only split loose blocks by card when every one of them has a card. A
-  // single posting can put its apply control in one wrapper; without a card
-  // for its other sections, keep the whole scope together.
-  const useCards = looseRoots.length > 1 && looseRoots.every((root) => Boolean(cards.get(root)));
-  const postingGroups = new Map<Element, HTMLElement[]>();
+  // Only split loose blocks by card when every one of them has a card. Cards
+  // that point at the same application are sections of one posting; cards
+  // with different targets are different roles.
+  const allCards = looseRoots.length > 1 && looseRoots.every((root) => Boolean(cards.get(root)));
+  const postingGroups = new Map<Element | string, HTMLElement[]>();
   for (const root of roots) {
-    const group = postingArticle(root) ?? (useCards ? cards.get(root) : null) ?? postingScope(root) ?? doc.body ?? doc.documentElement;
+    const card = cards.get(root);
+    const group = postingArticle(root) ?? (allCards && card ? (card.target || card.card) : null) ?? postingScope(root) ?? doc.body ?? doc.documentElement;
     const existing = postingGroups.get(group);
     if (existing) existing.push(root);
     else postingGroups.set(group, [root]);

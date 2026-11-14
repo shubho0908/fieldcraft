@@ -103,6 +103,16 @@ describe("complete composed posting capture", () => {
     expect(snapshot.jobDescriptionText).toContain(qualifications);
   });
 
+  it("keeps a split posting together when both sections link to the same application", () => {
+    const overview = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include professional engineering experience across teams.";
+    const qualifications = "Qualifications include five years of experience with distributed systems and clear written communication with product partners.";
+    document.body.innerHTML = `<main><section><div class="job-description"><p>${overview}</p></div><a href="/apply/123">Apply now</a></section><section><div class="job-description"><p>${qualifications}</p></div><a href="/apply/123">Apply now</a></section></main>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(true);
+    expect(snapshot.jobDescriptionText).toContain(overview);
+    expect(snapshot.jobDescriptionText).toContain(qualifications);
+  });
+
   it("keeps a non-English posting split across wrappers without an article", () => {
     const overview = "Buscamos una persona para diseñar sistemas de pagos confiables y trabajar con el equipo de producto durante los próximos años en esta oficina.";
     const qualifications = "La persona debe contar con cinco años de experiencia profesional y disponibilidad para trabajar de forma presencial en nuestra oficina de Madrid.";
