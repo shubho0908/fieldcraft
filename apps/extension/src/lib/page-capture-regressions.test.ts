@@ -73,10 +73,30 @@ describe("complete composed posting capture", () => {
     expect(snapshot.jobDescriptionText).not.toContain(nursing);
   });
 
+  it("keeps separate postings apart without article markup", () => {
+    const backend = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include five years of professional engineering experience and clear communication across teams.";
+    const nursing = "Responsibilities include delivering dependable bedside care and maintaining clinical records. Requirements include an active registered nurse license and three years of acute nursing experience.";
+    document.body.innerHTML = `<main><section class="job-card"><h2>Backend Engineer</h2><div class="job-description"><p>${backend}</p></div><a href="/jobs/backend">View job</a></section><section class="job-card"><h2>Registered Nurse</h2><div class="job-description"><p>${nursing}</p></div><a href="/jobs/nurse">View job</a></section></main>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(false);
+    expect(snapshot.jobDescriptionText).not.toContain(backend);
+    expect(snapshot.jobDescriptionText).not.toContain(nursing);
+  });
+
   it("keeps one posting's sections together when they sit in different wrappers", () => {
     const overview = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include professional engineering experience across teams.";
     const qualifications = "Qualifications include five years of experience with distributed systems and clear written communication with product partners.";
     document.body.innerHTML = `<main><section><h2>Overview</h2><div class="job-description"><p>${overview}</p></div></section><section><h2>Qualifications</h2><div class="job-description"><p>${qualifications}</p></div></section></main>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(true);
+    expect(snapshot.jobDescriptionText).toContain(overview);
+    expect(snapshot.jobDescriptionText).toContain(qualifications);
+  });
+
+  it("keeps a split posting together when only one section has an apply link", () => {
+    const overview = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include professional engineering experience across teams.";
+    const qualifications = "Qualifications include five years of experience with distributed systems and clear written communication with product partners.";
+    document.body.innerHTML = `<main><section><div class="job-description"><p>${overview}</p></div></section><section><div class="job-description"><p>${qualifications}</p></div><a href="/apply">Apply now</a></section></main>`;
     const snapshot = collectPageSnapshot(document);
     expect(snapshot.jobDescriptionDetected).toBe(true);
     expect(snapshot.jobDescriptionText).toContain(overview);

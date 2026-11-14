@@ -329,9 +329,10 @@ function capturePageContext(doc: Document, fields: PageField[]) {
     return null;
   };
   // A posting can split its description across wrappers. Only a distinct
-  // article is evidence of another role: grouping by the immediate parent
-  // drops overview and qualifications of one job, and the English fallback
-  // cannot recover that text when the posting is not in English.
+  // article or a card that links to its own role is evidence of another
+  // posting: grouping by the immediate parent drops overview and
+  // qualifications of one job, and the English fallback cannot recover that
+  // text when the posting is not in English.
   const postingArticle = (node: Element): Element | null => {
     if (node.matches("article")) return node;
     for (let parent = composedParent(node); parent; parent = composedParent(parent)) {
@@ -339,15 +340,35 @@ function capturePageContext(doc: Document, fields: PageField[]) {
     }
     return null;
   };
-  const articles = new Map<Element, HTMLElement[]>();
+  const jobHref = /(?:^|\/)(?:jobs?|careers?|positions?|apply)(?:\/|$|[?#])/i;
+  const isPostingCardControl = (control: Element): boolean => {
+    if (!isVisible(control as HTMLElement)) return false;
+    const label = `${control.textContent ?? ""} ${control.getAttribute("aria-label") ?? ""} ${control.getAttribute("value") ?? ""}`.replace(/\s+/g, " ").trim();
+    return /\b(?:apply(?: now)?|view (?:this )?(?:job|role|position|posting)|job details)\b/i.test(label) ||
+      jobHref.test(control.getAttribute("href") ?? "");
+  };
+  const postingCard = (node: Element): Element | null => {
+    for (let parent = composedParent(node); parent; parent = composedParent(parent)) {
+      if (parent.matches("main, body")) break;
+      if (queryAll<HTMLElement>(parent, "a[href], button, [role='button'], input[type='submit'], input[type='button']").some(isPostingCardControl)) return parent;
+    }
+    return null;
+  };
+  const cards = new Map<HTMLElement, Element | null>();
+  for (const root of roots) cards.set(root, postingCard(root));
+  const looseRoots = roots.filter((root) => !postingArticle(root));
+  // Only split loose blocks by card when every one of them has a card. A
+  // single posting can put its apply control in one wrapper; without a card
+  // for its other sections, keep the whole scope together.
+  const useCards = looseRoots.length > 1 && looseRoots.every((root) => cards.get(root));
+  const postingGroups = new Map<Element, HTMLElement[]>();
   for (const root of roots) {
-    const article = postingArticle(root);
-    if (!article) continue;
-    const existing = articles.get(article);
+    const group = postingArticle(root) ?? (useCards ? cards.get(root) : null) ?? postingScope(root) ?? doc.body ?? doc.documentElement;
+    const existing = postingGroups.get(group);
     if (existing) existing.push(root);
-    else articles.set(article, [root]);
+    else postingGroups.set(group, [root]);
   }
-  const separatePostings = [...articles.values()].filter((group) =>
+  const separatePostings = [...postingGroups.values()].filter((group) =>
     group.map((node) => visibleText(node, true)).join("\n\n").length > 120).length > 1;
   const scopes = new Set(roots.map(postingScope).filter((node) => node !== null));
   const headers = queryAll<HTMLElement>(doc, "header").filter((header) => {
@@ -363,7 +384,7 @@ function capturePageContext(doc: Document, fields: PageField[]) {
     description = explicitText;
     sections.forEach(({ node }) => descriptionNodes.add(node));
     source = `selector:${specificSelectors.find((selector) => explicit.some((node) => node.matches(selector)))}`;
-  } else {
+  } else if (!separatePostings) {
     const jobLanguage = /\b(?:responsibilities|requirements|qualifications|about (?:the|this) role|what you(?:'|’)ll do|experience|we(?:'|’)re hiring)\b/iu;
     const isListing = (node: HTMLElement) =>
       queryAll<HTMLInputElement>(node, "input").some((input) => isVisible(input) && /search.*(?:roles|jobs|positions)/i.test(`${input.placeholder} ${input.getAttribute("aria-label") ?? ""}`)) ||

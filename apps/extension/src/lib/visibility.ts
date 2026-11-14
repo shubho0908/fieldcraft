@@ -100,6 +100,7 @@ export function isElementVisible(
   // Undo it before testing the outer origin: the reachable position is the
   // one with those inner scrollers back at zero.
   let innerScrollX = 0;
+  let innerMinScrollX = 0;
   let innerScrollY = 0;
   for (const parent of ancestors.slice(1)) {
     if (parent.style.display === "contents") continue;
@@ -113,10 +114,20 @@ export function isElementVisible(
         // LTR scrolling stops at zero, so content before that origin is unreachable.
         // RTL scrolling stops at zero on the right and goes negative to reveal
         // content on the left, including content already on screen.
-        const contentLeft = rect.left - bounds.left + parent.element.scrollLeft + innerScrollX;
         const rtl = parent.style.direction === "rtl";
-        if (rtl ? contentLeft >= bounds.width : contentLeft + rect.width <= 0) return false;
+        if (rtl) {
+          // Inner scrollers move the field both ways: LTR scrolling leaves it
+          // at its current (leftmost) position, while RTL scrolling can bring
+          // it further left. Judge the leftmost position rather than assuming
+          // every inner scroller sits at zero.
+          const reachableLeft = rect.left - bounds.left + parent.element.scrollLeft + innerMinScrollX;
+          if (reachableLeft >= bounds.width) return false;
+        } else {
+          const contentLeft = rect.left - bounds.left + parent.element.scrollLeft + innerScrollX;
+          if (contentLeft + rect.width <= 0) return false;
+        }
         innerScrollX += Math.max(0, parent.element.scrollLeft);
+        innerMinScrollX += Math.min(0, parent.element.scrollLeft);
         const shift = right <= bounds.left ? bounds.left - left : left >= bounds.right ? bounds.right - right : 0;
         left += shift;
         right += shift;

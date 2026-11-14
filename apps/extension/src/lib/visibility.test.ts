@@ -113,6 +113,26 @@ describe("shared field and frame visibility", () => {
     expect(collectFields(document).map((field) => field.name)).toEqual(["reachable"]);
   });
 
+  it("keeps a visible field when an ltr scroller sits inside an rtl scroller", () => {
+    document.body.innerHTML = '<div id="outer" style="direction:rtl;overflow-x:auto;overflow-y:visible"><div id="inner" style="overflow-x:auto;overflow-y:visible"><input name="reachable"><iframe></iframe></div></div>';
+    document.querySelector("#inner")!.scrollLeft = 300;
+    bounds(document.querySelector("#outer")!, 0, 0, 300, 150);
+    bounds(document.querySelector("#inner")!, 0, 0, 300, 150);
+    bounds(document.querySelector("input")!, 20, 20, 100, 30);
+    bounds(document.querySelector("iframe")!, 20, 60, 200, 40);
+    expect(collectFields(document).map((field) => field.name)).toEqual(["reachable"]);
+    expect(isFrameHostVisible(document.querySelector("iframe")!)).toBe(true);
+  });
+
+  it("keeps a field an inner rtl scroller can return to an rtl parent", () => {
+    document.body.innerHTML = '<div id="outer" style="direction:rtl;overflow-x:auto;overflow-y:visible"><div id="inner" style="direction:rtl;overflow-x:auto;overflow-y:visible"><input name="reachable"></div></div>';
+    document.querySelector("#inner")!.scrollLeft = -300;
+    bounds(document.querySelector("#outer")!, 0, 0, 300, 150);
+    bounds(document.querySelector("#inner")!, 0, 0, 300, 150);
+    bounds(document.querySelector("input")!, 350, 20, 100, 30);
+    expect(collectFields(document).map((field) => field.name)).toEqual(["reachable"]);
+  });
+
   it("rejects a field that remains above the inner origin when that scroller returns to zero", () => {
     document.body.innerHTML = '<div id="outer" style="overflow:auto"><div id="inner" style="overflow:auto"><input name="trap"><iframe></iframe></div></div>';
     document.querySelector("#inner")!.scrollTop = 50;
