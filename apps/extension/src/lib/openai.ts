@@ -29,7 +29,7 @@ import {
   type ReasoningEffort,
   type ReasoningEffortSetting,
 } from "./models";
-import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
+import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput, getAnalysisInputWarnings } from "./prompt";
 import { getApiKey, getExaApiKey, getInstallId, getSettings } from "./storage";
 import { researchCompany } from "./exa";
 import type {
@@ -479,6 +479,7 @@ export async function runJobAnalysis(
     researchSources,
     settings.researchCompany,
     researchIssue,
+    { inputWarnings: getAnalysisInputWarnings(snapshot, profile) },
   );
 }
 
@@ -673,6 +674,7 @@ export function sanitizeAnalysis(
   citedSources: Array<{ title: string; url: string }>,
   researchAttempted: boolean,
   researchIssue?: string,
+  context?: { inputWarnings?: string[] },
 ): JobAnalysis {
   const knownFields = new Map(snapshot.fields.map((field) => [field.id, field]));
   const seenSuggestions = new Set<string>();
@@ -751,7 +753,7 @@ export function sanitizeAnalysis(
       ...parsed,
       company,
       suggestions,
-      missingFacts: parsed.missingFacts ?? [],
+      missingFacts: [...(parsed.missingFacts ?? []), ...(context?.inputWarnings ?? [])],
       research,
       generatedAt: new Date().toISOString(),
     },
