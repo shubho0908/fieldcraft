@@ -58,7 +58,7 @@ export const FIT_SCORE_BANDS = [
 ] as const;
 
 /** Max allowed fit score when any hard blocker is present. */
-export const HARD_BLOCKER_SCORE_CAP = FIT_SCORE_BANDS[3].max;
+export const HARD_BLOCKER_SCORE_CAP = 55;
 
 /** Token used for resume file-upload fields when an attachment exists. */
 export const RESUME_FILE_TOKEN = "__RESUME_FILE__" as const;
@@ -257,19 +257,43 @@ export const GEMINI_THINKING_LEVELS = [
 
 export const JudgeId = {
   FitScoreRange: "fit.score_range",
-  FitExpectedVerdict: "fit.expected_verdict",
+  FitVerdictBand: "fit.verdict_band",
+  FitHardBlockerCap: "fit.hard_blocker_cap",
   FitRequiredBlockers: "fit.required_blockers",
+  FieldsCoverage: "fields.coverage",
+  FieldsUniqueIds: "fields.unique_ids",
+  FieldsSelectOptions: "fields.select_options",
+  FieldsFillEvidence: "fields.fill_evidence",
+  FieldsEmptyFill: "fields.empty_fill",
+  FieldsSensitive: "fields.sensitive",
   FieldsExpectations: "fields.expectations",
   WritingBannedPhrases: "writing.banned_phrases",
   TruthMustNotClaim: "truth.must_not_claim",
-  TruthGrounding: "truth.grounding",
-  ResearchSourceProvenance: "research.source_provenance",
+  ResearchAttempted: "research.attempted",
+  ResearchSourceUrls: "research.source_urls",
   LiveRuntime: "live.runtime",
-  LiveVerdictStability: "live.verdict_stability",
 } as const;
 
 export type JudgeId = (typeof JudgeId)[keyof typeof JudgeId];
-export const JUDGE_IDS = Object.values(JudgeId);
+
+export const JUDGE_IDS = [
+  JudgeId.FitScoreRange,
+  JudgeId.FitVerdictBand,
+  JudgeId.FitHardBlockerCap,
+  JudgeId.FitRequiredBlockers,
+  JudgeId.FieldsCoverage,
+  JudgeId.FieldsUniqueIds,
+  JudgeId.FieldsSelectOptions,
+  JudgeId.FieldsFillEvidence,
+  JudgeId.FieldsEmptyFill,
+  JudgeId.FieldsSensitive,
+  JudgeId.FieldsExpectations,
+  JudgeId.WritingBannedPhrases,
+  JudgeId.TruthMustNotClaim,
+  JudgeId.ResearchAttempted,
+  JudgeId.ResearchSourceUrls,
+  JudgeId.LiveRuntime,
+] as const;
 
 // ── Type guards ──────────────────────────────────────────────────────
 

@@ -162,7 +162,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_6_SOL_LUNA_EFFORTS,
     maxOutputTokens: 128_000,
-    defaultMaxOutputTokens: 98_304,
+    defaultMaxOutputTokens: 16_384,
   },
   {
     provider: Provider.OpenAI,
@@ -172,7 +172,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_6_ASTRA_EFFORTS,
     maxOutputTokens: 128_000,
-    defaultMaxOutputTokens: 98_304,
+    defaultMaxOutputTokens: 16_384,
   },
   {
     provider: Provider.OpenAI,
@@ -182,7 +182,7 @@ export const OPENAI_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GPT_6_SOL_LUNA_EFFORTS,
     maxOutputTokens: 128_000,
-    defaultMaxOutputTokens: 98_304,
+    defaultMaxOutputTokens: 16_384,
   },
   {
     provider: Provider.OpenAI,
@@ -230,7 +230,7 @@ export const GEMINI_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: GEMINI_3_8_FLASH_EFFORTS,
     maxOutputTokens: 65_536,
-    defaultMaxOutputTokens: 65_536,
+    defaultMaxOutputTokens: 16_384,
   },
   {
     provider: Provider.Gemini,
@@ -288,7 +288,7 @@ export const ANTHROPIC_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.Medium,
     supportedReasoningEfforts: ANTHROPIC_ADAPTIVE_EFFORTS,
     maxOutputTokens: 128_000,
-    defaultMaxOutputTokens: 98_304,
+    defaultMaxOutputTokens: 16_384,
   },
   {
     provider: Provider.Anthropic,
@@ -298,7 +298,7 @@ export const ANTHROPIC_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: ANTHROPIC_ADAPTIVE_EFFORTS,
     maxOutputTokens: 131_072,
-    defaultMaxOutputTokens: 98_304,
+    defaultMaxOutputTokens: 16_384,
   },
   {
     provider: Provider.Anthropic,
@@ -308,7 +308,7 @@ export const ANTHROPIC_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.High,
     supportedReasoningEfforts: ANTHROPIC_ADAPTIVE_EFFORTS,
     maxOutputTokens: 131_072,
-    defaultMaxOutputTokens: 98_304,
+    defaultMaxOutputTokens: 16_384,
   },
   {
     provider: Provider.Anthropic,
@@ -318,7 +318,7 @@ export const ANTHROPIC_MODELS: readonly ModelOption[] = [
     defaultReasoningEffort: ReasoningEffort.None,
     supportedReasoningEfforts: [],
     maxOutputTokens: 65_536,
-    defaultMaxOutputTokens: 65_536,
+    defaultMaxOutputTokens: 8_192,
   },
 ] as const;
 
@@ -330,7 +330,6 @@ const CUSTOM_MODEL_PLACEHOLDER: ModelOption = {
   description: "Any OpenAI- or Anthropic-compatible endpoint (Fireworks, Together, Groq, OpenRouter, Anthropic, MiniMax…)",
   defaultReasoningEffort: ReasoningEffort.None,
   supportedReasoningEfforts: [ReasoningEffort.None],
-  // Unknown endpoints may have small response ceilings; users can opt in to more.
   maxOutputTokens: 4_096,
 } as const;
 

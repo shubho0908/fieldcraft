@@ -1,6 +1,4 @@
 import type { PageSnapshot } from "../types";
-import type { CompanyFactSource } from "./company-facts";
-import { normalizeSourceUrl } from "./source-url";
 
 export const EXA_API_BASE = "https://api.exa.ai";
 export const EXA_SEARCH_URL = `${EXA_API_BASE}/search`;
@@ -34,7 +32,6 @@ export interface ExaSearchResponse {
 export interface ResearchResult {
   context: string;
   sources: Array<{ title: string; url: string }>;
-  evidence?: CompanyFactSource[];
   /** A safe, user-facing explanation when no external fact could be retrieved. */
   issue?: string;
 }
@@ -68,9 +65,6 @@ interface SearchCandidate {
   key: string;
   score: number;
 }
-
-export type CompanyIdentitySnapshot = Pick<PageSnapshot, "pageText" | "url"> &
-  Partial<Pick<PageSnapshot, "title" | "hostname" | "headings" | "companyHints">>;
 
 /**
  * Validates an Exa key with the smallest valid Search request. This is kept
@@ -203,7 +197,7 @@ export async function researchCompany(
 
       const url = normalizeResearchUrl(result.url ?? candidate.url);
       const text = usefulResultText(result);
-      if (!url || !text || !matchesCompanyIdentity({ ...result, url, title: result.title || candidate.result.title }, text, identity)) {
+      if (!url || !text || !matchesCompanyIdentity(result, text, identity)) {
         return null;
       }
 
@@ -247,7 +241,6 @@ export async function researchCompany(
       sections.join("\n\n"),
     ].join("\n\n"),
     sources,
-    evidence: retrieved.map(({ title, url, text }) => ({ title, url, text })),
     issue:
       failures.length > 0
         ? "Some company-research searches were unavailable; the displayed sources are the verified results that completed."
@@ -260,11 +253,11 @@ export async function researchCompany(
  * A role-only title such as “Software Engineer” can never become a search term.
  */
 export function resolveCompanyIdentity(
-  snapshot: CompanyIdentitySnapshot,
+  snapshot: PageSnapshot,
 ): CompanyIdentity | null {
   const candidates = new Map<
     string,
-    { name: string; bestScore: number; evidence: Set<string>; aliases: Set<string>; anchored: boolean }
+    { name: string; bestScore: number; evidence: Set<string>; aliases: Set<string> }
   >();
 
   const addCandidate = (
@@ -272,7 +265,6 @@ export function resolveCompanyIdentity(
     score: number,
     evidence: string,
     rejectRoleLike = false,
-    anchored = false,
   ) => {
     const name = cleanCompanyName(rawName);
     if (
@@ -288,20 +280,18 @@ export function resolveCompanyIdentity(
       bestScore: 0,
       evidence: new Set<string>(),
       aliases: new Set<string>(),
-      anchored: false,
     };
     existing.bestScore = Math.max(existing.bestScore, score);
     existing.evidence.add(evidence);
     existing.aliases.add(name);
-    existing.anchored ||= anchored;
     candidates.set(key, existing);
   };
 
   for (const name of snapshot.companyHints?.structuredNames ?? []) {
-    addCandidate(name, 100, "structured organization", false, true);
+    addCandidate(name, 100, "structured organization");
   }
   for (const name of snapshot.companyHints?.metadataNames ?? []) {
-    addCandidate(name, 78, "page metadata", true, true);
+    addCandidate(name, 78, "page metadata", true);
   }
 
   for (const heading of snapshot.headings ?? []) {
@@ -313,23 +303,20 @@ export function resolveCompanyIdentity(
   for (const match of pageText.matchAll(
     /\b(?:at|join)\s+([A-Z][\p{L}\p{N}&.' -]{1,80}?)(?=,|\s+(?:we|you|our)\b)/gmu,
   )) {
-    const prefix = pageText.slice(Math.max(0, match.index - 100), match.index).replace(/\s+/gu, " ");
-    if (/\b(?:worked|working|experience|previously|formerly|such as)\b[^.!?]*$/iu.test(prefix)) continue;
-    if (match[1]) addCandidate(match[1], 40, "company description", true);
+    if (match[1]) addCandidate(match[1], 66, "company description", true);
   }
 
-  for (const candidate of companyCandidatesFromTitle(snapshot.title ?? "")) {
+  for (const candidate of companyCandidatesFromTitle(snapshot.title)) {
     addCandidate(candidate, 60, "page title", true);
   }
 
   const atsPathCandidate = companyCandidateFromAtsUrl(snapshot.url);
-  if (atsPathCandidate) addCandidate(atsPathCandidate, 70, "ATS URL", true, true);
+  if (atsPathCandidate) addCandidate(atsPathCandidate, 70, "ATS URL", true);
 
-  const hostCandidate = companyCandidateFromHost(snapshot.hostname ?? safeHostname(snapshot.url));
-  if (hostCandidate) addCandidate(hostCandidate, 55, "company host", true, true);
+  const hostCandidate = companyCandidateFromHost(snapshot.hostname);
+  if (hostCandidate) addCandidate(hostCandidate, 55, "company host", true);
 
   const best = [...candidates.values()]
-    .filter((candidate) => candidate.anchored)
     .map((candidate) => ({
       ...candidate,
       confidence: Math.min(
@@ -339,6 +326,7 @@ export function resolveCompanyIdentity(
     }))
     .sort((left, right) => right.confidence - left.confidence)[0];
 
+  // One strong explicit signal or two corroborating page signals are required.
   if (!best || best.confidence < 65) return null;
 
   const officialDomains = [...new Set(
@@ -468,7 +456,7 @@ function usefulResultText(result: ExaSearchResult): string {
   return text.slice(0, MAX_SOURCE_TEXT_CHARACTERS);
 }
 
-export function matchesCompanyIdentity(
+function matchesCompanyIdentity(
   result: ExaSearchResult,
   text: string,
   identity: CompanyIdentity,
@@ -477,12 +465,9 @@ export function matchesCompanyIdentity(
   if (identity.officialDomains.some((domain) => hostMatchesDomain(host, domain))) {
     return true;
   }
-  return identity.aliases.some((alias) =>
-    normalizeCompanyName(alias).includes(" ")
-      ? includesCompanyName(text, alias)
-      : (hasCompanyContext(result.title ?? "", alias) || isBrandHomepage(result, alias)) &&
-        hasCompanyContext(text, alias),
-  );
+  // A search-result title is only a routing hint. Require the retrieved page
+  // itself to name the company before passing a third-party source to the AI.
+  return identity.aliases.some((alias) => includesCompanyName(text, alias));
 }
 
 function isSearchResultRelevant(
@@ -494,38 +479,8 @@ function isSearchResultRelevant(
   if (identity.officialDomains.some((domain) => hostMatchesDomain(host, domain))) {
     return true;
   }
-  const title = result.title ?? "";
-  return identity.aliases.some((alias) =>
-    normalizeCompanyName(alias).includes(" ")
-      ? includesCompanyName(`${title}\n${host.replace(/[.-]/gu, " ")}`, alias)
-      : hasCompanyContext(title, alias) || isBrandHomepage({ ...result, url }, alias),
-  );
-}
-
-/** A routing hint only: retrieved content must still establish company usage. */
-function isBrandHomepage(result: ExaSearchResult, alias: string): boolean {
-  try {
-    const url = new URL(result.url ?? "");
-    const host = safeHostname(url.href).toLocaleLowerCase().split(".");
-    const brand = normalizeCompanyName(alias);
-    return url.pathname === "/" && host.length === 2 && host[0] === brand &&
-      includesCompanyName(result.title ?? "", alias);
-  } catch {
-    return false;
-  }
-}
-
-function hasCompanyContext(text: string, alias: string): boolean {
-  const name = normalizeCompanyName(alias).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  if (!name) return false;
-  const normalized = normalizeCompanyName(text);
-  return new RegExp(
-    `(?:^| )${name} (?:is (?:a |an |the )?(?:software |technology |fintech |payments |product |purpose built )?(?:company|startup|platform|tool)|(?:has |reportedly )?(?:raises?|raised|secures?|secured|closes?|closed) |announced (?:a |an |its )?(?:series [a-z]|funding|round|product)|(?:builds?|develops?|provides?|offers?) |(?:engineering|careers|funding|investors|employees|founders|ceo|cofounder|co founder|series [a-z])(?: |$))`,
-    "u",
-  ).test(normalized) || new RegExp(
-    `(?:^| )(?:company|startup|platform|fintech|ceo of|founder of) ${name}(?: |$)`,
-    "u",
-  ).test(normalized);
+  const haystack = `${result.title ?? ""}\n${host.replace(/[.-]/gu, " ")}`;
+  return identity.aliases.some((alias) => includesCompanyName(haystack, alias));
 }
 
 function compareRetrievedSources(
@@ -678,7 +633,13 @@ function normalizeResearchUrl(rawUrl: string): string {
   try {
     const url = new URL(rawUrl);
     if (!/^https?:$/iu.test(url.protocol) || !isPublicHostname(url.hostname)) return "";
-    return normalizeSourceUrl(url.href);
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^(?:utm_[^=]*|fbclid|gclid|ref)$/iu.test(key)) {
+        url.searchParams.delete(key);
+      }
+    }
+    return url.href.replace(/\/$/u, "");
   } catch {
     return "";
   }
