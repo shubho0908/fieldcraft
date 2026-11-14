@@ -90,10 +90,10 @@ describe("domain enums cross-validation", () => {
     }
   });
 
-  it("hard-blocker cap sits inside the mixed band", () => {
-    expect(HARD_BLOCKER_SCORE_CAP).toBeGreaterThanOrEqual(50);
-    expect(HARD_BLOCKER_SCORE_CAP).toBeLessThan(75);
-    expect(verdictForScore(HARD_BLOCKER_SCORE_CAP)).toBe(FitVerdict.Mixed);
+  it("hard-blocker cap sits inside the weak band", () => {
+    expect(HARD_BLOCKER_SCORE_CAP).toBeGreaterThanOrEqual(0);
+    expect(HARD_BLOCKER_SCORE_CAP).toBeLessThanOrEqual(49);
+    expect(verdictForScore(HARD_BLOCKER_SCORE_CAP)).toBe(FitVerdict.Weak);
   });
 
   it("type guards accept catalog values only", () => {

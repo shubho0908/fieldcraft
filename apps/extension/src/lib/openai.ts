@@ -12,7 +12,7 @@ import {
   isSuggestionAction,
 } from "./enums";
 import { isChoiceField, optionMatches } from "./fields";
-import { isThinCompanyResearch } from "./fit";
+import { isThinCompanyResearch, parseFitScore } from "./fit";
 import { toSafeAnalysis } from "./analysis";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
@@ -148,12 +148,7 @@ export function coerceAnalysisOutput(
 
   const fitRaw = isRecord(raw.fit) ? raw.fit : raw;
   const fit: JobAnalysis["fit"] = {
-    score:
-      typeof fitRaw.score === "number"
-        ? fitRaw.score
-        : typeof fitRaw.fitScore === "number"
-          ? fitRaw.fitScore
-          : 0,
+    score: parseFitScore(fitRaw.score ?? fitRaw.fitScore),
     verdict:
       typeof fitRaw.verdict === "string" && isFitVerdict(fitRaw.verdict)
         ? fitRaw.verdict
@@ -170,11 +165,11 @@ export function coerceAnalysisOutput(
 
   const rawCompany = isRecord(raw.company) ? raw.company : undefined;
   const company: JobAnalysis["company"] = {
-    summary: String(rawCompany?.summary ?? rawCompany?.industry ?? ""),
-    product: String(rawCompany?.product ?? rawCompany?.locationPolicy ?? ""),
+    summary: String(rawCompany?.summary ?? ""),
+    product: String(rawCompany?.product ?? ""),
     stage: String(rawCompany?.stage ?? ""),
     size: String(rawCompany?.size ?? ""),
-    funding: String(rawCompany?.funding ?? rawCompany?.compensation ?? ""),
+    funding: String(rawCompany?.funding ?? ""),
     engineeringSignals: asStringList(rawCompany?.engineeringSignals),
     risks: asStringList(rawCompany?.risks),
     sources: Array.isArray(rawCompany?.sources)
@@ -218,7 +213,10 @@ export function coerceAnalysisOutput(
     fit,
     job,
     company,
-    suggestions: suggestions as FieldSuggestion[],
+    suggestions: suggestions.filter(
+      (item): item is FieldSuggestion =>
+        isRecord(item) && typeof item.fieldId === "string" && Boolean(item.fieldId.trim()),
+    ),
     missingFacts: asStringList(raw.missingFacts),
   };
 }

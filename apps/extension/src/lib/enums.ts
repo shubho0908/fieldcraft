@@ -58,7 +58,7 @@ export const FIT_SCORE_BANDS = [
 ] as const;
 
 /** Max allowed fit score when any hard blocker is present. */
-export const HARD_BLOCKER_SCORE_CAP = 55;
+export const HARD_BLOCKER_SCORE_CAP = FIT_SCORE_BANDS[3].max;
 
 /** Token used for resume file-upload fields when an attachment exists. */
 export const RESUME_FILE_TOKEN = "__RESUME_FILE__" as const;

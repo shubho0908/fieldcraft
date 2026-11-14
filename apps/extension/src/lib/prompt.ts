@@ -1,5 +1,6 @@
 import {
   FIT_SCORE_BANDS,
+  FitVerdict,
   HARD_BLOCKER_SCORE_CAP,
   RESUME_FILE_TOKEN,
   SuggestionAction,
@@ -38,7 +39,7 @@ FIT EVALUATION
 ${FIT_RUBRIC_LINES}
 - Verdict must match the score band above.
 - Hard blockers must be stated plainly. Typical hard blockers: work-authorization or sponsorship mismatch; impossible location/relocation; required seniority or years far above evidence; required degree/cert with zero evidence when the JD treats it as mandatory; clear compensation floor conflict when both sides are known.
-- If any hard blocker exists, score must be at most ${HARD_BLOCKER_SCORE_CAP} and verdict must not be strong or excellent.
+- If any hard blocker exists, score must be at most ${HARD_BLOCKER_SCORE_CAP} and verdict must be ${FitVerdict.Weak}.
 - Do not heavily penalize equivalent tools (React/Next, Postgres/MySQL, AWS/GCP).
 - Do not invent candidate facts to raise the score.
 - strongestMatches and gaps must be concrete and evidence-backed. Empty praise is not a match.

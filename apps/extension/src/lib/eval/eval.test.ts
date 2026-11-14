@@ -71,7 +71,7 @@ describe("sanitize + judge pipeline", () => {
 
     const repairedFit = sanitizeFit(raw.fit);
     expect(repairedFit.score).toBe(HARD_BLOCKER_SCORE_CAP);
-    expect(repairedFit.verdict).toBe(FitVerdict.Mixed);
+    expect(repairedFit.verdict).toBe(FitVerdict.Weak);
 
     const sanitized = sanitizeAnalysis(
       {
@@ -93,7 +93,6 @@ describe("sanitize + judge pipeline", () => {
       true,
     );
 
-    // After hard-blocker cap, score is 55 → still inside blocked fixture range.
     const report = evaluateAnalysis(fixture, sanitized);
     expect(report.ok).toBe(true);
   });

@@ -284,7 +284,7 @@ describe("sanitizeAnalysis", () => {
     );
 
     expect(analysis.fit.score).toBe(HARD_BLOCKER_SCORE_CAP);
-    expect(analysis.fit.verdict).toBe(FitVerdict.Mixed);
+    expect(analysis.fit.verdict).toBe(FitVerdict.Weak);
     expect(analysis.company.sources).toEqual([]);
     expect(analysis.research).toEqual({ attempted: true, thin: true });
     expect(analysis.suggestions).toHaveLength(1);
@@ -345,8 +345,9 @@ describe("coerceAnalysisOutput", () => {
     expect(parsed.fit.score).toBe(48);
     expect(parsed.fit.strongestMatches).toEqual(["LLM experience"]);
     expect(parsed.fit.recommendation).toBe("Technical fit is strong.");
-    expect(parsed.company.summary).toBe("Accounting / Fintech");
-    expect(parsed.company.funding).toBe("INR 15,000-30,000/month");
+    expect(parsed.company.summary).toBe("");
+    expect(parsed.company.product).toBe("");
+    expect(parsed.company.funding).toBe("");
     expect(parsed.suggestions).toHaveLength(1);
     expect(parsed.suggestions[0].fieldId).toBe("field-1");
     expect(parsed.missingFacts).toEqual(["Candidate intent"]);

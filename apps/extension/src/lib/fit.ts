@@ -22,10 +22,13 @@ export function verdictForScore(score: number): FitVerdictType {
  * Model output is untrusted on consistency; this is the product invariant layer.
  */
 export function sanitizeFit(
-  fit: Partial<JobAnalysis["fit"]> | undefined,
+  fit: (Omit<Partial<JobAnalysis["fit"]>, "score"> & { score?: unknown }) | undefined,
 ): JobAnalysis["fit"] {
-  const hardBlockers = cleanStringList(fit?.hardBlockers);
-  let score = Math.max(0, Math.min(100, Math.round(Number(fit?.score) || 0)));
+  const hardBlockers = cleanStringList(fit?.hardBlockers).filter((blocker) => {
+    const normalized = blocker.toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
+    return !/^(?:|none|na|null|nil|notapplicable|nohardblockers?|noblockers?(?:identified|found)?|nohardblockers?(?:identified|found))$/.test(normalized);
+  });
+  let score = Math.max(0, Math.min(100, Math.round(parseFitScore(fit?.score))));
 
   if (hardBlockers.length > 0 && score > HARD_BLOCKER_SCORE_CAP) {
     score = HARD_BLOCKER_SCORE_CAP;
@@ -39,6 +42,18 @@ export function sanitizeFit(
     hardBlockers,
     recommendation: (fit?.recommendation ?? "").trim(),
   };
+}
+
+export function parseFitScore(value: unknown): number {
+  const score = typeof value === "number"
+    ? value
+    : typeof value === "string" && /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
+      ? Number(value.trim())
+      : NaN;
+  if (!Number.isFinite(score)) {
+    throw new Error("The model returned a missing or invalid fit score. Try analyzing again or switch models; no score was saved.");
+  }
+  return score;
 }
 
 export function isUnknownFact(value: string | undefined): boolean {
