@@ -195,15 +195,16 @@ export async function fillPageFields(
   suggestions: FieldSuggestion[],
   doc: Document = document,
   resumeAttachment?: ResumeAttachment,
+  selectedFieldIds?: ReadonlySet<string>,
 ): Promise<FillResult[]> {
   const results: FillResult[] = [];
 
   for (const suggestion of suggestions) {
-    if (suggestion.action === SuggestionAction.Skip) {
+    if (!selectedFieldIds?.has(suggestion.fieldId) || suggestion.action === SuggestionAction.Skip) {
       results.push({
         fieldId: suggestion.fieldId,
         status: "skipped",
-        message: "Marked to skip",
+        message: "Not selected for filling or marked to skip",
       });
       continue;
     }

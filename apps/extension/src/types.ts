@@ -155,6 +155,7 @@ export interface FieldSuggestion {
 }
 
 export interface JobAnalysis {
+  fitUnavailableReason?: string;
   job: {
     company: string;
     role: string;
@@ -226,7 +227,7 @@ export interface TabAnalysisSession {
 
 export type RuntimeRequest =
   | { type: "FIELDCRAFT_CAPTURE" }
-  | { type: "FIELDCRAFT_FILL"; suggestions: FieldSuggestion[] }
+  | { type: "FIELDCRAFT_FILL"; suggestions: FieldSuggestion[]; selectedFieldIds: string[]; url: string }
   | { type: "FIELDCRAFT_START_ANALYSIS"; tabId: number }
   | { type: "FIELDCRAFT_GET_TAB_SESSION"; tabId: number }
   | {

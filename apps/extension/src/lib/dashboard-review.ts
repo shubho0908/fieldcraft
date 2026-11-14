@@ -29,10 +29,6 @@ export function createReviewDraft(session: TabAnalysisSession): ReviewDraft | nu
   return {
     runId: session.runId,
     analysis: session.analysis,
-    selectedFieldIds: new Set(
-      session.selectedFieldIds.length
-        ? session.selectedFieldIds
-        : defaultSelection(session.analysis.suggestions),
-    ),
+    selectedFieldIds: new Set(session.selectedFieldIds),
   };
 }

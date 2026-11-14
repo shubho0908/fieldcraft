@@ -120,7 +120,7 @@ export function EmptyDashboard({
             <PencilLine size={18} />
             <span>
               <strong>Direct-fill</strong>
-              <small>Map profile fields to the form instantly</small>
+              <small>Prepare profile answers for your review</small>
             </span>
           </button>
         </div>
@@ -156,11 +156,11 @@ export function EmptyDashboard({
         >
           {directFillBusy ? (
             <>
-              <LoaderCircle className="spin" size={18} /> Filling…
+              <LoaderCircle className="spin" size={18} /> Preparing…
             </>
           ) : (
             <>
-              <PencilLine size={18} /> Direct-fill this page
+              <PencilLine size={18} /> Review Direct-fill answers
             </>
           )}
         </button>
@@ -357,6 +357,7 @@ export function ResultsDashboard({
 }
 
 function FitView({ analysis }: { analysis: JobAnalysis }) {
+  if (analysis.fitUnavailableReason) return <section className="fit-card"><p>{analysis.fitUnavailableReason}</p></section>;
   const { fit, job } = analysis;
   return (
     <div className="view-stack">
