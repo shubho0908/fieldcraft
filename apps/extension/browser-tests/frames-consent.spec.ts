@@ -73,7 +73,7 @@ async function openApplication() {
   return { page, tabId };
 }
 
-test("Direct review captures distinct cross-origin and shadow fields without writing; only selected fields are filled", async () => {
+test("Direct review captures distinct cross-origin and shadow fields without writing; only selected fields are filled", async ({}, testInfo) => {
   const { page, tabId } = await openApplication();
   const windowId = await worker.evaluate(async (id) => (await chrome.tabs.get(id)).windowId, tabId);
   await requestPage.evaluate((id) => {
@@ -110,7 +110,7 @@ test("Direct review captures distinct cross-origin and shadow fields without wri
   const suggestionIndex = session.analysis!.suggestions.findIndex((item) => item.fieldId === embedded.id);
   await panel.locator(".answer-card").nth(suggestionIndex).getByRole("button", { name: "Select Full name", exact: true }).click();
   await panel.getByRole("button", { name: "Select Phone", exact: true }).click();
-  await panel.screenshot({ path: process.env.FIELDCRAFT_FRAME_SCREENSHOT || "/home/user/.capy/work/accuracy/direct-frame-review.png", fullPage: true });
+  await panel.screenshot({ path: testInfo.outputPath("direct-frame-review.png"), fullPage: true });
   await panel.getByRole("button", { name: "Fill selected", exact: true }).click();
   await expect(page.frameLocator('iframe[title="Application"]').locator("#name")).toHaveValue("Ada Example");
   await expect(page.locator("#name")).toHaveValue("");
