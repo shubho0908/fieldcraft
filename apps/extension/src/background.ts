@@ -1,6 +1,4 @@
 import { isAnalyzableTabUrl } from "./lib/page";
-import { prepareDirectReview } from "./lib/direct-review";
-import { captureTabFrames, fillTabFrames } from "./lib/frames";
 import {
   getNotificationUrl,
   runReleaseCheck,
@@ -254,9 +252,20 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (request.type === "FIELDCRAFT_DIRECT_FILL") {
-      void startAnalysis(request.tabId, request.url)
-        .then(() => sendResponse({ ok: true }))
-        .catch((error: unknown) => sendResponse({ ok: false, error: errorMessage(error, "Could not prepare profile answers") }));
+      void (async () => {
+        try {
+          await assertTabUrl(request.tabId, request.url);
+          const response = await chrome.tabs.sendMessage(request.tabId, {
+            type: "FIELDCRAFT_DIRECT_FILL",
+            tabId: request.tabId,
+            url: request.url,
+          } satisfies RuntimeRequest);
+          if (!response?.ok) throw new Error(response?.error || "Could not direct-fill page");
+          sendResponse({ ok: true, results: response.results as FillResult[] });
+        } catch (error) {
+          sendResponse({ ok: false, error: errorMessage(error, "Could not direct-fill page") });
+        }
+      })();
       return true;
     }
 
@@ -323,9 +332,8 @@ async function testConfiguredConnections(
   };
 }
 
-async function startAnalysis(tabId: number, directUrl?: string): Promise<void> {
+async function startAnalysis(tabId: number): Promise<void> {
   const tab = await getEligibleTab(tabId);
-  if (directUrl !== undefined && tab.url !== directUrl) throw new Error("The page changed. Review the current page again.");
   const runId = crypto.randomUUID();
   const url = tab.url!;
 
@@ -356,9 +364,8 @@ async function startAnalysis(tabId: number, directUrl?: string): Promise<void> {
 
     // Read these after the capture so an immediately saved profile/settings
     // change is reflected in the actual background run.
-    const profile = await getProfile();
-    const analysis = directUrl !== undefined ? prepareDirectReview(snapshot, profile) : await analyzeJob(snapshot, profile, await getSettings());
-    analysis.missingFacts = [...new Set([...analysis.missingFacts, ...snapshot.captureWarnings ?? []])];
+    const [profile, settings] = await Promise.all([getProfile(), getSettings()]);
+    const analysis = await analyzeJob(snapshot, profile, settings);
 
     await assertPageStillMatches(tabId, url, runId, snapshot);
     const completed = await updateRun(tabId, url, runId, (session) =>
@@ -380,13 +387,6 @@ async function fillTab(
   if (!session.analysis || !session.snapshot) {
     throw new Error("Analyze this page before filling it.");
   }
-  const selected = new Set(session.selectedFieldIds);
-  const requested = new Set(request.suggestions.map((item) => item.fieldId));
-  if (!requested.size || [...requested].some((id) => !selected.has(id))) {
-    throw new Error("Select and save the answers you want to fill first.");
-  }
-  const suggestions = session.analysis.suggestions.filter((item) => requested.has(item.fieldId));
-  if (suggestions.length !== requested.size) throw new Error("The reviewed fields changed. Review this page again.");
 
   const markedFilling = await updateRun(request.tabId, request.url, request.runId, (current) => ({
     ...current,
@@ -398,9 +398,12 @@ async function fillTab(
 
   try {
     await assertTabUrl(request.tabId, request.url);
-    const results = await fillTabFrames(request.tabId, session.snapshot, suggestions, async () => {
-      await requireCurrentSession(request.tabId, request.url, request.runId);
-    });
+    const response = await chrome.tabs.sendMessage(request.tabId, {
+      type: "FIELDCRAFT_FILL",
+      suggestions: request.suggestions,
+    } satisfies RuntimeRequest);
+    if (!response?.ok) throw new Error(response?.error || "Could not fill page");
+    const results = response.results as FillResult[];
 
     await updateRun(request.tabId, request.url, request.runId, (current) => ({
       ...current,
@@ -448,8 +451,11 @@ async function getCurrentSession(tabId: number): Promise<TabAnalysisSession | nu
 
 async function captureTab(tabId: number): Promise<PageSnapshot> {
   try {
-    const tab = await getEligibleTab(tabId);
-    return await captureTabFrames(tabId, tab.url!);
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: "FIELDCRAFT_CAPTURE",
+    } satisfies RuntimeRequest);
+    if (!response?.ok) throw new Error(response?.error || "Could not read this page");
+    return response.snapshot as PageSnapshot;
   } catch (error) {
     const message = errorMessage(error, "Could not read this page");
     if (/receiving end does not exist|could not establish connection/i.test(message)) {

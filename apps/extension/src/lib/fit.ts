@@ -5,15 +5,8 @@ import {
   type FitVerdict as FitVerdictType,
 } from "./enums";
 import type { JobAnalysis } from "../types";
-import { isUnknownCompanyFact } from "./company-facts";
 
 export type { FitVerdictType as FitVerdict };
-
-export const NO_JOB_DESCRIPTION_MESSAGE = "No job description found on this page; open the posting and analyze it there. You can still review field suggestions.";
-
-export function unavailableFit(reason: string): JobAnalysis["fit"] {
-  return { score: null, unavailableReason: reason, verdict: FitVerdict.Weak, strongestMatches: [], gaps: [], hardBlockers: [], recommendation: reason };
-}
 
 /** Score bands that define verdict labels. */
 export function verdictForScore(score: number): FitVerdictType {
@@ -29,14 +22,10 @@ export function verdictForScore(score: number): FitVerdictType {
  * Model output is untrusted on consistency; this is the product invariant layer.
  */
 export function sanitizeFit(
-  fit: (Omit<Partial<JobAnalysis["fit"]>, "score"> & { score?: unknown }) | undefined,
+  fit: Partial<JobAnalysis["fit"]> | undefined,
 ): JobAnalysis["fit"] {
-  if (fit?.score === null && fit.unavailableReason?.trim()) return unavailableFit(fit.unavailableReason.trim());
-  const hardBlockers = cleanStringList(fit?.hardBlockers).filter((blocker) => {
-    const normalized = blocker.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-    return !/^(?:|none|na|null|nil|notapplicable|nohardblockers?|noblockers?(?:identified|found)?|nohardblockers?(?:identified|found))$/.test(normalized);
-  });
-  let score = Math.max(0, Math.min(100, Math.round(parseFitScore(fit?.score))));
+  const hardBlockers = cleanStringList(fit?.hardBlockers);
+  let score = Math.max(0, Math.min(100, Math.round(Number(fit?.score) || 0)));
 
   if (hardBlockers.length > 0 && score > HARD_BLOCKER_SCORE_CAP) {
     score = HARD_BLOCKER_SCORE_CAP;
@@ -52,20 +41,9 @@ export function sanitizeFit(
   };
 }
 
-export function parseFitScore(value: unknown): number {
-  const score = typeof value === "number"
-    ? value
-    : typeof value === "string" && /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
-      ? Number(value.trim())
-      : NaN;
-  if (!Number.isFinite(score)) {
-    throw new Error("The model returned a missing or invalid fit score. Try analyzing again or switch models; no score was saved.");
-  }
-  return score;
-}
-
 export function isUnknownFact(value: string | undefined): boolean {
-  return isUnknownCompanyFact(value);
+  const normalized = (value ?? "").trim().toLocaleLowerCase();
+  return !normalized || normalized === "unknown" || normalized === "n/a" || normalized === "na";
 }
 
 /**

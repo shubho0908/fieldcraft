@@ -11,6 +11,7 @@ import { toSafeAnalysis } from "../lib/analysis";
 import type {
   ExtensionSettings,
   FieldSuggestion,
+  FillResult,
   RuntimeRequest,
 } from "../types";
 import {
@@ -77,10 +78,6 @@ export default function Dashboard({
 
   function analyze() {
     if (status === "capturing" || status === "analyzing" || status === "filling") return;
-    if (settings.autofillMode === AutofillMode.Direct) {
-      directFill();
-      return;
-    }
     if (!apiKeyExists) {
       onOpenSettings();
       return;
@@ -99,9 +96,8 @@ export default function Dashboard({
   }
 
   function directFill() {
-    if (!binding || directFilling || status === "capturing" || status === "analyzing" || status === "filling") return;
+    if (!binding || directFilling) return;
     setDirectFilling(true);
-    setActiveTab("answers");
     void chrome.runtime
       .sendMessage({
         type: "FIELDCRAFT_DIRECT_FILL",
@@ -115,6 +111,17 @@ export default function Dashboard({
           window.setTimeout(() => setToast(""), 4200);
           return;
         }
+        const results = response.results as FillResult[];
+        let filled = 0;
+        let failed = 0;
+        for (const result of results) {
+          if (result.status === "filled") filled += 1;
+          if (result.status === "failed") failed += 1;
+        }
+        setToast(
+          `${filled} field${filled === 1 ? "" : "s"} filled${failed ? ` · ${failed} need attention` : ""}`,
+        );
+        window.setTimeout(() => setToast(""), 4200);
       })
       .catch((error: unknown) => {
         setDirectFilling(false);
@@ -127,25 +134,14 @@ export default function Dashboard({
     if (!binding || !review || !selectedSuggestions.length) return;
     void chrome.runtime
       .sendMessage({
-        type: "FIELDCRAFT_UPDATE_TAB_REVIEW",
-        tabId: binding.id,
-        url: binding.url,
-        runId: review.runId,
-        analysis: review.analysis,
-        selectedFieldIds: [...review.selectedFieldIds],
-      } satisfies RuntimeRequest)
-      .then((response) => {
-        if (!response?.ok) throw new Error(response?.error || "Could not save your selection");
-        return chrome.runtime.sendMessage({
         type: "FIELDCRAFT_FILL_TAB",
         tabId: binding.id,
         url: binding.url,
         runId: review.runId,
         suggestions: selectedSuggestions,
-        } satisfies RuntimeRequest);
-      })
+      } satisfies RuntimeRequest)
       .then((response) => {
-        if (!response?.ok) throw new Error(response?.error || "Could not fill selected answers");
+        if (!response?.ok) return;
         const results = response.results as Array<{ status: string }>;
         let filled = 0;
         let failed = 0;
@@ -157,8 +153,7 @@ export default function Dashboard({
           `${filled} field${filled === 1 ? "" : "s"} filled${failed ? ` · ${failed} need attention` : ""}`,
         );
         window.setTimeout(() => setToast(""), 4200);
-      })
-      .catch((error: unknown) => setToast(error instanceof Error ? error.message : "Could not fill selected answers"));
+      });
   }
 
   function saveReview(nextAnalysis: ReviewDraft["analysis"], selectedFieldIds: Set<string>) {

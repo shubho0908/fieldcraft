@@ -11,8 +11,8 @@ import {
   isFitVerdict,
   isSuggestionAction,
 } from "./enums";
-import { getMeaningfulCurrentValue, isChoiceField, optionMatches, requiresExplicitReview } from "./fields";
-import { isThinCompanyResearch, NO_JOB_DESCRIPTION_MESSAGE, parseFitScore, sanitizeFit, unavailableFit } from "./fit";
+import { isChoiceField, optionMatches } from "./fields";
+import { isThinCompanyResearch } from "./fit";
 import { toSafeAnalysis } from "./analysis";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
@@ -29,11 +29,9 @@ import {
   type ReasoningEffort,
   type ReasoningEffortSetting,
 } from "./models";
-import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput, getAnalysisInputWarnings } from "./prompt";
+import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput } from "./prompt";
 import { getApiKey, getExaApiKey, getInstallId, getSettings } from "./storage";
 import { researchCompany } from "./exa";
-import { groundCompanyFacts, type CompanyFactSource } from "./company-facts";
-import { normalizeSourceUrl } from "./source-url";
 import type {
   CandidateProfile,
   ExtensionSettings,
@@ -44,7 +42,6 @@ import type {
 } from "../types";
 
 export interface OpenAiAuth {
-  onResearchEvidence?: (sources: CompanyFactSource[]) => void;
   apiKey: string;
   installId: string;
   exaApiKey?: string;
@@ -57,8 +54,6 @@ export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const CONNECTION_TEST_PROMPT = "Reply with exactly: connected";
 /** Enough room for a provider's response envelope without making the probe expensive. */
 export const CONNECTION_TEST_MAX_OUTPUT_TOKENS = 96;
-
-const ANALYSIS_TRUNCATION_MESSAGE = "The model output was truncated because it reached the output token budget. Increase Max output tokens in Settings, choose a model with a larger output budget, lower reasoning effort, or reduce the number of fields and try again.";
 
 /**
  * Models generate from supplied job/profile context only. Never add provider
@@ -146,7 +141,6 @@ function asStringList(value: unknown): string[] {
  */
 export function coerceAnalysisOutput(
   raw: unknown,
-  noJobDescription = false,
 ): Omit<JobAnalysis, "generatedAt" | "research"> {
   if (!isRecord(raw)) {
     throw new Error("The model response was not a JSON object.");
@@ -154,8 +148,12 @@ export function coerceAnalysisOutput(
 
   const fitRaw = isRecord(raw.fit) ? raw.fit : raw;
   const fit: JobAnalysis["fit"] = {
-    score: noJobDescription ? null : parseFitScore(fitRaw.score ?? fitRaw.fitScore),
-    ...(noJobDescription ? { unavailableReason: NO_JOB_DESCRIPTION_MESSAGE } : {}),
+    score:
+      typeof fitRaw.score === "number"
+        ? fitRaw.score
+        : typeof fitRaw.fitScore === "number"
+          ? fitRaw.fitScore
+          : 0,
     verdict:
       typeof fitRaw.verdict === "string" && isFitVerdict(fitRaw.verdict)
         ? fitRaw.verdict
@@ -172,11 +170,11 @@ export function coerceAnalysisOutput(
 
   const rawCompany = isRecord(raw.company) ? raw.company : undefined;
   const company: JobAnalysis["company"] = {
-    summary: String(rawCompany?.summary ?? ""),
-    product: String(rawCompany?.product ?? ""),
+    summary: String(rawCompany?.summary ?? rawCompany?.industry ?? ""),
+    product: String(rawCompany?.product ?? rawCompany?.locationPolicy ?? ""),
     stage: String(rawCompany?.stage ?? ""),
     size: String(rawCompany?.size ?? ""),
-    funding: String(rawCompany?.funding ?? ""),
+    funding: String(rawCompany?.funding ?? rawCompany?.compensation ?? ""),
     engineeringSignals: asStringList(rawCompany?.engineeringSignals),
     risks: asStringList(rawCompany?.risks),
     sources: Array.isArray(rawCompany?.sources)
@@ -220,10 +218,7 @@ export function coerceAnalysisOutput(
     fit,
     job,
     company,
-    suggestions: suggestions.filter(
-      (item): item is FieldSuggestion =>
-        isRecord(item) && typeof item.fieldId === "string" && Boolean(item.fieldId.trim()),
-    ),
+    suggestions: suggestions as FieldSuggestion[],
     missingFacts: asStringList(raw.missingFacts),
   };
 }
@@ -233,9 +228,6 @@ export function coerceAnalysisOutput(
  * the original message when it already explains a clear provider failure.
  */
 export function formatAnalysisError(error: unknown, provider: Provider): string {
-  if (isRecord(error) && error.finishReason === "length") {
-    return ANALYSIS_TRUNCATION_MESSAGE;
-  }
   const base = error instanceof Error ? error.message : String(error);
   const isCustom = provider === Provider.Custom;
 
@@ -388,11 +380,10 @@ export async function runJobAnalysis(
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
   let researchSources: Array<{ title: string; url: string }> = [];
-  let researchEvidence: CompanyFactSource[] = [];
   let researchIssue: string | undefined;
 
   if (settings.researchCompany) {
-    const exaKey = auth.exaApiKey;
+    const exaKey = auth.exaApiKey || (await getExaApiKey());
     if (!exaKey) {
       throw new Error(
         "Add an Exa API key in Settings or disable 'Research the company'.",
@@ -402,7 +393,6 @@ export async function runJobAnalysis(
       const research = await researchCompany(exaKey, snapshot);
       if (research.context) input += `\n\n${research.context}`;
       researchSources = research.sources;
-      researchEvidence = research.evidence ?? [];
       researchIssue = research.issue;
     } catch (error) {
       // Company research is optional. A transient search or crawl failure must
@@ -414,7 +404,6 @@ export async function runJobAnalysis(
 
   // `config.reasoning.effort` is already clamped to the model's supported set by
   // resolveAnalysisConfig(); geminiProviderOptions() explains the Gemini side.
-  auth.onResearchEvidence?.(researchEvidence);
   let providerOptions: SharedV4ProviderOptions | undefined;
   if (model.provider === Provider.OpenAI) {
     providerOptions = {
@@ -464,10 +453,7 @@ export async function runJobAnalysis(
             headers: settings.customHeaders,
           });
 
-      if ((await result.finishReason) === "length") {
-        throw new Error(ANALYSIS_TRUNCATION_MESSAGE);
-      }
-      parsed = coerceAnalysisOutput(extractJsonObject(await result.text), snapshot.jobDescriptionDetected === false);
+      parsed = coerceAnalysisOutput(extractJsonObject(await result.text));
     } else {
       const result = await generateText({
         model: aiModel,
@@ -479,10 +465,7 @@ export async function runJobAnalysis(
         providerOptions,
       });
 
-      if ((await result.finishReason) === "length") {
-        throw new Error(ANALYSIS_TRUNCATION_MESSAGE);
-      }
-      parsed = coerceAnalysisOutput(await result.output, snapshot.jobDescriptionDetected === false);
+      parsed = coerceAnalysisOutput(await result.output);
     }
   } catch (error) {
     throw new Error(formatAnalysisError(error, model.provider));
@@ -498,7 +481,6 @@ export async function runJobAnalysis(
     researchSources,
     settings.researchCompany,
     researchIssue,
-    { inputWarnings: getAnalysisInputWarnings(snapshot, profile), companySources: researchEvidence },
   );
 }
 
@@ -693,19 +675,36 @@ export function sanitizeAnalysis(
   citedSources: Array<{ title: string; url: string }>,
   researchAttempted: boolean,
   researchIssue?: string,
-  context?: { inputWarnings?: string[]; companySources?: CompanyFactSource[] },
 ): JobAnalysis {
   const knownFields = new Map(snapshot.fields.map((field) => [field.id, field]));
-  const fit = snapshot.jobDescriptionDetected === false ? unavailableFit(NO_JOB_DESCRIPTION_MESSAGE) : sanitizeFit(parsed.fit);
   const seenSuggestions = new Set<string>();
   const generatedSuggestions: JobAnalysis["suggestions"] = [];
   for (const suggestion of parsed.suggestions ?? []) {
-    if (!suggestion || typeof suggestion.fieldId !== "string" || seenSuggestions.has(suggestion.fieldId)) {
+    if (!knownFields.has(suggestion.fieldId) || seenSuggestions.has(suggestion.fieldId)) {
       continue;
     }
-    const field = knownFields.get(suggestion.fieldId);
-    if (!field) continue;
     seenSuggestions.add(suggestion.fieldId);
+    const field = knownFields.get(suggestion.fieldId);
+    if (!field) {
+      generatedSuggestions.push(
+        normalizeSuggestion(suggestion, {
+          id: suggestion.fieldId,
+          kind: PageFieldKind.Text,
+          type: "text",
+          name: "",
+          label: suggestion.label || suggestion.fieldId,
+          placeholder: "",
+          ariaLabel: "",
+          section: "",
+          required: false,
+          sensitive: false,
+          currentValue: "",
+          maxLength: null,
+          options: [],
+        }),
+      );
+      continue;
+    }
     generatedSuggestions.push(normalizeSuggestion(suggestion, field));
   }
 
@@ -733,7 +732,7 @@ export function sanitizeAnalysis(
   // subset it directly used for the company brief.
   const sources = selectRetrievedSources(parsed.company?.sources ?? [], citedSources);
 
-  const { company, droppedFacts } = groundCompanyFacts({
+  const company = {
     summary: parsed.company?.summary ?? "",
     product: parsed.company?.product ?? "",
     stage: parsed.company?.stage ?? "",
@@ -742,21 +741,19 @@ export function sanitizeAnalysis(
     engineeringSignals: parsed.company?.engineeringSignals ?? [],
     risks: parsed.company?.risks ?? [],
     sources,
-  }, snapshot, context?.companySources);
+  };
 
   const research = {
-    grounded: true,
     attempted: researchAttempted,
     thin: isThinCompanyResearch(company, researchAttempted),
-    ...((researchIssue || droppedFacts.length) ? { issue: [researchIssue, droppedFacts.length ? `Unverified company facts were omitted: ${droppedFacts.join(", ")}.` : ""].filter(Boolean).join(" ") } : {}),
+    ...(researchIssue ? { issue: researchIssue } : {}),
   };
   return toSafeAnalysis(
     {
       ...parsed,
-      fit,
       company,
       suggestions,
-      missingFacts: [...(parsed.missingFacts ?? []), ...(context?.inputWarnings ?? [])],
+      missingFacts: parsed.missingFacts ?? [],
       research,
       generatedAt: new Date().toISOString(),
     },
@@ -784,7 +781,7 @@ export function normalizeSuggestion(
 
   if (
     action === SuggestionAction.Fill &&
-    getMeaningfulCurrentValue(field).trim() &&
+    field.currentValue.trim() &&
     field.currentValue !== field.placeholder
   ) {
     const isCheckboxUnchecked =
@@ -794,20 +791,13 @@ export function normalizeSuggestion(
     }
   }
 
-  if (field.maxLength != null && field.maxLength > 0 && value.length > field.maxLength) {
+  if (field.maxLength != null && field.maxLength > 0) {
     value = value.slice(0, field.maxLength);
-    if (action === SuggestionAction.Fill) action = SuggestionAction.Review;
-    warning = [warning, `Answer was truncated to this field's ${field.maxLength}-character limit. Review the shortened answer before filling.`].filter(Boolean).join(" ");
   }
 
-  if (action === SuggestionAction.Fill && confidence === Confidence.Low) {
+  if (field.sensitive && action === SuggestionAction.Fill) {
     action = SuggestionAction.Review;
-    warning = [warning, "Low-confidence answer: verify before filling."].filter(Boolean).join(" ");
-  }
-
-  if (requiresExplicitReview(field) && action === SuggestionAction.Fill) {
-    action = SuggestionAction.Review;
-    warning = warning || "Sensitive or legal answer: verify the exact question before selecting it.";
+    warning = warning || "Sensitive answer: verify before filling.";
   }
 
   if (
@@ -855,7 +845,7 @@ function dedupeSources(
 ): Array<{ title: string; url: string }> {
   const seen = new Set<string>();
   return sources.filter((source) => {
-    const key = normalizeSourceUrl(source.url);
+    const key = source.url.replace(/\/$/, "").toLocaleLowerCase();
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -868,7 +858,7 @@ function selectRetrievedSources(
 ): Array<{ title: string; url: string }> {
   const retrievedByUrl = new Map<string, { title: string; url: string }>();
   for (const source of retrievedSources) {
-    const key = normalizeSourceUrl(source.url);
+    const key = canonicalSourceUrl(source.url);
     if (key && !retrievedByUrl.has(key)) {
       retrievedByUrl.set(key, { title: source.title, url: source.url });
     }
@@ -876,8 +866,24 @@ function selectRetrievedSources(
 
   const selected: Array<{ title: string; url: string }> = [];
   for (const source of requestedSources) {
-    const retrieved = retrievedByUrl.get(normalizeSourceUrl(source.url));
+    const retrieved = retrievedByUrl.get(canonicalSourceUrl(source.url));
     if (retrieved) selected.push(retrieved);
   }
   return dedupeSources(selected);
+}
+
+function canonicalSourceUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/i.test(parsed.protocol)) return "";
+    parsed.hash = "";
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/^(?:utm_[^=]*|fbclid|gclid|ref)$/i.test(key)) {
+        parsed.searchParams.delete(key);
+      }
+    }
+    return parsed.href.replace(/\/$/, "").toLocaleLowerCase();
+  } catch {
+    return "";
+  }
 }

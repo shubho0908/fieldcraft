@@ -50,7 +50,7 @@ describe("sanitizeFit", () => {
       recommendation: "Still interesting, but blocked on authorization",
     });
     expect(result.score).toBe(HARD_BLOCKER_SCORE_CAP);
-    expect(result.verdict).toBe(FitVerdict.Weak);
+    expect(result.verdict).toBe(FitVerdict.Mixed);
     expect(result.hardBlockers).toHaveLength(1);
   });
 
