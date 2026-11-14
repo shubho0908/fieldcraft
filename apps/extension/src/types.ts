@@ -104,6 +104,7 @@ export interface FieldOption {
 
 export interface PageField {
   id: string;
+  frameId?: number;
   kind: PageFieldKind;
   type: string;
   name: string;
@@ -132,6 +133,10 @@ export interface CompanyResearchHints {
 }
 
 export interface PageSnapshot {
+  captureWarnings?: string[];
+  jobDescriptionDetected?: boolean;
+  jobDescriptionSource?: string;
+  jobDescriptionText?: string;
   title: string;
   url: string;
   hostname: string;
@@ -140,6 +145,7 @@ export interface PageSnapshot {
   pageText: string;
   fields: PageField[];
   capturedAt: string;
+  frames?: Array<{ frameId: number; url: string; documentId?: string; navigationDocumentId?: string }>;
   /** Optional because saved sessions and eval fixtures predate this signal. */
   companyHints?: CompanyResearchHints;
 }
@@ -169,7 +175,8 @@ export interface JobAnalysis {
     remotePolicy: string;
   };
   fit: {
-    score: number;
+    score: number | null;
+    unavailableReason?: string;
     verdict: FitVerdict;
     strongestMatches: string[];
     gaps: string[];
@@ -190,6 +197,7 @@ export interface JobAnalysis {
   missingFacts: string[];
   /** Client-side research quality signal. Not model output. */
   research: {
+    grounded?: boolean;
     attempted: boolean;
     thin: boolean;
     /** Why external research was safely skipped or could not complete. */
@@ -226,7 +234,8 @@ export interface TabAnalysisSession {
 
 export type RuntimeRequest =
   | { type: "FIELDCRAFT_CAPTURE" }
-  | { type: "FIELDCRAFT_FILL"; suggestions: FieldSuggestion[] }
+  | { type: "FIELDCRAFT_VALIDATE_DOCUMENT"; url: string; documentId: string }
+  | { type: "FIELDCRAFT_FILL"; suggestions: FieldSuggestion[]; selectedFieldIds: string[]; url: string; documentId: string }
   | { type: "FIELDCRAFT_START_ANALYSIS"; tabId: number }
   | { type: "FIELDCRAFT_GET_TAB_SESSION"; tabId: number }
   | {

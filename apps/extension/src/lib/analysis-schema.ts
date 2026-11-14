@@ -43,7 +43,8 @@ export const JOB_ANALYSIS_SCHEMA = {
       type: "object",
       additionalProperties: false,
       properties: {
-        score: { type: "integer", minimum: 0, maximum: 100 },
+        score: { type: ["integer", "null"], minimum: 0, maximum: 100 },
+        unavailableReason: { type: "string" },
         verdict: {
           type: "string",
           enum: FIT_VERDICTS,
@@ -55,6 +56,7 @@ export const JOB_ANALYSIS_SCHEMA = {
       },
       required: [
         "score",
+        "unavailableReason",
         "verdict",
         "strongestMatches",
         "gaps",

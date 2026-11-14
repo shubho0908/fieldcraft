@@ -146,7 +146,7 @@ describe("job application page engine", () => {
       warning: "",
     }));
 
-    const results = await fillPageFields(suggestions, document);
+    const results = await fillPageFields(suggestions, document, undefined, new Set(fields.map((field) => field.id)));
     expect(results.every((result) => result.status === "filled")).toBe(true);
     expect((document.querySelector("#name") as HTMLInputElement).value).toBe("Shubhojeet Bera");
     expect((document.querySelector("#city") as HTMLSelectElement).value).toBe("blr");

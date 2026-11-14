@@ -1,12 +1,15 @@
 import { Confidence, PageFieldKind, SuggestionAction } from "./enums";
-import { isChoiceField, optionMatches } from "./fields";
+import { getMeaningfulCurrentValue, isChoiceField, optionMatches, requiresExplicitReview } from "./fields";
 import type { CandidateProfile, FieldSuggestion, PageField, PageSnapshot } from "../types";
 
 interface SourceRule {
   confidence: Confidence;
-  match: (haystack: string, field: PageField) => boolean;
-  value: (profile: CandidateProfile, field: PageField) => string | undefined;
+  match: RegExp;
+  value: (profile: CandidateProfile) => string | undefined;
 }
+
+const THIRD_PARTY =
+  /\b(?:referrers?|references?|emergency|managers?|recruiters?|schools?|universit(?:y|ies)|colleges?|institutions?|compan(?:y|ies)|employers?|spouses?|parents?|mothers?|fathers?|supervisors?|partners?|employees?)\b/;
 
 export function buildDirectSuggestions(
   snapshot: PageSnapshot,
@@ -15,300 +18,190 @@ export function buildDirectSuggestions(
   const suggestions: FieldSuggestion[] = [];
 
   for (const field of snapshot.fields) {
-    if (field.sensitive) continue;
-    if (hasExistingValue(field)) continue;
+    if (field.sensitive || hasExistingValue(field)) continue;
+    if (["hidden", "password", "submit", "button", "reset", "image"].includes(field.type)) continue;
 
-    const haystack = makeHaystack(field);
+    const sources = [field.label, field.ariaLabel, field.placeholder, field.name].map(cleanText);
+    const question = sources.find(Boolean) ?? "";
+    if (!question || sources.some((source) => THIRD_PARTY.test(source))) continue;
+    if (sources.some((source) => /\b(?:first|last|middle|given|family|preferred|previous|maiden) name\b/.test(source))) {
+      continue;
+    }
+    const section = cleanText(field.section);
+    const thirdPartySection = THIRD_PARTY.test(section) ||
+      /\b(?:education|employment history|work history|work experience)\b/.test(section);
+    if (thirdPartySection && !/^(?:(?:please )?(?:enter|provide|type) )?(?:your|candidate|applicant)\b/.test(question)) {
+      continue;
+    }
+    const attestation = requiresExplicitReview(field);
     let suggestion: FieldSuggestion | undefined;
 
-    // Canonical answers get first priority because they are explicit question/answer pairs.
     for (const item of profile.canonicalAnswers) {
-      if (!item.question.trim() || !item.answer.trim()) continue;
-      const question = cleanText(item.question);
-      if (!question || !haystack.includes(question)) continue;
-      const resolved = resolveValue(field, item.answer);
-      if (!resolved) continue;
-      suggestion = makeSuggestion(field, resolved.value, resolved.warning, Confidence.High);
+      const savedQuestion = cleanText(item.question);
+      if (!savedQuestion) continue;
+      const exactOnly = attestation ||
+        /\b(?:name|email|mail|phone|salary|compensation|experience|years)\b/.test(question);
+      const matches = question === savedQuestion || (
+        !exactOnly &&
+        savedQuestion.length >= 12 &&
+        savedQuestion.split(" ").length >= 3 &&
+        ` ${question} `.includes(` ${savedQuestion} `)
+      );
+      if (!matches) continue;
+      const value = resolveValue(field, item.answer);
+      if (!value) continue;
+      suggestion = makeSuggestion(field, value, Confidence.High, attestation, true);
       break;
     }
 
-    if (!suggestion) {
+    const label = question
+      .replace(/^(?:please )?(?:enter|provide|type) /, "")
+      .replace(/^(?:your|candidate|applicant) /, "");
+    // A legal-name label still maps the saved full name, but the shared legal
+    // policy now requires review rather than silently dropping that mapping.
+    if (!suggestion && (!attestation || /^(?:full )?legal name$/.test(label))) {
       for (const rule of sourceRules) {
-        if (!rule.match(haystack, field)) continue;
-        const raw = rule.value(profile, field);
-        if (!raw || !raw.trim()) continue;
-        const resolved = resolveValue(field, raw);
-        if (!resolved) continue;
-        suggestion = makeSuggestion(field, resolved.value, resolved.warning, rule.confidence);
+        if (!rule.match.test(label)) continue;
+        if (field.kind === PageFieldKind.File && !/^(?:resume|cv|curriculum vitae)$/.test(label)) continue;
+        if (field.kind !== PageFieldKind.File && /^(?:resume|cv|curriculum vitae)$/.test(label)) continue;
+        const value = resolveValue(field, rule.value(profile) ?? "");
+        if (!value) continue;
+        suggestion = makeSuggestion(field, value, rule.confidence, attestation);
         break;
       }
     }
 
-    if (suggestion) {
-      suggestions.push(suggestion);
-    }
+    if (suggestion) suggestions.push(suggestion);
   }
 
   return suggestions;
 }
 
-function makeHaystack(field: PageField): string {
-  return cleanText(`${field.label} ${field.name} ${field.placeholder} ${field.ariaLabel} ${field.section}`);
-}
-
 function hasExistingValue(field: PageField): boolean {
-  if (field.kind === PageFieldKind.Checkbox) {
-    return field.currentValue === "true";
-  }
-  if (field.kind === PageFieldKind.File) {
-    return field.currentValue.trim().length > 0;
-  }
-  return field.currentValue.trim().length > 0;
+  if (field.kind === PageFieldKind.Checkbox) return field.currentValue === "true";
+  return getMeaningfulCurrentValue(field).trim().length > 0;
 }
 
-function resolveValue(
-  field: PageField,
-  raw: string,
-): { value: string; warning: string } | undefined {
+function resolveValue(field: PageField, raw: string): string | undefined {
   const value = raw.trim();
-  if (!value) return undefined;
-
-  let warning = "";
-
-  if (field.maxLength && value.length > field.maxLength) {
-    warning = `Truncated to ${field.maxLength} characters`;
-    return { value: value.slice(0, field.maxLength), warning };
-  }
-
-  if (field.kind === PageFieldKind.File) {
-    return { value, warning };
-  }
-
-  if (isChoiceField(field) && !optionMatches(field, value)) {
+  if (!value || (field.maxLength !== null && field.maxLength >= 0 && value.length > field.maxLength)) {
     return undefined;
   }
-
-  return { value, warning };
+  if (isChoiceField(field) && !optionMatches(field, value)) return undefined;
+  return value;
 }
 
 function makeSuggestion(
   field: PageField,
   value: string,
-  warning: string,
   confidence: Confidence,
+  attestation: boolean,
+  savedAnswer = false,
 ): FieldSuggestion {
   return {
     fieldId: field.id,
     label: field.label,
-    action: warning ? SuggestionAction.Review : SuggestionAction.Fill,
+    action: attestation ? SuggestionAction.Review : SuggestionAction.Fill,
     value,
     confidence,
-    evidence: "Filled directly from profile",
-    warning,
+    evidence: savedAnswer ? "Exact saved question and answer" : "Filled directly from profile",
+    warning: attestation
+      ? "Verify this saved answer against the exact question, including its polarity and jurisdiction, before selecting it."
+      : "",
   };
 }
 
 function cleanText(value: string): string {
   return value
-    .replace(/[^\w\s]/g, " ")
+    .normalize("NFKC")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\((?:required|optional)\)/gi, " ")
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .toLocaleLowerCase();
+    .trim();
 }
 
 const sourceRules: SourceRule[] = [
-  // Resume file
   {
     confidence: Confidence.Medium,
-    match(haystack, field) {
-      return field.kind === PageFieldKind.File && /\bresume\b|\bcv\b|\bcurriculum\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.resumeAttachment?.name;
-    },
-  },
-  // Identity
-  {
-    confidence: Confidence.High,
-    match(haystack, _field) {
-      return /\bemail\b/.test(haystack) && !/\bcompany\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.identity.email;
-    },
+    match: /^(?:resume|cv|curriculum vitae)$/,
+    value: (profile) => profile.resumeAttachment?.name,
   },
   {
     confidence: Confidence.High,
-    match(haystack, _field) {
-      return /\bphone\b|\bmobile\b|\bcell\b|\btelephone\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.identity.phone;
-    },
+    match: /^e ?mail(?: address)?$/,
+    value: (profile) => profile.identity.email,
   },
   {
     confidence: Confidence.High,
-    match(haystack, _field) {
-      return /\bname\b/.test(haystack) && !/\bcompany\b|\bfirst name\b|\blast name\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.identity.fullName;
-    },
+    match: /^(?:(?:phone|mobile|cell|telephone)(?: number)?|cell phone(?: number)?)$/,
+    value: (profile) => profile.identity.phone,
   },
   {
     confidence: Confidence.High,
-    match(haystack, _field) {
-      return /\blocation\b|\bcity\b|\baddress\b|\bbased in\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.identity.location;
-    },
+    match: /^(?:name|full name|legal name|full legal name)$/,
+    value: (profile) => profile.identity.fullName,
   },
   {
     confidence: Confidence.High,
-    match(haystack, _field) {
-      return /\blinkedin\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.identity.linkedin;
-    },
+    match: /^(?:location|current location|where are you based)$/,
+    value: (profile) => profile.identity.location,
   },
   {
     confidence: Confidence.High,
-    match(haystack, _field) {
-      return /\bgithub\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.identity.github;
-    },
+    match: /^linked ?in(?: profile)?(?: url)?$/,
+    value: (profile) => profile.identity.linkedin,
+  },
+  {
+    confidence: Confidence.High,
+    match: /^git ?hub(?: profile)?(?: url)?$/,
+    value: (profile) => profile.identity.github,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\bportfolio\b|\bwebsite\b|\burl\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.identity.portfolio;
-    },
-  },
-  // Profile top-level
-  {
-    confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\bheadline\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.headline;
-    },
+    match: /^(?:portfolio(?: url| website)?|(?:personal )?website(?: url)?)$/,
+    value: (profile) => profile.identity.portfolio,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\btarget role\b|\bdesired role\b|\bjob title\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.targetRoles;
-    },
-  },
-  // Defaults
-  {
-    confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\byears of experience\b|\byoe\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.defaults.yearsOfExperience;
-    },
+    match: /^(?:professional )?headline$/,
+    value: (profile) => profile.headline,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\bnotice period\b|\bnotice\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.defaults.noticePeriod;
-    },
+    match: /^(?:(?:target|desired) role|desired job title)$/,
+    value: (profile) => profile.targetRoles,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return (
-        /\bauthorized to work\b/.test(haystack) ||
-        /\bwork authorization\b/.test(haystack) ||
-        /\bwork authorisation\b/.test(haystack) ||
-        /\beligibility\b/.test(haystack)
-      );
-    },
-    value(profile, _field) {
-      return profile.defaults.authorizedToWork;
-    },
+    match: /^(?:(?:(?:total|overall) years of (?:professional |work )?experience|years of (?:professional|work) experience)|how many (?:total|overall) years of (?:professional |work )?experience do you have)$/,
+    value: (profile) => profile.defaults.yearsOfExperience,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\bsponsorship\b|\bvisa\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.defaults.needsSponsorship;
-    },
+    match: /^(?:notice period|what is your notice period)$/,
+    value: (profile) => profile.defaults.noticePeriod,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\bcurrent compensation\b|\bcurrent salary\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.defaults.currentCompensation;
-    },
+    match: /^current (?:compensation|salary)$/,
+    value: (profile) => profile.defaults.currentCompensation,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return (
-        /\bexpected compensation\b/.test(haystack) ||
-        /\bexpected salary\b/.test(haystack) ||
-        /\bdesired salary\b/.test(haystack)
-      );
-    },
-    value(profile, _field) {
-      return profile.defaults.expectedCompensation;
-    },
+    match: /^(?:expected (?:compensation|salary)|desired salary)$/,
+    value: (profile) => profile.defaults.expectedCompensation,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return (
-        /\bremote preference\b/.test(haystack) ||
-        /\bwork preference\b/.test(haystack) ||
-        /\bwork arrangement\b/.test(haystack) ||
-        /\bwork mode\b/.test(haystack)
-      );
-    },
-    value(profile, _field) {
-      return profile.defaults.remotePreference;
-    },
+    match: /^(?:remote preference|work preference|(?:preferred )?work arrangement|work mode)$/,
+    value: (profile) => profile.defaults.remotePreference,
   },
   {
     confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return /\brelocate\b|\brelocation\b/.test(haystack);
-    },
-    value(profile, _field) {
-      return profile.defaults.willingToRelocate;
-    },
-  },
-  {
-    confidence: Confidence.Medium,
-    match(haystack, _field) {
-      return (
-        /\bhow did you hear\b/.test(haystack) ||
-        /\bhow did you find\b/.test(haystack) ||
-        /\breferral source\b/.test(haystack) ||
-        /\breferred\b/.test(haystack)
-      );
-    },
-    value(profile, _field) {
-      return profile.defaults.referralSource;
-    },
+    match: /^(?:how did you hear about us|how did you find this (?:job|role)|referral source)$/,
+    value: (profile) => profile.defaults.referralSource,
   },
 ];

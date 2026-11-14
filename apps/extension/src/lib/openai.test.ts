@@ -284,9 +284,9 @@ describe("sanitizeAnalysis", () => {
     );
 
     expect(analysis.fit.score).toBe(HARD_BLOCKER_SCORE_CAP);
-    expect(analysis.fit.verdict).toBe(FitVerdict.Mixed);
+    expect(analysis.fit.verdict).toBe(FitVerdict.Weak);
     expect(analysis.company.sources).toEqual([]);
-    expect(analysis.research).toEqual({ attempted: true, thin: true });
+    expect(analysis.research).toEqual({ attempted: true, thin: true, grounded: true, issue: undefined });
     expect(analysis.suggestions).toHaveLength(1);
   });
 });
@@ -345,8 +345,9 @@ describe("coerceAnalysisOutput", () => {
     expect(parsed.fit.score).toBe(48);
     expect(parsed.fit.strongestMatches).toEqual(["LLM experience"]);
     expect(parsed.fit.recommendation).toBe("Technical fit is strong.");
-    expect(parsed.company.summary).toBe("Accounting / Fintech");
-    expect(parsed.company.funding).toBe("INR 15,000-30,000/month");
+    expect(parsed.company.summary).toBe("");
+    expect(parsed.company.product).toBe("");
+    expect(parsed.company.funding).toBe("");
     expect(parsed.suggestions).toHaveLength(1);
     expect(parsed.suggestions[0].fieldId).toBe("field-1");
     expect(parsed.missingFacts).toEqual(["Candidate intent"]);
@@ -496,7 +497,7 @@ describe("runJobAnalysis max output tokens", () => {
 
     expect(generate).toHaveBeenCalledTimes(1);
     const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
-    expect(call.maxOutputTokens).toBe(16_384);
+    expect(call.maxOutputTokens).toBe(98_304);
     expect(createAiModel).toHaveBeenCalledWith(
       expect.objectContaining({ model: expect.objectContaining({ id: DEFAULT_MODEL_ID }) }),
     );
@@ -522,7 +523,7 @@ describe("runJobAnalysis max output tokens", () => {
     expect(call.maxOutputTokens).toBe(4_096);
   });
 
-  it("defaults custom providers to 4096", async () => {
+  it("defaults unknown custom providers to 4096", async () => {
     const generate = vi.mocked(generateText);
     generate.mockResolvedValueOnce({
       text: JSON.stringify(validAnalysisOutput),
@@ -661,7 +662,7 @@ describe("runJobAnalysis provider options", () => {
     expect(firstCallProviderOptions()).toBeUndefined();
   });
 
-  it("sends Gemini 3.8 Flash's routine budget, not its 64k ceiling", async () => {
+  it("sends Gemini 3.8 Flash's 64k large-form budget", async () => {
     stubAnalysis("resp-gemini-budget");
 
     await runJobAnalysis(
@@ -678,10 +679,10 @@ describe("runJobAnalysis provider options", () => {
     const call = vi.mocked(generateText).mock.calls[0][0] as {
       maxOutputTokens: number;
     };
-    expect(call.maxOutputTokens).toBe(16_384);
+    expect(call.maxOutputTokens).toBe(65_536);
   });
 
-  it("sends Opus 5.5 adaptive effort and its 16k routine budget", async () => {
+  it("sends Opus 5.5 adaptive effort and its 96k large-form budget", async () => {
     stubAnalysis("resp-anthropic");
 
     await runJobAnalysis(
@@ -702,7 +703,7 @@ describe("runJobAnalysis provider options", () => {
     const call = vi.mocked(generateText).mock.calls[0][0] as {
       maxOutputTokens: number;
     };
-    expect(call.maxOutputTokens).toBe(16_384);
+    expect(call.maxOutputTokens).toBe(98_304);
   });
 
   it("sends Anthropic adaptive effort for legacy Claude models", async () => {

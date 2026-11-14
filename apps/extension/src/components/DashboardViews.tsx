@@ -120,7 +120,7 @@ export function EmptyDashboard({
             <PencilLine size={18} />
             <span>
               <strong>Direct-fill</strong>
-              <small>Map profile fields to the form instantly</small>
+              <small>Prepare profile answers for your review</small>
             </span>
           </button>
         </div>
@@ -156,11 +156,11 @@ export function EmptyDashboard({
         >
           {directFillBusy ? (
             <>
-              <LoaderCircle className="spin" size={18} /> Filling…
+              <LoaderCircle className="spin" size={18} /> Preparing…
             </>
           ) : (
             <>
-              <PencilLine size={18} /> Direct-fill this page
+              <PencilLine size={18} /> Review Direct-fill answers
             </>
           )}
         </button>
@@ -314,6 +314,7 @@ export function ResultsDashboard({
       {error && <ErrorBox message={error} onSettings={onOpenSettings} />}
 
       <div className="result-content">
+        {analysis.missingFacts.length > 0 && <div className="answer-warning" role="status"><ul>{analysis.missingFacts.map((notice) => <li key={notice}>{notice}</li>)}</ul></div>}
         {activeTab === "fit" && <FitView analysis={analysis} />}
         {activeTab === "answers" && (
           <AnswersView
@@ -358,6 +359,7 @@ export function ResultsDashboard({
 
 function FitView({ analysis }: { analysis: JobAnalysis }) {
   const { fit, job } = analysis;
+  if (fit.score === null) return <section className="fit-card"><p>{fit.unavailableReason || "Fit score unavailable. Analyze the job posting again."}</p></section>;
   return (
     <div className="view-stack">
       <section className="fit-card">
@@ -554,6 +556,7 @@ function ResearchView({ analysis, snapshot }: { analysis: JobAnalysis; snapshot:
         </div>
       )}
       <p className="research-summary">{company.summary}</p>
+      {!analysis.research.grounded && <p className="answer-warning" role="status">Saved company facts are unverified. Analyze again to check their sources.</p>}
       <div className="research-facts">
         <Fact label="Product" value={company.product} />
         <Fact label="Stage" value={company.stage} />

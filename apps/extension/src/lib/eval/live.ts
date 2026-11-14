@@ -1,67 +1,56 @@
 import { DEFAULT_SETTINGS } from "../defaults";
-import { sanitizeCustomHeaders } from "../custom-headers";
-import { JudgeId } from "../enums";
-import type { ReasoningEffortSetting } from "../enums";
-import {
-  CUSTOM_MODEL_PREFIX,
-  CustomProtocol,
-  DEFAULT_EVAL_MODEL_ID,
-  DEFAULT_EVAL_REASONING_EFFORT,
-  Provider,
-  isCustomModelId,
-  preferredEvalReasoningEffort,
-  resolveModel,
-  resolveReasoningEffort,
-} from "../models";
+import { parseCustomHeaderLines, sanitizeCustomHeaders } from "../custom-headers";
+import { isReasoningEffortSetting, type ReasoningEffortSetting } from "../enums";
+import { CUSTOM_MODEL_PREFIX, CustomProtocol, DEFAULT_EVAL_MODEL_ID, DEFAULT_EVAL_REASONING_EFFORT, Provider, defaultModelForProvider, isCustomModelId, isCustomProtocol, isKnownModel, preferredEvalReasoningEffort, resolveModel, resolveReasoningEffort } from "../models";
+import { createAiModel } from "../ai-provider";
 import { runJobAnalysis } from "../openai";
 import type { ExtensionSettings } from "../../types";
 import { EVAL_FIXTURES } from "./fixtures";
-import { evaluateAnalysis } from "./judges";
-import type { EvalReport } from "./types";
+import { evaluateAnalysis, report, result } from "./judges";
+import { auditGrounding, groundingSources } from "./grounding";
+import type { EvalReport, GroundingSource } from "./types";
 
-export {
-  DEFAULT_EVAL_MODEL_ID as DEFAULT_EVAL_MODEL,
-  DEFAULT_EVAL_REASONING_EFFORT as DEFAULT_EVAL_REASONING,
-};
+export { DEFAULT_EVAL_MODEL_ID as DEFAULT_EVAL_MODEL, DEFAULT_EVAL_REASONING_EFFORT as DEFAULT_EVAL_REASONING };
 
 export interface LiveEvalOptions {
   apiKey: string;
-  /** Exa API key for company research in eval runs. */
   exaApiKey?: string;
-  /** Model id from the Fieldcraft catalog or a `custom:<id>` value (defaults to DEFAULT_EVAL_MODEL_ID). */
   model?: string;
-  /**
-   * Reasoning effort for the eval run.
-   * Defaults to DEFAULT_EVAL_REASONING_EFFORT (high), clamped per model.
-   */
   reasoningEffort?: ReasoningEffortSetting;
   researchCompany?: boolean;
-  /** Limit fixtures for cheaper smoke runs. */
   fixtureIds?: string[];
-  /** Override provider detection. Required for custom endpoints. */
+  repetitions?: number;
   provider?: Provider;
-  /** Base URL for {@link Provider.Custom}. */
   customBaseUrl?: string;
-  /** Protocol for {@link Provider.Custom}. */
   customProtocol?: CustomProtocol;
-  /** Optional extra headers for {@link Provider.Custom}. */
   customHeaders?: Record<string, string>;
+  judgeModel?: string;
+  judgeApiKey?: string;
+}
+
+export interface LiveEvalAttempt {
+  run: number;
+  score: number | null;
+  verdict: string | null;
+  report: EvalReport;
+  error?: string;
 }
 
 export interface LiveEvalCaseResult {
   fixtureId: string;
   model: string;
   reasoningEffort: ReasoningEffortSetting;
+  researchEnabled: boolean;
+  researchDisabledReason?: string;
+  runs: LiveEvalAttempt[];
+  statistics: ReturnType<typeof summarizeRuns>;
   report: EvalReport;
-  error?: string;
 }
 
 export interface ResolvedLiveEvalConfig {
   model: string;
   modelLabel: string;
-  /** Setting after defaulting (e.g. high). */
   reasoningEffort: ReasoningEffortSetting;
-  /** Concrete OpenAI effort after the model-specific clamp. */
   resolvedReasoningEffort: ReturnType<typeof resolveReasoningEffort>;
   researchCompany: boolean;
   provider: Provider;
@@ -70,128 +59,119 @@ export interface ResolvedLiveEvalConfig {
   customHeaders?: Record<string, string>;
 }
 
-/**
- * Resolve model + reasoning for a live eval run.
- * All defaults come from the model catalog — nothing hardcoded here.
- */
-export function resolveLiveEvalConfig(
-  options: Pick<
-    LiveEvalOptions,
-    | "model"
-    | "reasoningEffort"
-    | "researchCompany"
-    | "provider"
-    | "customBaseUrl"
-    | "customProtocol"
-    | "customHeaders"
-  >,
-): ResolvedLiveEvalConfig {
-  let modelId = options.model ?? DEFAULT_EVAL_MODEL_ID;
-  let provider = options.provider ?? resolveModel(modelId).provider;
-
-  // If the caller explicitly wants a custom provider, the model id must carry
-  // the `custom:` prefix so downstream resolver/API key/base URL logic treats
-  // it as a custom endpoint — even when a plain model string is passed.
-  if (provider === Provider.Custom && !isCustomModelId(modelId)) {
-    modelId = `${CUSTOM_MODEL_PREFIX}${modelId}`;
-  }
-
+export function resolveLiveEvalConfig(options: Partial<LiveEvalOptions>): ResolvedLiveEvalConfig {
+  let modelId = options.model ?? (options.provider ? defaultModelForProvider(options.provider).id : DEFAULT_EVAL_MODEL_ID);
+  const provider = options.provider ?? resolveModel(modelId).provider;
+  if (provider === Provider.Custom && !isCustomModelId(modelId)) modelId = `${CUSTOM_MODEL_PREFIX}${modelId}`;
+  if (!isKnownModel(modelId) || (isCustomModelId(modelId) && !modelId.slice(CUSTOM_MODEL_PREFIX.length).trim())) throw new Error("Choose a valid FIELDCRAFT_EVAL_MODEL.");
   const model = resolveModel(modelId);
-  provider = options.provider ?? model.provider;
+  if (model.provider !== provider) throw new Error("FIELDCRAFT_EVAL_PROVIDER does not match FIELDCRAFT_EVAL_MODEL.");
+  if (provider === Provider.Custom) {
+    if (options.customProtocol !== undefined && !isCustomProtocol(options.customProtocol)) throw new Error("Invalid FIELDCRAFT_CUSTOM_PROTOCOL.");
+    if (!options.customBaseUrl) throw new Error("FIELDCRAFT_CUSTOM_BASE_URL is required for custom evals.");
+    const url = new URL(options.customBaseUrl);
+    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) throw new Error("Custom base URL must be HTTP(S), without credentials.");
+  }
+  const reasoningEffort = options.reasoningEffort ?? preferredEvalReasoningEffort(model.id);
+  return { model: modelId, modelLabel: model.label, reasoningEffort, resolvedReasoningEffort: resolveReasoningEffort(model.id, reasoningEffort), researchCompany: options.researchCompany ?? false, provider, customBaseUrl: options.customBaseUrl, customProtocol: options.customProtocol, customHeaders: sanitizeCustomHeaders(options.customHeaders) };
+}
 
-  const reasoningEffort =
-    options.reasoningEffort ?? preferredEvalReasoningEffort(model.id);
+export const PROVIDER_KEY_ENV: Record<Provider, string> = {
+  [Provider.OpenAI]: "OPENAI_API_KEY", [Provider.Gemini]: "GEMINI_API_KEY", [Provider.Anthropic]: "ANTHROPIC_API_KEY", [Provider.Custom]: "CUSTOM_API_KEY",
+};
+
+export function liveOptionsFromEnv(env: Record<string, string | undefined>): LiveEvalOptions {
+  const rawProvider = env.FIELDCRAFT_EVAL_PROVIDER?.trim();
+  if (rawProvider && !Object.values(Provider).includes(rawProvider as Provider)) throw new Error("Unknown FIELDCRAFT_EVAL_PROVIDER.");
+  const suppliedModel = env.FIELDCRAFT_EVAL_MODEL?.trim() || env.FIELDCRAFT_CUSTOM_MODEL_ID?.trim();
+  const provider = (rawProvider as Provider | undefined) ?? (suppliedModel ? resolveModel(suppliedModel).provider : Provider.OpenAI);
+  const reasoning = env.FIELDCRAFT_EVAL_REASONING?.trim();
+  if (reasoning && !isReasoningEffortSetting(reasoning)) throw new Error("Invalid FIELDCRAFT_EVAL_REASONING.");
+  const judgeModel = env.FIELDCRAFT_EVAL_JUDGE_MODEL?.trim();
+  const judgeProvider = judgeModel ? resolveModel(judgeModel).provider : provider;
+  const repetitions = Number(env.FIELDCRAFT_EVAL_REPETITIONS ?? 3);
+  if (!Number.isInteger(repetitions) || repetitions < 3) throw new Error("FIELDCRAFT_EVAL_REPETITIONS must be an integer >= 3.");
+  const protocol = env.FIELDCRAFT_CUSTOM_PROTOCOL?.trim();
+  if (protocol && !Object.values(CustomProtocol).includes(protocol as CustomProtocol)) throw new Error("Invalid FIELDCRAFT_CUSTOM_PROTOCOL.");
   return {
-    model: modelId,
-    modelLabel: model.label,
-    reasoningEffort,
-    resolvedReasoningEffort: resolveReasoningEffort(model.id, reasoningEffort),
-    researchCompany: options.researchCompany ?? false,
-    provider,
-    customBaseUrl: options.customBaseUrl,
-    customProtocol: options.customProtocol,
-    customHeaders: sanitizeCustomHeaders(options.customHeaders),
+    apiKey: env[PROVIDER_KEY_ENV[provider]]?.trim() ?? "",
+    exaApiKey: env.EXA_API_KEY?.trim(), provider, model: suppliedModel,
+    reasoningEffort: reasoning as ReasoningEffortSetting | undefined,
+    researchCompany: env.FIELDCRAFT_EVAL_RESEARCH === "1", repetitions,
+    fixtureIds: env.FIELDCRAFT_EVAL_FIXTURES?.split(",").map((s) => s.trim()).filter(Boolean),
+    customBaseUrl: env.FIELDCRAFT_CUSTOM_BASE_URL?.trim(), customProtocol: protocol as CustomProtocol | undefined,
+    customHeaders: parseCustomHeaderLines(env.FIELDCRAFT_CUSTOM_HEADERS ?? ""),
+    judgeModel, judgeApiKey: env[PROVIDER_KEY_ENV[judgeProvider]]?.trim(),
   };
 }
 
-/**
- * Run fixture pack against the selected provider, then apply judges.
- * Requires a real API key. Not used by the Chrome extension runtime.
- */
-export async function runLiveEval(
-  options: LiveEvalOptions,
-): Promise<LiveEvalCaseResult[]> {
-  const resolved = resolveLiveEvalConfig(options);
-  const settings: ExtensionSettings = {
-    ...DEFAULT_SETTINGS,
-    provider: resolved.provider,
-    model: resolved.model,
-    customBaseUrl: resolved.customBaseUrl ?? DEFAULT_SETTINGS.customBaseUrl,
-    customProtocol: resolved.customProtocol ?? DEFAULT_SETTINGS.customProtocol,
-    customHeaders: resolved.customHeaders ?? DEFAULT_SETTINGS.customHeaders,
-    reasoningEffort: resolved.reasoningEffort,
-    evalModel: resolved.model,
-    evalReasoningEffort: resolved.reasoningEffort,
-    researchCompany: resolved.researchCompany,
-  };
-
-  const fixtures = options.fixtureIds?.length
-    ? EVAL_FIXTURES.filter((fixture) => options.fixtureIds!.includes(fixture.id))
-    : EVAL_FIXTURES;
-
-  const results: LiveEvalCaseResult[] = [];
-
-  for (const fixture of fixtures) {
-    try {
-      const analysis = await runJobAnalysis(
-        fixture.snapshot,
-        fixture.profile,
-        {
-          ...settings,
-          researchCompany:
-            options.researchCompany ?? fixture.researchAttempted,
-        },
-        {
-          apiKey: options.apiKey,
-          installId: `fieldcraft-eval-${fixture.id}`,
-          exaApiKey: options.exaApiKey,
-        },
-      );
-      const report = evaluateAnalysis(
-        {
-          ...fixture,
-          researchAttempted:
-            options.researchCompany ?? fixture.researchAttempted,
-        },
-        analysis,
-      );
-      results.push({
-        fixtureId: fixture.id,
-        model: resolved.model,
-        reasoningEffort: resolved.reasoningEffort,
-        report,
-      });
-    } catch (error) {
-      results.push({
-        fixtureId: fixture.id,
-        model: resolved.model,
-        reasoningEffort: resolved.reasoningEffort,
-        report: {
-          fixtureId: fixture.id,
-          ok: false,
-          results: [],
-          failures: [
-            {
-              judge: JudgeId.LiveRuntime,
-              message:
-                error instanceof Error ? error.message : "Live analysis failed",
-            },
-          ],
-        },
-        error: error instanceof Error ? error.message : "Live analysis failed",
-      });
-    }
+export function summarizeRuns(runs: LiveEvalAttempt[]) {
+  const scores = runs.flatMap((run) => run.score === null ? [] : [run.score]);
+  const mean = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null;
+  const standardDeviation = scores.length > 1 && mean !== null
+    ? Math.sqrt(scores.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (scores.length - 1)) : null;
+  const verdictCounts: Record<string, number> = {};
+  for (const run of runs) {
+    const verdict = run.error ? "error" : run.verdict ?? "unavailable";
+    verdictCounts[verdict] = (verdictCounts[verdict] ?? 0) + 1;
   }
+  const successfulCounts = Object.entries(verdictCounts).filter(([key]) => key !== "error").map(([, count]) => count);
+  return { samples: runs.length, scoredSamples: scores.length, mean, standardDeviation, verdictCounts, verdictAgreement: runs.length ? Math.max(0, ...successfulCounts) / runs.length : 0 };
+}
 
+export async function runLiveEval(options: LiveEvalOptions): Promise<LiveEvalCaseResult[]> {
+  const resolved = resolveLiveEvalConfig(options);
+  if (!options.apiKey.trim()) throw new Error(`${PROVIDER_KEY_ENV[resolved.provider]} is required for live evals.`);
+  if (resolved.researchCompany && !options.exaApiKey?.trim()) throw new Error("EXA_API_KEY is required when FIELDCRAFT_EVAL_RESEARCH=1; Node evals never read Chrome storage.");
+  const repetitions = options.repetitions ?? 3;
+  if (!Number.isInteger(repetitions) || repetitions < 3) throw new Error("Live evals require repetitions >= 3.");
+  const selected = options.fixtureIds?.length ? options.fixtureIds : EVAL_FIXTURES.map((fixture) => fixture.id);
+  for (const id of selected) if (!EVAL_FIXTURES.some((fixture) => fixture.id === id)) throw new Error(`Unknown eval fixture: ${id}`);
+  const fixtures = EVAL_FIXTURES.filter((fixture) => selected.includes(fixture.id));
+  const judge = resolveLiveEvalConfig({
+    model: options.judgeModel ?? resolved.model,
+    customBaseUrl: options.customBaseUrl, customProtocol: options.customProtocol, customHeaders: options.customHeaders,
+  });
+  const judgeApiKey = options.judgeApiKey?.trim() || (judge.provider === resolved.provider ? options.apiKey.trim() : "");
+  if (!judgeApiKey) throw new Error(`${PROVIDER_KEY_ENV[judge.provider]} is required for the grounding judge.`);
+  // Constructing the provider performs local configuration validation, not a request.
+  createAiModel({ model: resolveModel(judge.model), apiKey: judgeApiKey, baseURL: judge.customBaseUrl, protocol: judge.customProtocol, headers: judge.customHeaders });
+  const settings: ExtensionSettings = {
+    ...DEFAULT_SETTINGS, provider: resolved.provider, model: resolved.model, reasoningEffort: resolved.reasoningEffort,
+    evalModel: resolved.model, evalReasoningEffort: resolved.reasoningEffort,
+    customBaseUrl: resolved.customBaseUrl ?? "", customProtocol: resolved.customProtocol ?? DEFAULT_SETTINGS.customProtocol,
+    customHeaders: resolved.customHeaders,
+  };
+  const results: LiveEvalCaseResult[] = [];
+  for (const fixture of fixtures) {
+    const researchEnabled = resolved.researchCompany && fixture.company.researchAllowed;
+    const runs: LiveEvalAttempt[] = [];
+    for (let run = 1; run <= repetitions; run++) {
+      try {
+        let researchSources: GroundingSource[] = [];
+        const auth = {
+          apiKey: options.apiKey, installId: `fieldcraft-eval-${fixture.id}-${run}`, exaApiKey: options.exaApiKey,
+          onResearchEvidence: (sources: Array<{ title: string; url: string; text: string }>) => {
+            researchSources = sources.filter((source) => source.text.trim()).map((source, index) => ({ id: `research.${index}`, kind: "research", url: source.url, text: source.text }));
+          },
+        };
+        const analysis = await runJobAnalysis(fixture.snapshot, fixture.profile, { ...settings, researchCompany: researchEnabled }, auth);
+        const sources = groundingSources(fixture, researchSources);
+        const audit = await auditGrounding(fixture, analysis, sources, { apiKey: judgeApiKey, model: judge.model, customBaseUrl: judge.customBaseUrl, customProtocol: judge.customProtocol, customHeaders: judge.customHeaders });
+        const evaluated = evaluateAnalysis(fixture, analysis, audit);
+        runs.push({ run, score: analysis.fit.score, verdict: analysis.fit.score === null ? null : analysis.fit.verdict, report: evaluated });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Live evaluation failed";
+        runs.push({ run, score: null, verdict: null, error: message, report: report(fixture.id, [result("live.runtime", [message])]) });
+      }
+    }
+    const statistics = summarizeRuns(runs);
+    const stable = result("live.verdict_stability", statistics.verdictAgreement === 1 ? [] : [`verdict flip or failed run: ${JSON.stringify(statistics.verdictCounts)}`]);
+    results.push({ fixtureId: fixture.id, model: resolved.model, reasoningEffort: resolved.reasoningEffort, researchEnabled,
+      ...(resolved.researchCompany && !researchEnabled ? { researchDisabledReason: "Authored fictitious/adversarial employer; external research prohibited." } : {}),
+      runs, statistics,
+      report: report(fixture.id, [...runs.flatMap((run) => run.report.results.map((item) => ({ ...item, ...(item.message ? { message: `run ${run.run}: ${item.message}` } : {}) }))), stable]),
+    });
+  }
   return results;
 }

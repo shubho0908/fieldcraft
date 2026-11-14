@@ -63,7 +63,7 @@ bun run extension:build
 bun run --filter fieldcraft-extension check
 bun run --filter fieldcraft-extension test
 bun run --filter fieldcraft-extension eval
-OPENAI_API_KEY=sk-... bun run --filter fieldcraft-extension eval:live
+FIELDCRAFT_EVAL_LIVE=1 OPENAI_API_KEY=sk-... bun run --filter fieldcraft-extension eval:live
 ```
 
 ### From this directory (`apps/extension`)
@@ -73,7 +73,7 @@ bun run dev
 bun run check
 bun run test
 bun run eval
-OPENAI_API_KEY=sk-... bun run eval:live
+FIELDCRAFT_EVAL_LIVE=1 OPENAI_API_KEY=sk-... bun run eval:live
 bun run build
 bun run doctor
 ```
@@ -81,7 +81,7 @@ bun run doctor
 Load the development output shown by CRXJS in `chrome://extensions` (usually `apps/extension/dist` relative to the monorepo root).
 
 - `bun run eval` — deterministic judges (no network)
-- `bun run eval:live` — optional live AI-provider run of the fixture pack (skipped without a configured API key)
+- `bun run eval:live` — paid live fixture runs and independent grounding audits (skipped unless `FIELDCRAFT_EVAL_LIVE=1`; an opted-in run requires provider keys)
 
 The production-extension browser regressions and the PDF unit tests require Node 26 (CI uses Node 26): the pinned PDF.js build calls ES2025 `Uint8Array.prototype.toHex`, which older Node releases do not provide. Chrome runs the same code path natively. From `apps/extension`:
 
@@ -99,29 +99,33 @@ Live eval options (env):
 
 | Env | Default | Description |
 |-----|---------|-------------|
-| `FIELDCRAFT_EVAL_PROVIDER` | `openai` | `openai` \| `gemini` \| `custom` |
-| `FIELDCRAFT_EVAL_MODEL` | catalog default (`DEFAULT_EVAL_MODEL_ID`) | Any id from the multi-provider model catalog; for `custom`, the provider model ID |
+| `FIELDCRAFT_EVAL_LIVE` | off | Set to `1` to opt into paid model calls |
+| `FIELDCRAFT_EVAL_PROVIDER` | inferred from the model, otherwise `openai` | `openai` \| `gemini` \| `anthropic` \| `custom` |
+| `FIELDCRAFT_EVAL_MODEL` | catalog default (`DEFAULT_EVAL_MODEL_ID`) | Any catalog ID; for `custom`, use `custom:<model-id>` |
 | `FIELDCRAFT_EVAL_REASONING` | catalog default (`DEFAULT_EVAL_REASONING_EFFORT`) | `none` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` \| `auto` |
 | `FIELDCRAFT_EVAL_RESEARCH` | off | Set to `1` to enable company research via Exa |
 | `FIELDCRAFT_CUSTOM_BASE_URL` | — | Required when `FIELDCRAFT_EVAL_PROVIDER=custom` |
 | `FIELDCRAFT_CUSTOM_MODEL_ID` | — | Shorthand for `FIELDCRAFT_EVAL_MODEL` when `provider=custom` |
-| `FIELDCRAFT_CUSTOM_API_KEY` | — | Custom provider API key (falls back to `OPENAI_API_KEY` for evals) |
+| `CUSTOM_API_KEY` | — | Custom provider API key; no fallback to another provider's key |
+| `FIELDCRAFT_EVAL_FIXTURES` | all scenarios | Comma-separated fixture IDs to limit cost |
+| `FIELDCRAFT_EVAL_REPETITIONS` | `3` | Repeated runs per scenario, at least three |
+| `FIELDCRAFT_EVAL_JUDGE_MODEL` | analysis model | Optional separate grounding auditor; requires its provider's key |
 
 ```bash
 # from apps/extension, or prefix with: bun run --filter fieldcraft-extension
-OPENAI_API_KEY=sk-... bun run eval:live
-OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> bun run eval:live
-OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high bun run eval:live
+FIELDCRAFT_EVAL_LIVE=1 OPENAI_API_KEY=sk-... bun run eval:live
+FIELDCRAFT_EVAL_LIVE=1 OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_MODEL=<catalog-id> bun run eval:live
+FIELDCRAFT_EVAL_LIVE=1 OPENAI_API_KEY=sk-... FIELDCRAFT_EVAL_REASONING=high bun run eval:live
 
 # Custom OpenAI-compatible provider (e.g. Fireworks)
-FIELDCRAFT_EVAL_PROVIDER=custom \
+FIELDCRAFT_EVAL_LIVE=1 FIELDCRAFT_EVAL_PROVIDER=custom \
 FIELDCRAFT_CUSTOM_BASE_URL=https://api.fireworks.ai/inference/v1 \
 FIELDCRAFT_CUSTOM_MODEL_ID=accounts/fireworks/models/llama-v3p1-405b-instruct \
-FIELDCRAFT_CUSTOM_API_KEY=<fireworks-key> \
+CUSTOM_API_KEY=<fireworks-key> \
   bun run eval:live
 ```
 
-Use `GEMINI_API_KEY=...` instead when running live evals against a Gemini model.
+Use `GEMINI_API_KEY=...` or `ANTHROPIC_API_KEY=...` instead for the corresponding provider.
 
 Defaults live in `src/lib/models.ts` only — runtime never hardcodes model or reasoning strings.
 
@@ -140,7 +144,7 @@ Monorepo overview, web app, and release packaging: [../../README.md](../../READM
 - `src/lib/openai.ts` calls the selected AI provider through the Vercel AI SDK with structured outputs, response storage disabled for OpenAI, per-model reasoning (OpenAI `reasoningEffort`, Gemini `thinkingConfig.thinkingLevel`), and a privacy-preserving installation identifier.
 - `src/lib/ai-provider.ts` creates the correct OpenAI or Gemini language model for the AI SDK.
 - `src/lib/direct-fill.ts` builds field suggestions directly from the saved profile and canonical answers, used by Direct autofill mode without any AI call.
-- `src/lib/eval/` holds fixtures, deterministic judges, and golden samples for analysis quality gates.
+- `src/lib/eval/` holds scenario fixtures, independent grounding audits, deterministic judges, and repeated-run accuracy reports.
 - `src/lib/tab-sessions.ts` guards session identity and run matching for background/sidepanel state.
 - `src/lib/dashboard-review.ts` builds review drafts and the default auto-selection of safe fills.
 - `src/components/` contains the sidepanel UI, split into `Dashboard.tsx`, `DashboardViews.tsx`, `ProfileEditor.tsx`, `ProfileEditorForm.tsx`, and the `useDashboardBinding` hook.
@@ -162,7 +166,40 @@ Monorepo overview, web app, and release packaging: [../../README.md](../../READM
 - Word images are not OCRed. DOCX drawing/text-box limitations and legacy DOC layout conversions produce review warnings; export a text-based PDF when important facts are embedded in images.
 - PDF and OCR workers, fonts, character maps, WebAssembly, and English language data are packaged with the extension; parsing does not use a CDN or upload document bytes.
 - Chrome blocks content scripts on internal pages and the Chrome Web Store.
-- A few custom JavaScript comboboxes require clicking the displayed option after text is inserted.
-- Cross-origin forms embedded inside inaccessible iframes cannot be read from the top page.
+- Custom comboboxes must expose their controlled listbox and an exact matching option; otherwise filling fails without guessing.
+- Visible cross-origin frames and open shadow roots are captured separately. Inaccessible frames produce a warning; closed shadow roots cannot be inspected. Open an inaccessible form directly to review it.
 - Live API behavior requires a valid provider API key (OpenAI or Gemini) with access to the selected model. Company research requires a separate Exa API key.
 - The extension is intentionally not a mass-apply bot. Review and submission stay with the user.
+
+## Accuracy and safety verification
+
+Use Node 26 and Bun. Direct-fill prepares unselected answers in the same tab-scoped review flow as model analysis; only explicitly selected answers reach the page. Legal and demographic answers require review. Missing job descriptions produce an unavailable fit score, not a numeric estimate from form labels. Research facts without matching evidence are omitted; this conservative lexical filter can also omit valid paraphrases.
+
+Run deterministic checks without credentials:
+
+```bash
+bun run --filter fieldcraft-extension check
+bun run --filter fieldcraft-extension test
+bun run --filter fieldcraft-extension eval
+bun run --filter fieldcraft-extension build
+bun run --filter fieldcraft-extension test:browser
+```
+
+The deterministic eval includes the 157-label Direct-fill corpus, authored ATS edge cases, actual public-page captures, and independent eval-harness regressions. Source provenance and the Workday capture limitation are documented in `src/lib/__fixtures__/ats/README.md`.
+
+The live matrix contains at least 30 authored realistic posting/profile pairs, not captured vacancies. It is explicitly opt-in and makes paid network calls: each pair runs at least three times, with a separate blind grounding audit after each analysis. It reports mean score, sample standard deviation, verdict agreement, and per-run failures; clear-case verdict flips fail. Audits require complete unit coverage and exact source quotes, but remain model judgments, not proof of semantic correctness. No live accuracy or variance results are established by the deterministic suite.
+
+Set the appropriate key securely in your shell: `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, or `CUSTOM_API_KEY`. Then run a small selected case first:
+
+```bash
+FIELDCRAFT_EVAL_LIVE=1 FIELDCRAFT_EVAL_PROVIDER=openai \
+FIELDCRAFT_EVAL_FIXTURES=java-backend-excellent \
+FIELDCRAFT_EVAL_REPETITIONS=3 \
+bun run --filter fieldcraft-extension eval:live
+```
+
+Use `FIELDCRAFT_EVAL_FIXTURES` with comma-separated fixture IDs to limit cost. `FIELDCRAFT_EVAL_MODEL` selects the analysis model; `FIELDCRAFT_EVAL_REASONING` selects reasoning effort. `FIELDCRAFT_EVAL_JUDGE_MODEL` optionally selects a separate auditor and requires that provider's key too. `FIELDCRAFT_EVAL_RESEARCH=1` additionally requires `EXA_API_KEY`; research is disabled for fictitious/adversarial employers. Node evals never read Chrome key storage.
+
+Custom endpoints additionally require `FIELDCRAFT_CUSTOM_BASE_URL` and `FIELDCRAFT_EVAL_MODEL=custom:<model-id>` (or `FIELDCRAFT_CUSTOM_MODEL_ID`). Set `FIELDCRAFT_CUSTOM_PROTOCOL=openai` or `anthropic`; optional `FIELDCRAFT_CUSTOM_HEADERS` contains newline-separated header entries. Do not commit credentials or headers.
+
+An offline 100-field, 138-word-answer fixture measured 132,704 bytes and 23,387 o200k tokens. Large-capacity catalog models default to a 98,304-token output allowance with catalog ceilings respected. Unknown custom models default to 4,096 tokens for compatibility; set a larger output override only when the endpoint supports it, or use fewer fields. A length-truncated response fails with an explicit budget error rather than a generic JSON error. No live provider request was used for this measurement.

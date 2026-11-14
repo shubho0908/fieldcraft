@@ -44,6 +44,7 @@ const baseManifest = {
       matches: ["http://*/*", "https://*/*"],
       js: ["src/content.ts"],
       run_at: "document_idle",
+      all_frames: true,
     },
   ],
   host_permissions: ["https://api.openai.com/*", "https://api.exa.ai/*", "http://*/*", "https://*/*"],
@@ -64,7 +65,7 @@ export default function getManifest(target: ExtensionTarget): ManifestV3Export {
     // sidepanel.html. The side_panel manifest key is kept here only so CRXJS
     // processes sidepanel.html as an HTML entry; a post-build step strips it.
     // Safari supports unlimitedStorage; resume attachments can exceed its default quota.
-    manifest.permissions = ["activeTab", "alarms", "storage", "tabs", "unlimitedStorage"];
+    manifest.permissions = ["activeTab", "alarms", "storage", "tabs", "unlimitedStorage", "webNavigation"];
     manifest.side_panel = { default_path: "sidepanel.html" };
     manifest.content_scripts = [
       ...(manifest.content_scripts as typeof baseManifest.content_scripts),
@@ -79,7 +80,7 @@ export default function getManifest(target: ExtensionTarget): ManifestV3Export {
     // of an HTML entry and skip script bundling.
   } else {
     // Chrome/Chromium path: native side panel and notifications.
-    manifest.permissions = ["activeTab", "alarms", "notifications", "sidePanel", "storage", "tabs", "unlimitedStorage"];
+    manifest.permissions = ["activeTab", "alarms", "notifications", "sidePanel", "storage", "tabs", "unlimitedStorage", "webNavigation"];
     manifest.side_panel = { default_path: "sidepanel.html" };
   }
 
