@@ -162,7 +162,40 @@ Monorepo overview, web app, and release packaging: [../../README.md](../../READM
 - Word images are not OCRed. DOCX drawing/text-box limitations and legacy DOC layout conversions produce review warnings; export a text-based PDF when important facts are embedded in images.
 - PDF and OCR workers, fonts, character maps, WebAssembly, and English language data are packaged with the extension; parsing does not use a CDN or upload document bytes.
 - Chrome blocks content scripts on internal pages and the Chrome Web Store.
-- A few custom JavaScript comboboxes require clicking the displayed option after text is inserted.
-- Cross-origin forms embedded inside inaccessible iframes cannot be read from the top page.
+- Custom comboboxes must expose their controlled listbox and an exact matching option; otherwise filling fails without guessing.
+- Visible cross-origin frames and open shadow roots are captured separately. Inaccessible frames produce a warning; closed shadow roots cannot be inspected. Open an inaccessible form directly to review it.
 - Live API behavior requires a valid provider API key (OpenAI or Gemini) with access to the selected model. Company research requires a separate Exa API key.
 - The extension is intentionally not a mass-apply bot. Review and submission stay with the user.
+
+## Accuracy and safety verification
+
+Use Node 26 and Bun. Direct-fill prepares unselected answers in the same tab-scoped review flow as model analysis; only explicitly selected answers reach the page. Legal and demographic answers require review. Missing job descriptions produce an unavailable fit score, not a numeric estimate from form labels. Research facts without matching evidence are omitted; this conservative lexical filter can also omit valid paraphrases.
+
+Run deterministic checks without credentials:
+
+```bash
+bun run --filter fieldcraft-extension check
+bun run --filter fieldcraft-extension test
+bun run --filter fieldcraft-extension eval
+bun run --filter fieldcraft-extension build
+bun run --filter fieldcraft-extension test:browser
+```
+
+The deterministic eval includes the 157-label Direct-fill corpus, authored ATS edge cases, actual public-page captures, and independent eval-harness regressions. Source provenance and the Workday capture limitation are documented in `src/lib/__fixtures__/ats/README.md`.
+
+The live matrix contains at least 30 authored realistic posting/profile pairs, not captured vacancies. It is explicitly opt-in and makes paid network calls: each pair runs at least three times, with a separate blind grounding audit after each analysis. It reports mean score, sample standard deviation, verdict agreement, and per-run failures; clear-case verdict flips fail. Audits require complete unit coverage and exact source quotes, but remain model judgments, not proof of semantic correctness. No live accuracy or variance results are established by the deterministic suite.
+
+Set the appropriate key securely in your shell: `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, or `CUSTOM_API_KEY`. Then run a small selected case first:
+
+```bash
+FIELDCRAFT_EVAL_LIVE=1 FIELDCRAFT_EVAL_PROVIDER=openai \
+FIELDCRAFT_EVAL_FIXTURES=java-backend-excellent \
+FIELDCRAFT_EVAL_REPETITIONS=3 \
+bun run --filter fieldcraft-extension eval:live
+```
+
+Use `FIELDCRAFT_EVAL_FIXTURES` with comma-separated fixture IDs to limit cost. `FIELDCRAFT_EVAL_MODEL` selects the analysis model; `FIELDCRAFT_EVAL_REASONING` selects reasoning effort. `FIELDCRAFT_EVAL_JUDGE_MODEL` optionally selects a separate auditor and requires that provider's key too. `FIELDCRAFT_EVAL_RESEARCH=1` additionally requires `EXA_API_KEY`; research is disabled for fictitious/adversarial employers. Node evals never read Chrome key storage.
+
+Custom endpoints additionally require `FIELDCRAFT_CUSTOM_BASE_URL` and `FIELDCRAFT_EVAL_MODEL=custom:<model-id>` (or `FIELDCRAFT_CUSTOM_MODEL_ID`). Set `FIELDCRAFT_CUSTOM_PROTOCOL=openai` or `anthropic`; optional `FIELDCRAFT_CUSTOM_HEADERS` contains newline-separated header entries. Do not commit credentials or headers.
+
+An offline 100-field, 138-word-answer fixture measured 132,704 bytes and 23,387 o200k tokens. Large-capacity models and custom endpoints default to a 98,304-token output allowance with catalog ceilings respected; actual provider limits may require a smaller override or fewer fields. A length-truncated response fails with an explicit budget error rather than a generic JSON error. No live provider request was used for this measurement.

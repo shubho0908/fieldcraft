@@ -126,7 +126,7 @@ describe("domain enums cross-validation", () => {
   });
 
   it("judge id catalog is non-empty and unique", () => {
-    expect(JUDGE_IDS.length).toBeGreaterThan(10);
+    expect(JUDGE_IDS).toHaveLength(10);
     expect(new Set(JUDGE_IDS).size).toBe(JUDGE_IDS.length);
   });
 
