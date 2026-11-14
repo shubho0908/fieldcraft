@@ -44,7 +44,7 @@ describe("OpenAI model catalog", () => {
     expect(DEFAULT_MODEL_ID).toBe(OpenAiModelId.Gpt6Sol);
     expect(DEFAULT_MODEL_ID).toBe(OPENAI_MODELS[0].id);
     expect(sol.maxOutputTokens).toBe(128_000);
-    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol)).toBe(16_384);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol)).toBe(98_304);
     expect(resolveModel("not-a-model").id).toBe(DEFAULT_MODEL_ID);
   });
 
@@ -127,7 +127,7 @@ describe("Anthropic model catalog", () => {
     const opus55 = resolveModel(AnthropicModelId.ClaudeOpus55);
     expect(opus55.maxOutputTokens).toBe(128_000);
     expect(opus55.defaultReasoningEffort).toBe(ReasoningEffort.Medium);
-    expect(resolveMaxOutputTokens(AnthropicModelId.ClaudeOpus55)).toBe(16_384);
+    expect(resolveMaxOutputTokens(AnthropicModelId.ClaudeOpus55)).toBe(98_304);
   });
 
   it("exposes adaptive effort for Opus 5.5/Opus/Sonnet but not Haiku", () => {
@@ -315,9 +315,9 @@ describe("reasoning resolution", () => {
 
 describe("max output token resolution", () => {
   it("uses the model catalog default when no override is provided", () => {
-    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol)).toBe(16_384);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol)).toBe(98_304);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra)).toBe(16_384);
-    expect(resolveMaxOutputTokens(AnthropicModelId.ClaudeHaiku45)).toBe(8_192);
+    expect(resolveMaxOutputTokens(AnthropicModelId.ClaudeHaiku45)).toBe(65_536);
     expect(resolveMaxOutputTokens(GeminiModelId.Gemini35Flash)).toBe(8_192);
   });
 
@@ -333,12 +333,12 @@ describe("max output token resolution", () => {
     ).toBe(32_768);
   });
 
-  it("keeps Gemini 3.8 Flash's routine budget below its ceiling", () => {
+  it("uses Gemini 3.8 Flash's ceiling for large application responses", () => {
     const flash = resolveModel(GeminiModelId.Gemini38Flash);
     expect(flash.maxOutputTokens).toBe(65_536);
-    expect(flash.defaultMaxOutputTokens).toBe(16_384);
+    expect(flash.defaultMaxOutputTokens).toBe(65_536);
 
-    expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash)).toBe(16_384);
+    expect(resolveMaxOutputTokens(GeminiModelId.Gemini38Flash)).toBe(65_536);
     expect(
       resolveMaxOutputTokens(GeminiModelId.Gemini38Flash, 40_000),
     ).toBe(40_000);
@@ -393,19 +393,19 @@ describe("max output token resolution", () => {
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, 4_096)).toBe(4_096);
   });
 
-  it("defaults custom models to 4096 and allows user overrides", () => {
+  it("defaults custom models to 98304 and allows user overrides", () => {
     const customId = `${CUSTOM_MODEL_PREFIX}sarvam-105b` as const;
-    expect(resolveMaxOutputTokens(customId)).toBe(4_096);
+    expect(resolveMaxOutputTokens(customId)).toBe(98_304);
     expect(resolveMaxOutputTokens(customId, 8_192)).toBe(8_192);
     expect(resolveMaxOutputTokens(customId, 2_000_000)).toBe(1_000_000);
   });
 
   it("ignores invalid overrides and falls back to the default", () => {
-    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, -1)).toBe(16_384);
-    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, NaN)).toBe(16_384);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, -1)).toBe(98_304);
+    expect(resolveMaxOutputTokens(OpenAiModelId.Gpt6Sol, NaN)).toBe(98_304);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, -1)).toBe(16_384);
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, NaN)).toBe(16_384);
-    expect(resolveMaxOutputTokens("not-a-model")).toBe(16_384);
+    expect(resolveMaxOutputTokens("not-a-model")).toBe(98_304);
   });
 });
 

@@ -55,6 +55,8 @@ export const CONNECTION_TEST_PROMPT = "Reply with exactly: connected";
 /** Enough room for a provider's response envelope without making the probe expensive. */
 export const CONNECTION_TEST_MAX_OUTPUT_TOKENS = 96;
 
+const ANALYSIS_TRUNCATION_MESSAGE = "The model output was truncated because it reached the output token budget. Increase Max output tokens in Settings, choose a model with a larger output budget, lower reasoning effort, or reduce the number of fields and try again.";
+
 /**
  * Models generate from supplied job/profile context only. Never add provider
  * web-search, crawl, browser, or scraping tools here: company research is
@@ -226,6 +228,9 @@ export function coerceAnalysisOutput(
  * the original message when it already explains a clear provider failure.
  */
 export function formatAnalysisError(error: unknown, provider: Provider): string {
+  if (isRecord(error) && error.finishReason === "length") {
+    return ANALYSIS_TRUNCATION_MESSAGE;
+  }
   const base = error instanceof Error ? error.message : String(error);
   const isCustom = provider === Provider.Custom;
 
@@ -451,6 +456,9 @@ export async function runJobAnalysis(
             headers: settings.customHeaders,
           });
 
+      if ((await result.finishReason) === "length") {
+        throw new Error(ANALYSIS_TRUNCATION_MESSAGE);
+      }
       parsed = coerceAnalysisOutput(extractJsonObject(await result.text));
     } else {
       const result = await generateText({
@@ -463,6 +471,9 @@ export async function runJobAnalysis(
         providerOptions,
       });
 
+      if ((await result.finishReason) === "length") {
+        throw new Error(ANALYSIS_TRUNCATION_MESSAGE);
+      }
       parsed = coerceAnalysisOutput(await result.output);
     }
   } catch (error) {

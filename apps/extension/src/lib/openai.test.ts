@@ -497,7 +497,7 @@ describe("runJobAnalysis max output tokens", () => {
 
     expect(generate).toHaveBeenCalledTimes(1);
     const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
-    expect(call.maxOutputTokens).toBe(16_384);
+    expect(call.maxOutputTokens).toBe(98_304);
     expect(createAiModel).toHaveBeenCalledWith(
       expect.objectContaining({ model: expect.objectContaining({ id: DEFAULT_MODEL_ID }) }),
     );
@@ -523,7 +523,7 @@ describe("runJobAnalysis max output tokens", () => {
     expect(call.maxOutputTokens).toBe(4_096);
   });
 
-  it("defaults custom providers to 4096", async () => {
+  it("defaults custom providers to 98304", async () => {
     const generate = vi.mocked(generateText);
     generate.mockResolvedValueOnce({
       text: JSON.stringify(validAnalysisOutput),
@@ -542,7 +542,7 @@ describe("runJobAnalysis max output tokens", () => {
     });
 
     const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
-    expect(call.maxOutputTokens).toBe(4_096);
+    expect(call.maxOutputTokens).toBe(98_304);
   });
 
   it("clamps built-in overrides to the catalog maximum", async () => {
@@ -662,7 +662,7 @@ describe("runJobAnalysis provider options", () => {
     expect(firstCallProviderOptions()).toBeUndefined();
   });
 
-  it("sends Gemini 3.8 Flash's routine budget, not its 64k ceiling", async () => {
+  it("sends Gemini 3.8 Flash's 64k large-form budget", async () => {
     stubAnalysis("resp-gemini-budget");
 
     await runJobAnalysis(
@@ -679,10 +679,10 @@ describe("runJobAnalysis provider options", () => {
     const call = vi.mocked(generateText).mock.calls[0][0] as {
       maxOutputTokens: number;
     };
-    expect(call.maxOutputTokens).toBe(16_384);
+    expect(call.maxOutputTokens).toBe(65_536);
   });
 
-  it("sends Opus 5.5 adaptive effort and its 16k routine budget", async () => {
+  it("sends Opus 5.5 adaptive effort and its 96k large-form budget", async () => {
     stubAnalysis("resp-anthropic");
 
     await runJobAnalysis(
@@ -703,7 +703,7 @@ describe("runJobAnalysis provider options", () => {
     const call = vi.mocked(generateText).mock.calls[0][0] as {
       maxOutputTokens: number;
     };
-    expect(call.maxOutputTokens).toBe(16_384);
+    expect(call.maxOutputTokens).toBe(98_304);
   });
 
   it("sends Anthropic adaptive effort for legacy Claude models", async () => {
