@@ -1,9 +1,10 @@
 import { DEFAULT_SETTINGS } from "../defaults";
 import { parseCustomHeaderLines, sanitizeCustomHeaders } from "../custom-headers";
 import { isReasoningEffortSetting, type ReasoningEffortSetting } from "../enums";
-import { CUSTOM_MODEL_PREFIX, CustomProtocol, DEFAULT_EVAL_MODEL_ID, DEFAULT_EVAL_REASONING_EFFORT, Provider, defaultModelForProvider, isCustomModelId, isKnownModel, preferredEvalReasoningEffort, resolveModel, resolveReasoningEffort } from "../models";
+import { CUSTOM_MODEL_PREFIX, CustomProtocol, DEFAULT_EVAL_MODEL_ID, DEFAULT_EVAL_REASONING_EFFORT, Provider, defaultModelForProvider, isCustomModelId, isCustomProtocol, isKnownModel, preferredEvalReasoningEffort, resolveModel, resolveReasoningEffort } from "../models";
+import { createAiModel } from "../ai-provider";
 import { runJobAnalysis } from "../openai";
-import type { ExtensionSettings, JobAnalysis } from "../../types";
+import type { ExtensionSettings } from "../../types";
 import { EVAL_FIXTURES } from "./fixtures";
 import { evaluateAnalysis, report, result } from "./judges";
 import { auditGrounding, groundingSources } from "./grounding";
@@ -32,7 +33,6 @@ export interface LiveEvalAttempt {
   score: number | null;
   verdict: string | null;
   report: EvalReport;
-  analysis?: JobAnalysis;
   error?: string;
 }
 
@@ -67,6 +67,7 @@ export function resolveLiveEvalConfig(options: Partial<LiveEvalOptions>): Resolv
   const model = resolveModel(modelId);
   if (model.provider !== provider) throw new Error("FIELDCRAFT_EVAL_PROVIDER does not match FIELDCRAFT_EVAL_MODEL.");
   if (provider === Provider.Custom) {
+    if (options.customProtocol !== undefined && !isCustomProtocol(options.customProtocol)) throw new Error("Invalid FIELDCRAFT_CUSTOM_PROTOCOL.");
     if (!options.customBaseUrl) throw new Error("FIELDCRAFT_CUSTOM_BASE_URL is required for custom evals.");
     const url = new URL(options.customBaseUrl);
     if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) throw new Error("Custom base URL must be HTTP(S), without credentials.");
@@ -127,10 +128,14 @@ export async function runLiveEval(options: LiveEvalOptions): Promise<LiveEvalCas
   const selected = options.fixtureIds?.length ? options.fixtureIds : EVAL_FIXTURES.map((fixture) => fixture.id);
   for (const id of selected) if (!EVAL_FIXTURES.some((fixture) => fixture.id === id)) throw new Error(`Unknown eval fixture: ${id}`);
   const fixtures = EVAL_FIXTURES.filter((fixture) => selected.includes(fixture.id));
-  const judgeModel = options.judgeModel ?? resolved.model;
-  if (!isKnownModel(judgeModel)) throw new Error("Unknown FIELDCRAFT_EVAL_JUDGE_MODEL.");
-  const judgeApiKey = options.judgeApiKey || (resolveModel(judgeModel).provider === resolved.provider ? options.apiKey : "");
-  if (!judgeApiKey) throw new Error(`${PROVIDER_KEY_ENV[resolveModel(judgeModel).provider]} is required for the grounding judge.`);
+  const judge = resolveLiveEvalConfig({
+    model: options.judgeModel ?? resolved.model,
+    customBaseUrl: options.customBaseUrl, customProtocol: options.customProtocol, customHeaders: options.customHeaders,
+  });
+  const judgeApiKey = options.judgeApiKey?.trim() || (judge.provider === resolved.provider ? options.apiKey.trim() : "");
+  if (!judgeApiKey) throw new Error(`${PROVIDER_KEY_ENV[judge.provider]} is required for the grounding judge.`);
+  // Constructing the provider performs local configuration validation, not a request.
+  createAiModel({ model: resolveModel(judge.model), apiKey: judgeApiKey, baseURL: judge.customBaseUrl, protocol: judge.customProtocol, headers: judge.customHeaders });
   const settings: ExtensionSettings = {
     ...DEFAULT_SETTINGS, provider: resolved.provider, model: resolved.model, reasoningEffort: resolved.reasoningEffort,
     evalModel: resolved.model, evalReasoningEffort: resolved.reasoningEffort,
@@ -152,10 +157,9 @@ export async function runLiveEval(options: LiveEvalOptions): Promise<LiveEvalCas
         };
         const analysis = await runJobAnalysis(fixture.snapshot, fixture.profile, { ...settings, researchCompany: researchEnabled }, auth);
         const sources = groundingSources(fixture, researchSources);
-        const audit = await auditGrounding(fixture, analysis, sources, { apiKey: judgeApiKey, model: judgeModel, customBaseUrl: resolved.customBaseUrl, customProtocol: resolved.customProtocol, customHeaders: resolved.customHeaders });
+        const audit = await auditGrounding(fixture, analysis, sources, { apiKey: judgeApiKey, model: judge.model, customBaseUrl: judge.customBaseUrl, customProtocol: judge.customProtocol, customHeaders: judge.customHeaders });
         const evaluated = evaluateAnalysis(fixture, analysis, audit);
-        const evaluatedReport = evaluated;
-        runs.push({ run, score: analysis.fit.score, verdict: analysis.fit.score === null ? null : analysis.fit.verdict, report: evaluatedReport, analysis });
+        runs.push({ run, score: analysis.fit.score, verdict: analysis.fit.score === null ? null : analysis.fit.verdict, report: evaluated });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Live evaluation failed";
         runs.push({ run, score: null, verdict: null, error: message, report: report(fixture.id, [result("live.runtime", [message])]) });

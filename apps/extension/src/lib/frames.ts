@@ -16,7 +16,7 @@ async function navigationFrames(tabId: number): Promise<NavigationFrame[]> {
 export function namespaceFrameSnapshot(frameId: number, snapshot: PageSnapshot): PageSnapshot {
   return {
     ...snapshot,
-    fields: snapshot.fields.map((field) => ({ ...field, id: `frame-${frameId}:${field.id}`, frameId, frameUrl: snapshot.url })),
+    fields: snapshot.fields.map((field) => ({ ...field, id: `frame-${frameId}:${field.id}`, frameId })),
   };
 }
 
@@ -33,7 +33,10 @@ export function mergeFrameSnapshots(top: CapturedFrame, embedded: CapturedFrame[
   };
   const descriptions = deduplicate(frames.filter((frame) => frame.snapshot.jobDescriptionDetected === true).map((frame) => frame.snapshot.jobDescriptionText ?? ""));
   const description = descriptions.join("\n\n");
-  const contexts = deduplicate(frames.map((frame) => descriptions.reduce((text, jd) => text.replaceAll(jd, ""), frame.snapshot.pageText)));
+  const contexts = deduplicate(frames.map(({ snapshot }) => {
+    const ownDescription = snapshot.jobDescriptionDetected ? snapshot.jobDescriptionText : "";
+    return ownDescription ? snapshot.pageText.replaceAll(ownDescription, "") : snapshot.pageText;
+  }));
   const context = contexts.join("\n\n--- EMBEDDED FRAME ---\n\n");
   const contextBudget = description ? 20_000 : 60_000;
   if (description.length > 40_000 || context.length > contextBudget) warnings.push("Page and embedded form text exceeded the context budget; some text was omitted. Captured fields are retained for review.");

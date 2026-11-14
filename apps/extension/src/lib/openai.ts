@@ -33,6 +33,7 @@ import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput, getAnalysisInputWarnings } f
 import { getApiKey, getExaApiKey, getInstallId, getSettings } from "./storage";
 import { researchCompany } from "./exa";
 import { groundCompanyFacts, type CompanyFactSource } from "./company-facts";
+import { normalizeSourceUrl } from "./source-url";
 import type {
   CandidateProfile,
   ExtensionSettings,
@@ -854,7 +855,7 @@ function dedupeSources(
 ): Array<{ title: string; url: string }> {
   const seen = new Set<string>();
   return sources.filter((source) => {
-    const key = source.url.replace(/\/$/, "").toLocaleLowerCase();
+    const key = normalizeSourceUrl(source.url);
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -867,7 +868,7 @@ function selectRetrievedSources(
 ): Array<{ title: string; url: string }> {
   const retrievedByUrl = new Map<string, { title: string; url: string }>();
   for (const source of retrievedSources) {
-    const key = canonicalSourceUrl(source.url);
+    const key = normalizeSourceUrl(source.url);
     if (key && !retrievedByUrl.has(key)) {
       retrievedByUrl.set(key, { title: source.title, url: source.url });
     }
@@ -875,24 +876,8 @@ function selectRetrievedSources(
 
   const selected: Array<{ title: string; url: string }> = [];
   for (const source of requestedSources) {
-    const retrieved = retrievedByUrl.get(canonicalSourceUrl(source.url));
+    const retrieved = retrievedByUrl.get(normalizeSourceUrl(source.url));
     if (retrieved) selected.push(retrieved);
   }
   return dedupeSources(selected);
-}
-
-function canonicalSourceUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (!/^https?:$/i.test(parsed.protocol)) return "";
-    parsed.hash = "";
-    for (const key of [...parsed.searchParams.keys()]) {
-      if (/^(?:utm_[^=]*|fbclid|gclid|ref)$/i.test(key)) {
-        parsed.searchParams.delete(key);
-      }
-    }
-    return parsed.href.replace(/\/$/, "").toLocaleLowerCase();
-  } catch {
-    return "";
-  }
 }

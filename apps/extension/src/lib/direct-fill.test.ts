@@ -54,6 +54,27 @@ describe("deterministic Direct-fill label corpus", () => {
 });
 
 describe("Direct-fill canonical answer boundaries", () => {
+  it.each(["Expected salary", "Email", "Why us?"])("honors the exact short saved question %s", (question) => {
+    expect(suggest(question, canonical(question, "Exact saved answer"))[0])
+      .toMatchObject({ value: "Exact saved answer", action: SuggestionAction.Fill });
+  });
+
+  it("keeps identity and third-party vetoes for exact short saved questions", () => {
+    expect(suggest("Email", canonical("Email", "WRONG"), { name: "reference_email" })).toEqual([]);
+    expect(suggest("Name", canonical("Name", "WRONG"), { name: "first_name" })).toEqual([]);
+  });
+
+  it.each([
+    "Do you have the right to work in Canada?",
+    "Are you a permanent resident?",
+    "I confirm this information is accurate",
+  ])("reviews saved legal answers when the question is in a placeholder: %s", (question) => {
+    expect(suggest("Answer", canonical("Answer", "Yes"), { placeholder: question })[0])
+      .toMatchObject({ value: "Yes", action: SuggestionAction.Review, warning: expect.stringMatching(/verify/i) });
+    expect(suggest("", canonical(question, "Yes"), { placeholder: question })[0])
+      .toMatchObject({ value: "Yes", action: SuggestionAction.Review });
+  });
+
   it("matches a normalized whole phrase without matching parts of words", () => {
     const profile = canonical("Describe your motivation", "I enjoy careful product work.");
     expect(suggest("Please describe your motivation for this role", profile)[0]?.value)
@@ -113,6 +134,11 @@ describe("Direct-fill canonical answer boundaries", () => {
 });
 
 describe("Direct-fill conservative field handling", () => {
+  it("preserves saved legal-name mappings while requiring review", () => {
+    expect(suggest("Legal name")[0]).toMatchObject({ value: directValues.fullName, action: SuggestionAction.Review });
+    expect(suggest("Full legal name")[0]).toMatchObject({ value: directValues.fullName, action: SuggestionAction.Review });
+  });
+
   it("uses metadata only as a fallback and never lets a section trigger a rule", () => {
     expect(suggest("", directProfile, { name: "fullName" })[0]?.value).toBe(directValues.fullName);
     expect(suggest("", directProfile, { ariaLabel: "Email address" })[0]?.value).toBe(directValues.email);

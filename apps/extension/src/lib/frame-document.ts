@@ -1,8 +1,5 @@
 import type { PageSnapshot } from "../types";
-
-export type FrameContentRequest =
-  | { type: "FIELDCRAFT_VALIDATE_DOCUMENT"; url: string; documentId: string }
-  | { type: "FIELDCRAFT_FILL"; suggestions: import("../types").FieldSuggestion[]; selectedFieldIds: string[]; url: string; documentId: string };
+import { isElementVisible, queryComposedAll } from "./visibility";
 
 export interface FrameCapture {
   snapshot: PageSnapshot;
@@ -20,29 +17,12 @@ export function installFrameProbe(documentId: string, win: Window = window): voi
   });
 }
 
-function frameElements(root: Document | ShadowRoot): HTMLIFrameElement[] {
-  const frames = Array.from(root.querySelectorAll<HTMLIFrameElement>("iframe, frame"));
-  for (const element of root.querySelectorAll("*")) {
-    if (element.shadowRoot) frames.push(...frameElements(element.shadowRoot));
-  }
-  return frames;
-}
-
 export function isFrameHostVisible(element: Element): boolean {
-  let current: Element | null = element;
-  while (current) {
-    const style = current.ownerDocument.defaultView!.getComputedStyle(current);
-    if (current.hasAttribute("hidden") || current.hasAttribute("inert") || current.getAttribute("aria-hidden") === "true" || style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || Number(style.opacity) === 0) return false;
-    const rect = current.getBoundingClientRect();
-    if ((style.overflow === "hidden" || style.overflow === "clip") && (!rect.width || !rect.height)) return false;
-    current = current.parentElement ?? (current.getRootNode() instanceof ShadowRoot ? (current.getRootNode() as ShadowRoot).host : null);
-  }
-  const rect = element.getBoundingClientRect();
-  return rect.width > 1 && rect.height > 1 && rect.right > 0 && rect.bottom > 0;
+  return isElementVisible(element, { minimumSize: 1 });
 }
 
 export async function inspectFrameHosts(doc: Document = document): Promise<FrameCapture["frameHosts"]> {
-  const hosts = frameElements(doc);
+  const hosts = queryComposedAll<HTMLIFrameElement>(doc, "iframe, frame");
   if (!hosts.length) return [];
   const win = doc.defaultView!;
   const pending = new Map(hosts.map((host) => [crypto.randomUUID(), host]));

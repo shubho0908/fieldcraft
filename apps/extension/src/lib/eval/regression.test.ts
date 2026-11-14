@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { EVAL_FIXTURES } from "./fixtures";
+import { EVAL_FIXTURES, getEvalFixture } from "./fixtures";
 import { evaluateAnalysis, judgeMustNotClaim } from "./judges";
-import { liveOptionsFromEnv, runLiveEval, summarizeRuns } from "./live";
+import { liveOptionsFromEnv, runLiveEval, summarizeRuns, type LiveEvalOptions } from "./live";
 import { runJobAnalysis } from "../openai";
 import type { JobAnalysis } from "../../types";
+import type { EvalExpectations } from "./types";
+import { auditGrounding } from "./grounding";
 
 vi.mock("../openai", () => ({ runJobAnalysis: vi.fn() }));
 vi.mock("./grounding", async (original) => ({ ...await original<typeof import("./grounding")>(), auditGrounding: vi.fn(async () => ({ findings: [], sources: [] })) }));
@@ -75,5 +77,136 @@ describe("accuracy regressions reproduced on main", () => {
     vi.mocked(runJobAnalysis).mockClear();
     await expect(runLiveEval({ apiKey: "test-only", fixtureIds: [EVAL_FIXTURES[0].id], researchCompany: true })).rejects.toThrow(/EXA_API_KEY/);
     expect(runJobAnalysis).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { judgeModel: "custom:judge" },
+    { judgeModel: "custom:", customBaseUrl: "https://judge.example.test/v1" },
+    { judgeModel: "custom:   ", customBaseUrl: "https://judge.example.test/v1" },
+    { judgeModel: "custom:judge", customBaseUrl: "file:///tmp/judge" },
+    { judgeModel: "custom:judge", customBaseUrl: "https://user:password@judge.example.test/v1" },
+    { judgeModel: "custom:judge", customBaseUrl: "https://judge.example.test/v1", customProtocol: "invalid" },
+  ])("rejects invalid auditor configuration before analysis: %j", async (judgeOptions) => {
+    vi.mocked(runJobAnalysis).mockClear();
+    await expect(runLiveEval({
+      apiKey: "test-only", fixtureIds: [EVAL_FIXTURES[0].id], judgeApiKey: "judge-test-only",
+      ...judgeOptions,
+    } as LiveEvalOptions)).rejects.toThrow();
+    expect(runJobAnalysis).not.toHaveBeenCalled();
+  });
+
+  it.each(["openai", "anthropic"] as const)("accepts a separately configured custom %s auditor without changing the analysis model", async (customProtocol) => {
+    vi.mocked(runJobAnalysis).mockClear().mockResolvedValue(analysis());
+    vi.mocked(auditGrounding).mockClear();
+    await runLiveEval({
+      apiKey: "analysis-test-only", fixtureIds: [EVAL_FIXTURES[0].id],
+      judgeModel: "custom:offline-judge", judgeApiKey: "judge-test-only",
+      customBaseUrl: "https://judge.example.test/v1", customProtocol,
+      customHeaders: { "x-test": "judge-header" },
+    });
+    expect(runJobAnalysis).toHaveBeenCalledTimes(3);
+    expect(auditGrounding).toHaveBeenCalledTimes(3);
+    expect(auditGrounding).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.anything(), {
+      model: "custom:offline-judge", apiKey: "judge-test-only",
+      customBaseUrl: "https://judge.example.test/v1", customProtocol,
+      customHeaders: { "x-test": "judge-header" },
+    });
+    expect(vi.mocked(runJobAnalysis).mock.calls[0][2].model).not.toMatch(/^custom:/);
+  });
+});
+
+describe("forbidden claim attribution and polarity", () => {
+  const fixture = getEvalFixture("backend-clinician-mismatch");
+  const expectations: EvalExpectations = fixture.expectations;
+
+  it("accepts accurate posted roles and requirements through evaluateAnalysis", () => {
+    const output = analysis();
+    output.job.role = "Registered Nurse, Adult Clinical Services";
+    output.job.requirements = ["Active Washington RN license, BS Nursing, BLS and three years of bedside adult nursing."];
+    output.job.summary = "The role requires BS Nursing.";
+    output.fit.gaps = ["The role requires BS Nursing; the candidate has no nursing license."];
+    const judged = evaluateAnalysis(fixture, output).results.find((item) => item.judge === "truth.must_not_claim");
+    expect(judged).toEqual({ judge: "truth.must_not_claim", ok: true });
+  });
+
+  it.each([
+    "The applicant is required to hold BS Nursing.",
+    "The candidate has to hold BS Nursing.",
+    "BS Nursing is required for this role.",
+  ])("does not confuse applicant obligations with held qualifications: %s", (text) => {
+    const output = analysis();
+    output.job.requirements = [text];
+    expect(judgeMustNotClaim(output, expectations, fixture.snapshot).ok).toBe(true);
+  });
+
+  it.each([
+    ["job", "role", "The candidate is a registered nurse."],
+    ["job", "summary", "The candidate holds BS Nursing as required by the role."],
+    ["job", "summary", "A BS Nursing degree is held by the applicant."],
+    ["company", "summary", "The applicant is a registered nurse."],
+    ["company", "product", "The applicant's BS Nursing qualifies them for this role."],
+    ["company", "summary", "I am a registered nurse."],
+  ] as const)("rejects applicant fabrications in %s.%s", (section, key, text) => {
+    const output = analysis();
+    Object.assign(output[section], { [key]: text });
+    expect(judgeMustNotClaim(output, expectations, fixture.snapshot).ok).toBe(false);
+  });
+
+  it("does not exempt fabricated applicant requirements copied from a posting", () => {
+    const output = analysis();
+    output.job.requirements = ["The applicant holds BS Nursing."];
+    const snapshot = { ...fixture.snapshot, pageText: `${fixture.snapshot.pageText}\nThe applicant holds BS Nursing.` };
+    expect(judgeMustNotClaim(output, expectations, snapshot).ok).toBe(false);
+  });
+
+  it("does not treat a required qualification absent from the posting as evidence", () => {
+    const output = analysis();
+    output.job.requirements = ["The role requires a PhD."];
+    expect(judgeMustNotClaim(output, { ...expectations, mustNotClaim: ["PhD"] }, fixture.snapshot).ok).toBe(false);
+  });
+
+  it.each([
+    "No relocation is required and I am a registered nurse.",
+    "I do not need sponsorship because I am a registered nurse.",
+    "The applicant has no relocation restrictions and is a registered nurse.",
+    "I am not only a registered nurse but also a backend engineer.",
+    "I am not just a registered nurse.",
+    "Registered nurse is not only my current position.",
+    "No relocation is required to start as a registered nurse.",
+    "No evidence of BS Nursing is available, but the applicant has BS Nursing.",
+    "The candidate does not lack a BS Nursing degree.",
+    "I am not without BS Nursing.",
+    "BS Nursing is not missing from my credentials.",
+    "No evidence was requested as the applicant holds BS Nursing.",
+  ])("rejects positive claims beside unrelated negatives: %s", (text) => {
+    const output = analysis();
+    output.fit.recommendation = text;
+    expect(judgeMustNotClaim(output, expectations, fixture.snapshot).ok).toBe(false);
+  });
+
+  it.each([
+    "The candidate is not a registered nurse.",
+    "The candidate lacks a BS Nursing degree.",
+    "The candidate does not hold BS Nursing.",
+    "No evidence of BS Nursing is provided.",
+    "No evidence in the supplied profile supports a BS Nursing qualification.",
+    "The supplied profile does not establish registered nurse licensure.",
+    "Registered nurse licensure is not supported by the supplied profile.",
+    "BS Nursing is missing from the supplied profile.",
+    "Cannot verify a BS Nursing degree.",
+    "No evidence of registered nurse licensure or BS Nursing is provided.",
+    "The candidate lacks the required BS Nursing degree.",
+    "No evidence of holding BS Nursing is provided.",
+    "No evidence that the applicant holds BS Nursing is provided.",
+  ])("preserves negative and no-evidence diagnostics: %s", (text) => {
+    const output = analysis();
+    output.fit.recommendation = text;
+    expect(judgeMustNotClaim(output, expectations, fixture.snapshot).ok).toBe(true);
+  });
+
+  it("preserves absence diagnostics when the forbidden phrase includes its verb", () => {
+    const output = analysis();
+    output.fit.recommendation = "No evidence the candidate holds a PhD.";
+    expect(judgeMustNotClaim(output, { ...expectations, mustNotClaim: ["holds a PhD"] }, fixture.snapshot).ok).toBe(true);
   });
 });

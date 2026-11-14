@@ -218,6 +218,38 @@ describe("retrieved source identity", () => {
 });
 
 describe("company research retrieval", () => {
+  it.each([
+    ["Linear is a purpose-built tool for planning and building products.", true],
+    ["Linear regression forecasts revenue for the company.", false],
+    ["A guide mentions Linear among a list of words.", false],
+  ])("retrieves a brand homepage but requires company assertions in its content: %s", async (text, accepted) => {
+    const title = "Linear – Plan and build products";
+    const url = "https://linear.app";
+    const fetchMock = vi.fn().mockImplementation((endpoint) => Promise.resolve(exaResponse([
+      { title, url, ...(endpoint === EXA_CONTENTS_URL ? { text } : {}) },
+    ])));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await researchCompany("test-key", snapshot({
+      companyHints: { structuredNames: ["Linear"], metadataNames: [], officialDomains: [] },
+    }));
+    expect(fetchMock.mock.calls.some(([endpoint]) => endpoint === EXA_CONTENTS_URL)).toBe(true);
+    expect(result.sources).toEqual(accepted ? [{ title, url }] : []);
+  });
+
+  it.each(["https://linear.app.evil.example", "https://linear-tools.app", "https://notlinear.app"])(
+    "does not route an alias-only title through a lookalike brand host: %s", async (url) => {
+      const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(exaResponse([
+        { title: "Linear – Plan and build products", url },
+      ])));
+      vi.stubGlobal("fetch", fetchMock);
+      const result = await researchCompany("test-key", snapshot({
+        companyHints: { structuredNames: ["Linear"], metadataNames: [], officialDomains: [] },
+      }));
+      expect(result.sources).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    },
+  );
+
   it("retains a verified common-word company article and its grounding evidence", async () => {
     const url = "https://news.example/linear-series-b";
     const text = "Linear raised a Series B funding round to grow its product team.";

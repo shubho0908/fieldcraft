@@ -33,7 +33,7 @@ export function sanitizeFit(
 ): JobAnalysis["fit"] {
   if (fit?.score === null && fit.unavailableReason?.trim()) return unavailableFit(fit.unavailableReason.trim());
   const hardBlockers = cleanStringList(fit?.hardBlockers).filter((blocker) => {
-    const normalized = blocker.toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
+    const normalized = blocker.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     return !/^(?:|none|na|null|nil|notapplicable|nohardblockers?|noblockers?(?:identified|found)?|nohardblockers?(?:identified|found))$/.test(normalized);
   });
   let score = Math.max(0, Math.min(100, Math.round(parseFitScore(fit?.score))));

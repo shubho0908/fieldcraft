@@ -69,6 +69,25 @@ describe("unknown company facts", () => {
 });
 
 describe("company fact evidence", () => {
+  it("retains a verbatim multi-sentence summary only when every assertion is supported", () => {
+    const summary = "Acme builds deployment software. It serves engineering teams.";
+    expect(groundCompanyFacts(company({ summary }), { ...snapshot, pageText: summary }).company.summary).toBe(summary);
+    expect(groundCompanyFacts(company({ summary }), snapshot).company.summary).toBe("Unknown");
+  });
+
+  it("collects citations across constituent assertions without retaining sources for rejected facts", () => {
+    const first = { title: "Product", url: "https://acme.example/product", text: "Acme builds deployment software." };
+    const second = { title: "Customers", url: "https://acme.example/customers", text: "It serves engineering teams." };
+    const summary = `${first.text} ${second.text}`;
+    const input = company({ summary, product: "Unknown", stage: "Unknown", size: "Unknown", funding: "Unknown", sources: [first, second] });
+    const result = groundCompanyFacts(input, { ...snapshot, pageText: "" }, [first, second]);
+    expect(result.company.summary).toBe(summary);
+    expect(result.company.sources).toEqual([first, second].map(({ title, url }) => ({ title, url })));
+    const rejected = groundCompanyFacts({ ...input, summary: `${summary} It operates hospitals.` }, { ...snapshot, pageText: "" }, [first, second]);
+    expect(rejected.company.summary).toBe("Unknown");
+    expect(rejected.company.sources).toEqual([]);
+  });
+
   it.each([
     ["funding", "$180k", "Salary $180k."],
     ["funding", "$180k", "We raised $20 million in funding and offer a salary of $180k."],
@@ -132,6 +151,68 @@ describe("company fact evidence", () => {
 });
 
 describe("company fact grounding through the analysis sanitizer", () => {
+  it.each([
+    ["https://news.example/Acme", "https://news.example/acme"],
+    ["https://news.example/about?id=Acme", "https://news.example/about?id=acme"],
+  ])("does not equate case-sensitive citation resources: %s", (retrievedUrl, requestedUrl) => {
+    const parsed = analysis();
+    const source = { title: "Acme funding", url: retrievedUrl, text: "Acme raised $100 million." };
+    parsed.company.sources = [{ title: "Requested source", url: requestedUrl }];
+    const result = sanitizeAnalysis(parsed, snapshot, [source], true, undefined, { companySources: [source] });
+    expect(result.company.sources).toEqual([]);
+    expect(result.company.funding).toBe("Unknown");
+  });
+
+  it("retains distinct retrieved resources while normalizing citation tracking", () => {
+    const sources = [
+      { title: "Acme funding", url: "https://news.example/Acme", text: "Acme raised $100 million." },
+      { title: "Acme headcount", url: "https://news.example/acme", text: "Acme has 500 employees." },
+    ];
+    const parsed = analysis();
+    parsed.company.sources = sources.map((source) => ({ title: source.title, url: `${source.url}?utm_source=review#facts` }));
+    const result = sanitizeAnalysis(parsed, snapshot, sources, true, undefined, { companySources: sources });
+    expect(result.company).toMatchObject({
+      funding: "$100 million", size: "500 employees",
+      sources: expect.arrayContaining(sources.map(({ title, url }) => ({ title, url }))),
+    });
+    expect(result.company.sources).toHaveLength(2);
+  });
+
+  it.each([
+    "Our competitor Beta raised $100 million. Beta has 500 employees. Beta is a Series C startup.",
+    "Beta raised $100 million. Beta has 500 employees. Beta is a Series C startup.",
+    "Acme reports that Beta raised $100 million. Acme reports that Beta has 500 employees. Acme reports that Beta is a Series C startup.",
+    "Acme raised $20 million after Beta raised $100 million. Acme has 50 employees compared with Beta's 500 employees. Acme is a Series A startup, unlike Beta, a Series C startup.",
+  ])("rejects another employer's facts despite an invented model employer: %s", (pageText) => {
+    const parsed = analysis();
+    parsed.job.company = "Beta";
+    const result = sanitizeAnalysis(parsed, {
+      ...snapshot, pageText,
+      companyHints: { structuredNames: ["Acme"], metadataNames: [], officialDomains: ["acme.example"] },
+    }, [], false);
+    expect(result.company).toMatchObject({ funding: "Unknown", size: "Unknown", stage: "Unknown" });
+    expect(result.research.issue).toMatch(/omitted.*stage.*size.*funding/i);
+  });
+
+  it.each([
+    { title: "Software Engineer at Acme", url: "https://acme.example/jobs/1", hostname: "acme.example" },
+    { title: "Software Engineer", url: "https://jobs.ashbyhq.com/acme/job", hostname: "jobs.ashbyhq.com" },
+  ])("keeps named employer facts using captured identity: $url", (identity) => {
+    const result = sanitizeAnalysis(analysis(), {
+      ...snapshot, ...identity, headings: [],
+      pageText: "Acme raised $100 million. Acme has 500 employees. Acme is a Series C startup.",
+    }, [], false);
+    expect(result.company).toMatchObject({ funding: "$100 million", size: "500 employees", stage: "Series C" });
+  });
+
+  it("does not transfer a cited source's unrelated company facts to the employer", () => {
+    const parsed = analysis();
+    const source = { title: "Acme industry news", url: "https://news.example/acme", text: "Acme builds deployment software. Beta raised $100 million. Beta has 500 employees. Beta is a Series C startup." };
+    parsed.company.sources = [source];
+    const result = sanitizeAnalysis(parsed, snapshot, [source], true, undefined, { companySources: [source] });
+    expect(result.company).toMatchObject({ funding: "Unknown", size: "Unknown", stage: "Unknown", sources: [] });
+  });
+
   it("drops invented funding, size and stage even when research is disabled", () => {
     const result = sanitizeAnalysis(analysis(), snapshot, [], false);
     expect(result.company.product).toBe("deployment software");

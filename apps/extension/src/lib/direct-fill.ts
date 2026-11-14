@@ -1,5 +1,5 @@
 import { Confidence, PageFieldKind, SuggestionAction } from "./enums";
-import { getMeaningfulCurrentValue, isChoiceField, optionMatches } from "./fields";
+import { getMeaningfulCurrentValue, isChoiceField, optionMatches, requiresExplicitReview } from "./fields";
 import type { CandidateProfile, FieldSuggestion, PageField, PageSnapshot } from "../types";
 
 interface SourceRule {
@@ -10,8 +10,6 @@ interface SourceRule {
 
 const THIRD_PARTY =
   /\b(?:referrers?|references?|emergency|managers?|recruiters?|schools?|universit(?:y|ies)|colleges?|institutions?|compan(?:y|ies)|employers?|spouses?|parents?|mothers?|fathers?|supervisors?|partners?|employees?)\b/;
-const ATTESTATION =
-  /\b(?:authori[sz](?:ed|ation)|sponsor(?:ship|ed|ing)?|visas?|relocat(?:e|ion|ing)|mov(?:e|ing)|citizen(?:ship)?|residen(?:t|cy)|immigration|clearance|eligib(?:le|ility)|legally|right to work|work permit|permitted to work|permission to work|entitled to work|attest(?:ation)?|certif(?:y|ied|ication)|acknowledg(?:e|ed|ements?|ments?)|consent|agree(?:ment)?|accept|confirm|terms|privacy|declar(?:e|ation))\b/;
 
 export function buildDirectSuggestions(
   snapshot: PageSnapshot,
@@ -35,36 +33,40 @@ export function buildDirectSuggestions(
     if (thirdPartySection && !/^(?:(?:please )?(?:enter|provide|type) )?(?:your|candidate|applicant)\b/.test(question)) {
       continue;
     }
-    const attestation =
-      field.kind === PageFieldKind.Checkbox || sources.some((source) => ATTESTATION.test(source));
+    const attestation = requiresExplicitReview(field);
     let suggestion: FieldSuggestion | undefined;
 
     for (const item of profile.canonicalAnswers) {
       const savedQuestion = cleanText(item.question);
-      if (savedQuestion.length < 12 || savedQuestion.split(" ").length < 3) continue;
+      if (!savedQuestion) continue;
       const exactOnly = attestation ||
         /\b(?:name|email|mail|phone|salary|compensation|experience|years)\b/.test(question);
-      const matches = exactOnly
-        ? question === savedQuestion
-        : ` ${question} `.includes(` ${savedQuestion} `);
+      const matches = question === savedQuestion || (
+        !exactOnly &&
+        savedQuestion.length >= 12 &&
+        savedQuestion.split(" ").length >= 3 &&
+        ` ${question} `.includes(` ${savedQuestion} `)
+      );
       if (!matches) continue;
       const value = resolveValue(field, item.answer);
       if (!value) continue;
-      suggestion = makeSuggestion(field, value, Confidence.High, attestation);
+      suggestion = makeSuggestion(field, value, Confidence.High, attestation, true);
       break;
     }
 
-    if (!suggestion && !attestation) {
-      const label = question
-        .replace(/^(?:please )?(?:enter|provide|type) /, "")
-        .replace(/^(?:your|candidate|applicant) /, "");
+    const label = question
+      .replace(/^(?:please )?(?:enter|provide|type) /, "")
+      .replace(/^(?:your|candidate|applicant) /, "");
+    // A legal-name label still maps the saved full name, but the shared legal
+    // policy now requires review rather than silently dropping that mapping.
+    if (!suggestion && (!attestation || /^(?:full )?legal name$/.test(label))) {
       for (const rule of sourceRules) {
         if (!rule.match.test(label)) continue;
         if (field.kind === PageFieldKind.File && !/^(?:resume|cv|curriculum vitae)$/.test(label)) continue;
         if (field.kind !== PageFieldKind.File && /^(?:resume|cv|curriculum vitae)$/.test(label)) continue;
         const value = resolveValue(field, rule.value(profile) ?? "");
         if (!value) continue;
-        suggestion = makeSuggestion(field, value, rule.confidence, false);
+        suggestion = makeSuggestion(field, value, rule.confidence, attestation);
         break;
       }
     }
@@ -94,6 +96,7 @@ function makeSuggestion(
   value: string,
   confidence: Confidence,
   attestation: boolean,
+  savedAnswer = false,
 ): FieldSuggestion {
   return {
     fieldId: field.id,
@@ -101,7 +104,7 @@ function makeSuggestion(
     action: attestation ? SuggestionAction.Review : SuggestionAction.Fill,
     value,
     confidence,
-    evidence: attestation ? "Exact saved question and answer" : "Filled directly from profile",
+    evidence: savedAnswer ? "Exact saved question and answer" : "Filled directly from profile",
     warning: attestation
       ? "Verify this saved answer against the exact question, including its polarity and jurisdiction, before selecting it."
       : "",

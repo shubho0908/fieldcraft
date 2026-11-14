@@ -27,6 +27,13 @@ describe("placeholder and exact choice helpers", () => {
     expect(optionMatches(field, " india ")).toBe(true);
   });
 
+  it.each([PageFieldKind.Select, PageFieldKind.Radio])("rejects ambiguous exact labels and values for %s", (kind) => {
+    const options = [{ value: "1", label: "2" }, { value: "2", label: "3" }];
+    expect(optionMatches({ ...field, kind, options }, "2")).toBe(false);
+    expect(optionMatches({ ...field, kind, options }, "3")).toBe(true);
+    expect(optionMatches({ ...field, kind, options: [{ value: "yes", label: "YES" }] }, "yes")).toBe(true);
+  });
+
   it.each([
     ["Are you authorized to work?", true], ["Will you require sponsorship?", true], ["Valid work visa", true],
     ["Willing to relocate", true], ["Citizenship", true], ["Security clearance", true], ["I consent to processing", true],

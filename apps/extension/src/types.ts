@@ -105,7 +105,6 @@ export interface FieldOption {
 export interface PageField {
   id: string;
   frameId?: number;
-  frameUrl?: string;
   kind: PageFieldKind;
   type: string;
   name: string;
@@ -235,7 +234,8 @@ export interface TabAnalysisSession {
 
 export type RuntimeRequest =
   | { type: "FIELDCRAFT_CAPTURE" }
-  | { type: "FIELDCRAFT_FILL"; suggestions: FieldSuggestion[]; selectedFieldIds: string[]; url: string }
+  | { type: "FIELDCRAFT_VALIDATE_DOCUMENT"; url: string; documentId: string }
+  | { type: "FIELDCRAFT_FILL"; suggestions: FieldSuggestion[]; selectedFieldIds: string[]; url: string; documentId: string }
   | { type: "FIELDCRAFT_START_ANALYSIS"; tabId: number }
   | { type: "FIELDCRAFT_GET_TAB_SESSION"; tabId: number }
   | {

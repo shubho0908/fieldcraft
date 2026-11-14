@@ -1,5 +1,5 @@
 import type { FitVerdict, JudgeId, SuggestionAction } from "../enums";
-import type { CandidateProfile, JobAnalysis, PageSnapshot } from "../../types";
+import type { CandidateProfile, PageSnapshot } from "../../types";
 
 export interface ScoreRange { min: number; max: number }
 export interface FieldExpectation {
@@ -23,16 +23,11 @@ export interface EvalFixture {
   coverage: string[];
   company: { name: string; officialDomain: string; researchAllowed: boolean };
   profile: CandidateProfile;
-  snapshot: PageSnapshot & {
-    jobDescriptionDetected?: boolean;
-    jobDescriptionSource?: string;
-    jobDescriptionText?: string;
-  };
+  snapshot: PageSnapshot;
   expectations: EvalExpectations;
 }
-export type AccuracyJudgeId = JudgeId;
-export interface JudgeFailure { judge: AccuracyJudgeId; message: string }
-export interface JudgeResult { judge: AccuracyJudgeId; ok: boolean; message?: string }
+export interface JudgeFailure { judge: JudgeId; message: string }
+export interface JudgeResult { judge: JudgeId; ok: boolean; message?: string }
 export interface EvalReport {
   fixtureId: string;
   ok: boolean;
@@ -60,4 +55,3 @@ export interface GroundingAudit {
   findings: GroundingFinding[];
   sources: GroundingSource[];
 }
-export type EvaluatedAnalysis = JobAnalysis;

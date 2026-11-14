@@ -1,4 +1,6 @@
-import type { JobAnalysis, PageSnapshot } from "../types";
+import type { JobAnalysis } from "../types";
+import { resolveCompanyIdentity, type CompanyIdentitySnapshot } from "./exa";
+import { normalizeSourceUrl } from "./source-url";
 
 export interface CompanyFactSource {
   title: string;
@@ -18,12 +20,16 @@ export function isUnknownCompanyFact(value: string | undefined): boolean {
 
 export function groundCompanyFacts(
   input: JobAnalysis["company"],
-  snapshot: Pick<PageSnapshot, "pageText" | "url">,
+  snapshot: CompanyIdentitySnapshot,
   retrievedSources: CompanyFactSource[] = [],
 ): { company: JobAnalysis["company"]; droppedFacts: string[] } {
   const company = { ...input, sources: [] as JobAnalysis["company"]["sources"] };
   const droppedFacts: string[] = [];
   const usedSources = new Map<string, CompanyFactSource>();
+  // Only captured identity signals are eligible; model-generated job/company
+  // names must never authorize attribution of another organization's numbers.
+  const identity = resolveCompanyIdentity(snapshot);
+  const aliases = identity?.aliases ?? [];
   const citedUrls = new Set(input.sources.map((source) => normalizeSourceUrl(source.url)).filter(Boolean));
   const evidence = retrievedSources.filter((source) =>
     normalizeSourceUrl(source.url) !== normalizeSourceUrl(snapshot.url) &&
@@ -33,10 +39,21 @@ export function groundCompanyFacts(
 
   const grounded = (value: string, field: CompanyFactField): boolean => {
     if (isUnknownCompanyFact(value)) return false;
-    if (containsFact(snapshot.pageText, value, field)) return true;
-    const supporting = evidence.filter((source) => containsFact(source.text, value, field));
-    for (const source of supporting) usedSources.set(normalizeSourceUrl(source.url), source);
-    return supporting.length > 0;
+    const assertions = splitAssertions(value);
+    const supportingSources = new Map<string, CompanyFactSource>();
+    for (const assertion of assertions) {
+      if (containsFact(snapshot.pageText, assertion, field, aliases, true)) continue;
+      const supporting = evidence.filter((source) => containsFact(
+        source.text, assertion, field, aliases,
+        isEmployerSource(source.url, snapshot.url, identity?.officialDomains ?? []),
+      ));
+      if (!supporting.length) return false;
+      for (const source of supporting) supportingSources.set(normalizeSourceUrl(source.url), source);
+    }
+    if (!assertions.length) return false;
+    // Commit citations only after every assertion in this fact passes.
+    for (const [url, source] of supportingSources) usedSources.set(url, source);
+    return true;
   };
 
   for (const key of ["summary", "product", "stage", "size", "funding"] as const) {
@@ -59,18 +76,31 @@ export function groundCompanyFacts(
   return { company, droppedFacts: [...new Set(droppedFacts)] };
 }
 
-function containsFact(text: string, fact: string, field: CompanyFactField): boolean {
-  const normalize = (value: string) => value
+function splitAssertions(text: string): string[] {
+  return text.split(/(?:[.!?](?:\s|$)|[\r\n]+)/u).map((part) => part.trim()).filter(Boolean);
+}
+
+function normalizeFact(value: string): string {
+  return value
     .toLocaleLowerCase()
     .replace(/[\u2018\u2019]/gu, "'")
     .replace(/[^\p{L}\p{N}$€£%.,]+/gu, " ")
     .replace(/(?<!\d)[.,]|[.,](?!\d)/gu, " ")
     .replace(/\s+/gu, " ")
     .trim();
-  const needle = normalize(fact);
+}
+
+function containsFact(
+  text: string,
+  fact: string,
+  field: CompanyFactField,
+  aliases: string[],
+  allowFirstPerson: boolean,
+): boolean {
+  const needle = normalizeFact(fact);
   if (!needle) return false;
   const numericField = ["funding", "size", "stage"].includes(field);
-  const sentences = text.split(/(?:[.!?](?:\s|$)|[\r\n]+)/u).filter((sentence) =>
+  const sentences = splitAssertions(text).filter((sentence) =>
     !/\b(?:not|never|no|without|previously|formerly|worked at|experience at|such as)\b/iu.test(sentence) &&
     !(numericField && /\b(?:experience|worked (?:at|with|for)|previous|prior|clients?|customers?|partners?|portfolio)\b/iu.test(sentence)),
   );
@@ -78,13 +108,66 @@ function containsFact(text: string, fact: string, field: CompanyFactField): bool
     ? sentences.flatMap((sentence) => sentence.split(/;|,\s+(?=[\p{L}])|\b(?:and|but|while|whereas)\b/iu))
     : sentences;
   return clauses.some((sentence) => {
-    const normalized = ` ${normalize(sentence)} `;
+    const normalized = ` ${normalizeFact(sentence)} `;
     const index = normalized.indexOf(` ${needle} `);
     if (index < 0) return false;
     const before = normalized.slice(0, index + 1);
     const after = normalized.slice(index + needle.length + 1);
-    return hasFactContext(field, needle, before, after);
+    return (!numericField || hasEmployerSubject(sentence, fact, field, aliases, allowFirstPerson)) &&
+      hasFactContext(field, needle, before, after);
   });
+}
+
+/**
+ * Deliberately narrow lexical attribution for numbers/stages, not a semantic
+ * verifier. Ambiguous subjects are omitted instead of borrowing another
+ * organization's assertion merely because the amount occurs nearby.
+ */
+function hasEmployerSubject(
+  sentence: string,
+  fact: string,
+  field: CompanyFactField,
+  aliases: string[],
+  allowFirstPerson: boolean,
+): boolean {
+  const normalizeSubject = (value: string) => normalizeFact(value)
+    .replace(/\b(?:incorporated|inc|llc|ltd|limited|corp|corporation|gmbh|plc)\b/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  const clause = normalizeSubject(sentence);
+  const subjects = aliases.map(normalizeSubject).filter(Boolean).sort((a, b) => b.length - a.length);
+  if (allowFirstPerson) subjects.push("we", "our company", "our team size", "our team", "our headcount", "our workforce", "our funding");
+  const subject = subjects.find((name) => clause.startsWith(`${name} `));
+  if (!subject) return false;
+  const predicate = clause.slice(subject.length + 1).replace(/^s /u, "");
+  const assertedValue = field === "stage"
+    ? predicate.match(/\b(?:series [a-z][0-9]?|pre seed|seed|bootstrapped|public|publicly listed|pre ipo|post ipo|early|growth|late|venture backed)\b/u)
+    : predicate.match(/\d/u);
+  const needle = normalizeSubject(fact);
+  const factStart = clause.indexOf(needle);
+  const valueStart = assertedValue?.index === undefined ? -1 : clause.length - predicate.length + assertedValue.index;
+  // The matched fact must contain this subject's own asserted value, not a
+  // later amount about somebody else in the same clause.
+  if (factStart < 0 || valueStart < factStart || valueStart >= factStart + needle.length) return false;
+  const amount = "(?:(?:a|an|total|of|over|around|approximately|about|nearly|more|than|at|least|up|to) )*[$€£]?\\d";
+  if (field === "funding") {
+    return new RegExp(`^(?:(?:has|have) )?(?:raised|raises|secured|secures|received|closed|closes) ${amount}`, "u").test(predicate)
+      || (subject === "our funding" && new RegExp(`^(?:is|of|totals?) ${amount}`, "u").test(predicate));
+  }
+  if (field === "size") {
+    return new RegExp(`^(?:has|have|employs?|includes?|is|of|stands at) (?:a team of )?${amount}`, "u").test(predicate);
+  }
+  return /^(?:is|are|closed|raised) (?:a |an |the |currently )*(?:series [a-z][0-9]?|pre seed|seed|bootstrapped|public|publicly listed|pre ipo|post ipo|early|growth|late|venture backed)\b/u.test(predicate);
+}
+
+function isEmployerSource(sourceUrl: string, pageUrl: string, officialDomains: string[]): boolean {
+  try {
+    const host = new URL(sourceUrl).hostname.replace(/^www\./u, "");
+    const pageHost = new URL(pageUrl).hostname.replace(/^www\./u, "");
+    return host === pageHost || officialDomains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
 }
 
 function hasFactContext(field: CompanyFactField, fact: string, before: string, after: string): boolean {
@@ -109,18 +192,4 @@ function hasFactContext(field: CompanyFactField, fact: string, before: string, a
   return /\b(?:is|are|stage(?: is)?|round(?: is)?|funding(?: round)?(?: is)?|closed(?: a)?|raised(?: a)?) (?:a |an |the |currently )*$/u.test(before)
     || /^ (?:startup|company|business|stage|round|funding)(?: |$)/u.test(after)
     || /\b(?:company|startup|stage|funding|round)\b/u.test(fact);
-}
-
-function normalizeSourceUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    if (!/^https?:$/u.test(url.protocol)) return "";
-    url.hash = "";
-    for (const key of [...url.searchParams.keys()]) {
-      if (/^(?:utm_|fbclid$|gclid$|ref$)/iu.test(key)) url.searchParams.delete(key);
-    }
-    return url.href.replace(/\/$/u, "");
-  } catch {
-    return "";
-  }
 }

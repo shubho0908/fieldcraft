@@ -1,5 +1,6 @@
 import { PageFieldKind, SuggestionAction } from "./enums";
-import { isPlaceholderOption, normalizeChoice } from "./fields";
+import { findUniqueChoice, isPlaceholderOption } from "./fields";
+import { composedChildren, composedContains, composedParent, isElementVisible, queryComposedAll as queryAll } from "./visibility";
 import type {
   CompanyResearchHints,
   FieldOption,
@@ -53,7 +54,7 @@ export function collectPageSnapshot(doc: Document = document): CapturedSnapshot 
   const seenHeadings = new Set<string>();
   for (const node of queryAll<HTMLElement>(doc, "h1, h2, h3")) {
     if (!isVisible(node) || isExcludedText(node)) continue;
-    const text = cleanText(node.textContent ?? "");
+    const text = cleanText(visibleText(node));
     if (!text || seenHeadings.has(text)) continue;
     seenHeadings.add(text);
     headings.push(text);
@@ -314,19 +315,52 @@ export function extractRelevantPageText(doc: Document = document): string {
 function capturePageContext(doc: Document, fields: PageField[]) {
   let description = "";
   let source: string | undefined;
-  let descriptionNode: HTMLElement | undefined;
-  for (const selector of JOB_TEXT_SELECTORS) {
-    const candidates = queryAll<HTMLElement>(doc, selector)
-      .filter((node) => isVisible(node) && !isExcludedText(node))
-      .filter((node) => !["main", "article"].includes(selector) || !queryAll<HTMLInputElement>(doc, "input").some((input) => node.contains(input) && /search.*(?:roles|jobs|positions)/i.test(`${input.placeholder} ${input.getAttribute("aria-label") ?? ""}`)))
-      .map((node) => ({ node, text: visibleText(node, true) }))
-      .filter(({ text }) => text.length > 120 && /\b(?:responsibilities|requirements|qualifications|about (?:the|this) role|what you(?:'|’)ll do|experience|we(?:'|’)re hiring)\b/iu.test(text));
-    const candidate = candidates.find(({ node }) => !candidates.some((other) => other.node !== node && node.contains(other.node)));
-    if (!candidate) continue;
-    description = candidate.text;
-    descriptionNode = candidate.node;
-    source = `selector:${selector}`;
-    break;
+  const descriptionNodes = new Set<Node>();
+  const specificSelectors = JOB_TEXT_SELECTORS.slice(0, JOB_TEXT_SELECTORS.indexOf(".posting-page"));
+  const explicit = queryAll<HTMLElement>(doc, specificSelectors.join(","))
+    .filter((node) => isVisible(node) && !isExcludedText(node));
+  // Keep enclosing descriptions, including their own prose, and all disjoint
+  // siblings. Reading only these roots naturally avoids nested duplication.
+  const roots = explicit.filter((node) => !explicit.some((other) => other !== node && composedContains(other, node)));
+  const postingScope = (node: Element): Element | null => {
+    for (let parent = composedParent(node); parent; parent = composedParent(parent)) {
+      if (parent.matches("article, main")) return parent;
+    }
+    return null;
+  };
+  const scopes = new Set(roots.map(postingScope).filter((node) => node !== null));
+  const headers = queryAll<HTMLElement>(doc, "header").filter((header) => {
+    const scope = postingScope(header);
+    return scope !== null && scopes.has(scope) && !roots.some((root) => composedContains(root, header)) &&
+      isVisible(header) && !isExcludedText(header);
+  });
+  const selectedRoots = new Set([...roots, ...headers]);
+  const sections = queryAll<HTMLElement>(doc, "*").filter((node) => selectedRoots.has(node))
+    .map((node) => ({ node, text: visibleText(node, true) })).filter(({ text }) => text);
+  const explicitText = sections.map(({ text }) => text).join("\n\n");
+  if (explicitText.length > 120) {
+    description = explicitText;
+    sections.forEach(({ node }) => descriptionNodes.add(node));
+    source = `selector:${specificSelectors.find((selector) => explicit.some((node) => node.matches(selector)))}`;
+  } else {
+    const jobLanguage = /\b(?:responsibilities|requirements|qualifications|about (?:the|this) role|what you(?:'|’)ll do|experience|we(?:'|’)re hiring)\b/iu;
+    const isListing = (node: HTMLElement) =>
+      queryAll<HTMLInputElement>(node, "input").some((input) => isVisible(input) && /search.*(?:roles|jobs|positions)/i.test(`${input.placeholder} ${input.getAttribute("aria-label") ?? ""}`)) ||
+      queryAll<HTMLElement>(node, "article").filter((article) => !isExcludedText(article) && visibleText(article, true).length > 120).length > 1;
+    for (const selector of JOB_TEXT_SELECTORS.slice(specificSelectors.length)) {
+      const candidates = queryAll<HTMLElement>(doc, selector)
+        .filter((node) => isVisible(node) && !isExcludedText(node) && !isListing(node))
+        .map((node) => ({ node, text: visibleText(node, true) }))
+        .filter(({ text }) => text.length > 120 && jobLanguage.test(text));
+      const independent = candidates.filter(({ node }) => !candidates.some((other) => other.node !== node && composedContains(other.node, node)));
+      // Several independent broad matches are a listing, not one selected job.
+      if (independent.length > 1) break;
+      if (!independent.length) continue;
+      description = independent[0].text;
+      descriptionNodes.add(independent[0].node);
+      source = `selector:${selector}`;
+      break;
+    }
   }
 
   if (!description) {
@@ -348,7 +382,7 @@ function capturePageContext(doc: Document, fields: PageField[]) {
 
   const fieldText = fields.map((field) => `${field.label}${field.required ? " (required)" : ""} [${field.kind}]`).join("\n");
   const optionText = fields.filter((field) => field.options.length).map((field) => `${field.label}: ${field.options.map((option) => option.label).join(" | ")}`).join("\n");
-  const formText = queryAll<HTMLElement>(doc, "form").filter((form) => isVisible(form)).map((form) => visibleText(form, false, true, descriptionNode)).filter(Boolean).join("\n\n");
+  const formText = queryAll<HTMLElement>(doc, "form").filter((form) => isVisible(form)).map((form) => visibleText(form, false, true, descriptionNodes)).filter(Boolean).join("\n\n");
   const formContext = fieldText || formText ? `Application fields:\n${fieldText}\n\nField choices:\n${truncateText(optionText, 6_000, "Field choices")}\n\nApplication instructions:\n${truncateText(formText, 6_000, "Form instructions")}` : "";
   const jobDescriptionText = truncateText(description, 60_000 - formContext.length - 100, "Job description");
   const fallback = !description && doc.body ? truncateText(visibleText(doc.body, true), 60_000 - formContext.length - 100, "Page context") : "";
@@ -372,38 +406,35 @@ function truncateText(text: string, budget: number, label: string): string {
   return text.slice(0, Math.max(0, budget - notice.length)) + notice;
 }
 
-function queryAll<T extends Element>(root: Document | ShadowRoot, selector: string): T[] {
-  const found: T[] = [];
-  for (const node of Array.from(root.querySelectorAll("*"))) {
-    if (node.matches(selector)) found.push(node as T);
-    if (node.shadowRoot) found.push(...queryAll<T>(node.shadowRoot, selector));
-  }
-  return found;
-}
-
-function composedParent(element: Element): Element | null {
-  return element.parentElement ?? (element.getRootNode() as ShadowRoot).host ?? null;
-}
-
 function isExcludedText(element: Element): boolean {
   for (let node: Element | null = element; node; node = composedParent(node)) {
-    if (node.matches("nav, aside, header, footer, [role='navigation'], [role='complementary'], .recommended-jobs, .related-jobs, .other-jobs, .job-listings, [class*='recommended-job'], [class*='related-job'], [data-testid*='recommended'], [data-testid*='related-job']")) return true;
+    if (node.matches("header, footer") && !hasPostingAncestor(node)) return true;
+    if (node.matches("nav, aside, [role='navigation'], [role='complementary'], .recommended-jobs, .related-jobs, .other-jobs, .job-listings, [class*='recommended-job'], [class*='related-job'], [data-testid*='recommended'], [data-testid*='related-job']")) return true;
   }
   return false;
 }
 
-function visibleText(root: Node, excludeForms = false, rendered = true, excludedNode?: Node): string {
+function hasPostingAncestor(element: Element): boolean {
+  for (let parent = composedParent(element); parent; parent = composedParent(parent)) {
+    if (parent.matches(`main, article, ${JOB_TEXT_SELECTORS.slice(0, -2).join(",")}`)) return true;
+  }
+  return false;
+}
+
+function visibleText(root: Node, excludeForms = false, rendered = true, excludedNodes?: ReadonlySet<Node>): string {
+  const visited = new Set<Node>();
   const walk = (node: Node): string => {
-    if (node === excludedNode) return "";
+    if (excludedNodes?.has(node) || visited.has(node)) return "";
+    visited.add(node);
     if (node.nodeType === 3) return node.textContent ?? "";
     if (node.nodeType === 1) {
       const element = node as HTMLElement;
       if (element.matches("script, style, template, noscript, svg, input, textarea, select, button") || (excludeForms && element.matches("form")) || isExcludedText(element) || !isVisible(element, rendered)) return "";
-      const content = Array.from((element.shadowRoot ?? element).childNodes).map(walk).join("");
+      const content = composedChildren(element).map(walk).join("");
       if (/^H[1-6]$/.test(element.tagName)) return `\n${content}`;
-      return /^(?:P|DIV|SECTION|ARTICLE|MAIN|LI|UL|OL|BR|LABEL|FIELDSET|LEGEND|FORM)$/.test(element.tagName) ? `\n${content}\n` : content;
+      return /^(?:P|DIV|SECTION|ARTICLE|MAIN|HEADER|FOOTER|LI|UL|OL|BR|LABEL|FIELDSET|LEGEND|FORM|TABLE|THEAD|TBODY|TFOOT|TR|TH|TD|DL|DT|DD)$/.test(element.tagName) ? `\n${content}\n` : content;
     }
-    return Array.from(node.childNodes).map(walk).join("");
+    return composedChildren(node).map(walk).join("");
   };
   return cleanMultiline(walk(root));
 }
@@ -699,16 +730,19 @@ function resolveSection(element: HTMLElement): string {
   const legend = fieldset?.querySelector("legend")?.textContent;
   if (legend) return cleanText(legend);
 
-  let cursor: Element | null = element.parentElement;
-  for (let depth = 0; cursor && depth < 5; depth += 1) {
+  let cursor: Element | null = element;
+  for (; cursor; cursor = composedParent(cursor)) {
+    if (cursor.matches("fieldset")) {
+      const title = cursor.querySelector("legend");
+      if (title) return cleanText(labelText(title));
+    }
     let sibling = cursor.previousElementSibling;
     while (sibling) {
       if (/^H[1-4]$/.test(sibling.tagName)) {
-        return cleanText(sibling.textContent ?? "");
+        return cleanText(visibleText(sibling));
       }
       sibling = sibling.previousElementSibling;
     }
-    cursor = cursor.parentElement;
   }
   return "Application";
 }
@@ -724,34 +758,7 @@ function isUsableField(element: HTMLElement): boolean {
 }
 
 function isVisible(element: HTMLElement, rendered = true): boolean {
-  const view = element.ownerDocument.defaultView;
-  for (let node: Element | null = element; node; node = composedParent(node)) {
-    if (node.matches("[hidden], [inert], [aria-hidden='true']")) return false;
-    const style = view?.getComputedStyle(node) ?? (node as HTMLElement).style;
-    if (!style) continue;
-    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || style.contentVisibility === "hidden" || style.opacity === "0") return false;
-    if (/^(?:absolute|fixed)$/.test(style.position) && [style.left, style.top].some((value) => /^-\d/.test(value) && parseFloat(value) < -1000)) return false;
-    if (/rect\(\s*0(?:px)?[ ,]+0(?:px)?[ ,]+0(?:px)?[ ,]+0(?:px)?\s*\)/i.test(style.clip) || /inset\(\s*50%\s*\)/i.test(style.clipPath)) return false;
-    if (/(?:hidden|clip)/.test(`${style.overflow} ${style.overflowX} ${style.overflowY}`) && ((style.width === "0px" && style.height === "0px") || (parseFloat(style.width) <= 1 && parseFloat(style.height) <= 1))) return false;
-  }
-  if (!rendered) return true;
-  if (typeof element.checkVisibility === "function" && !element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
-  const documentRect = element.ownerDocument.documentElement.getBoundingClientRect();
-  if (documentRect.width > 0 || documentRect.height > 0) {
-    const rect = element.getBoundingClientRect();
-    const display = view?.getComputedStyle(element).display;
-    if (display !== "contents" && (rect.width <= 0 || rect.height <= 0)) return false;
-    const scrollX = view?.scrollX ?? 0;
-    const scrollY = view?.scrollY ?? 0;
-    if (rect.right + scrollX <= 0 || rect.bottom + scrollY <= 0) return false;
-    for (let parent = composedParent(element); parent; parent = composedParent(parent)) {
-      const style = view?.getComputedStyle(parent);
-      if (!style || !/(?:hidden|clip|scroll|auto)/.test(`${style.overflow} ${style.overflowX} ${style.overflowY}`)) continue;
-      const bounds = parent.getBoundingClientRect();
-      if (rect.right <= bounds.left || rect.left >= bounds.right || rect.bottom <= bounds.top || rect.top >= bounds.bottom || bounds.width <= 1 || bounds.height <= 1) return false;
-    }
-  }
-  return true;
+  return isElementVisible(element, { rendered });
 }
 
 function isInput(element: Element): element is HTMLInputElement {
@@ -787,23 +794,51 @@ async function setComboboxValue(
   value: string,
 ): Promise<void> {
   const previous = element.value;
-  setTextValue(element, value);
-  await new Promise((resolve) => (element.ownerDocument.defaultView ?? window).setTimeout(resolve, 120));
-  const normalized = normalizeChoice(value);
+  const fieldId = element.getAttribute(FIELD_ATTRIBUTE);
+  const url = element.ownerDocument.location?.href;
   const scope = labelScope(element);
-  const listIds = `${element.getAttribute("aria-controls") ?? ""} ${element.getAttribute("aria-owns") ?? ""}`.trim().split(/\s+/).filter(Boolean);
-  const options = listIds.flatMap((id) => {
-    const list = scope.getElementById(id);
-    return list?.getAttribute("role") === "listbox" ? Array.from(list.querySelectorAll<HTMLElement>("[role='option']")) : [];
-  }).filter((option) => isVisible(option) && option.getAttribute("aria-disabled") !== "true");
-  const match = normalized ? options.find((option) => [option.getAttribute("data-value") ?? "", option.getAttribute("aria-label") ?? "", option.textContent ?? ""].map(normalizeChoice).filter(Boolean).includes(normalized)) : undefined;
-  if (!match) {
-    setTextValue(element, previous);
-    throw new Error(`No exact matching option in the controlled listbox for “${value}”`);
+  const controlledIds = () => `${element.getAttribute("aria-controls") ?? ""} ${element.getAttribute("aria-owns") ?? ""}`.trim();
+  let changed = false;
+  let writing = true;
+  const edited = () => { if (!writing) changed = true; };
+  element.addEventListener("input", edited);
+  element.addEventListener("change", edited);
+  try {
+    setTextValue(element, value);
+    writing = false;
+    const controls = controlledIds();
+    const assertOwned = () => {
+      if (changed || !element.isConnected || element.value !== value || !isUsableField(element) ||
+        element.getAttribute(FIELD_ATTRIBUTE) !== fieldId || labelScope(element) !== scope ||
+        element.ownerDocument.location?.href !== url || controlledIds() !== controls) {
+        throw new Error("The combobox changed while choosing an option. Review it again.");
+      }
+    };
+    await new Promise((resolve) => (element.ownerDocument.defaultView ?? window).setTimeout(resolve, 120));
+    assertOwned();
+    const options = controls.split(/\s+/).filter(Boolean).flatMap((id) => {
+      const list = scope.getElementById(id);
+      return list?.getAttribute("role") === "listbox" ? queryAll<HTMLElement>(list, "[role='option']") : [];
+    }).filter((option) => isVisible(option) && option.getAttribute("aria-disabled") !== "true");
+    const match = findUniqueChoice(options, value, (option) => [
+      option.getAttribute("data-value") ?? "", option.getAttribute("aria-label") ?? "", option.textContent ?? "",
+    ]);
+    if (!match) {
+      assertOwned();
+      writing = true;
+      setTextValue(element, previous);
+      throw new Error(`No unique exact matching option in the controlled listbox for “${value}”`);
+    }
+    const MouseEventType = element.ownerDocument.defaultView?.MouseEvent ?? MouseEvent;
+    match.dispatchEvent(new MouseEventType("mousedown", { bubbles: true, composed: true }));
+    // A mousedown handler can replace either the control or the option.
+    assertOwned();
+    if (!match.isConnected || !isVisible(match)) throw new Error("The combobox option changed before it could be chosen.");
+    match.click();
+  } finally {
+    element.removeEventListener("input", edited);
+    element.removeEventListener("change", edited);
   }
-  const MouseEventType = element.ownerDocument.defaultView?.MouseEvent ?? MouseEvent;
-  match.dispatchEvent(new MouseEventType("mousedown", { bubbles: true, composed: true }));
-  match.click();
 }
 
 function setChecked(element: HTMLInputElement, checked: boolean): void {
@@ -818,10 +853,9 @@ function setChecked(element: HTMLInputElement, checked: boolean): void {
 }
 
 function setSelectValue(element: HTMLSelectElement, requested: string): void {
-  const normalized = normalizeChoice(requested);
   const options = Array.from(element.options).filter((option) => !option.disabled && !option.hidden && !option.parentElement?.matches("optgroup:disabled") && !isPlaceholderOption(option, option.index));
-  const match = normalized ? options.find((option) => [option.value, option.textContent ?? ""].map(normalizeChoice).filter(Boolean).includes(normalized)) : undefined;
-  if (!match) throw new Error(`No exact matching option for “${requested}”`);
+  const match = findUniqueChoice(options, requested, (option) => [option.value, option.textContent ?? ""]);
+  if (!match) throw new Error(`No unique exact matching option for “${requested}”`);
   element.focus();
   const setter = Object.getOwnPropertyDescriptor(
     (element.ownerDocument.defaultView?.HTMLSelectElement ?? HTMLSelectElement).prototype,
@@ -868,8 +902,7 @@ function findMatchingRadio(
   requested: string,
   doc: Document,
 ): HTMLInputElement | undefined {
-  const normalized = normalizeChoice(requested);
-  return normalized ? radios.find((radio) => [radio.value, resolveOptionLabel(radio, doc)].map(normalizeChoice).filter(Boolean).includes(normalized)) : undefined;
+  return findUniqueChoice(radios, requested, (radio) => [radio.value, resolveOptionLabel(radio, doc)]);
 }
 
 function emitEvents(element: HTMLElement): void {

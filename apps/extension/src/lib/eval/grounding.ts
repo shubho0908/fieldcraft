@@ -1,6 +1,6 @@
 import { generateText, jsonSchema, Output } from "ai";
 import { createAiModel } from "../ai-provider";
-import { CustomProtocol, Provider, resolveModel } from "../models";
+import { CustomProtocol, Provider, resolveMaxOutputTokens, resolveModel } from "../models";
 import { extractJsonObject } from "../openai";
 import type { JobAnalysis } from "../../types";
 import type { AnalysisUnit, EvalFixture, GroundingAudit, GroundingFinding, GroundingSource, JudgeResult } from "./types";
@@ -24,7 +24,7 @@ export function analysisUnits(analysis: JobAnalysis): AnalysisUnit[] {
   };
   addObject("job", analysis.job, ["job"]);
   addObject("company", analysis.company, ["job", "research"]);
-  analysis.fit.strongestMatches.forEach((text, i) => add(`fit.strongestMatches.${i}`, text, ["profile"]));
+  analysis.fit.strongestMatches.forEach((text, i) => add(`fit.strongestMatches.${i}`, text, ["profile", "job"]));
   analysis.fit.gaps.forEach((text, i) => add(`fit.gaps.${i}`, text, ["profile", "job"]));
   analysis.fit.hardBlockers.forEach((text, i) => add(`fit.hardBlockers.${i}`, text, ["profile", "job"]));
   add("fit.recommendation", analysis.fit.recommendation, ["profile", "job"]);
@@ -72,24 +72,72 @@ export interface GroundingJudgeOptions {
   customHeaders?: Record<string, string>;
 }
 
+const AUDIT_OUTPUT_TARGET = 24_000;
+const AUDIT_BATCH_OVERHEAD = 512;
+const AUDIT_TRUNCATION_MESSAGE = "Grounding auditor output was truncated; no accuracy pass can be reported.";
+
+function groundingBatches(units: AnalysisUnit[], maxOutputTokens: number): AnalysisUnit[][] {
+  const batches: AnalysisUnit[][] = [];
+  let batch: AnalysisUnit[] = [];
+  let estimatedTokens = AUDIT_BATCH_OVERHEAD;
+  for (const unit of units) {
+    // Reserve space for the finding envelope, rationale, and multiple short evidence
+    // quotes. This is a sizing estimate, not permission to truncate any claim or source.
+    const unitTokens = 256 + Math.ceil((JSON.stringify(unit).length + unit.text.length * 2) / 3);
+    if (batch.length && estimatedTokens + unitTokens > maxOutputTokens) {
+      batches.push(batch);
+      batch = [];
+      estimatedTokens = AUDIT_BATCH_OVERHEAD;
+    }
+    batch.push(unit);
+    estimatedTokens += unitTokens;
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}
+
+function validateBatchCoverage(units: AnalysisUnit[], findings: GroundingFinding[]): void {
+  const remaining = new Set(units.map((unit) => unit.id));
+  for (const finding of findings) {
+    if (!remaining.delete(finding.id)) throw new Error(`Grounding auditor batch coverage: unexpected or duplicate finding ${finding.id}.`);
+  }
+  if (remaining.size) throw new Error(`Grounding auditor batch coverage: missing findings for ${[...remaining].join(", ")}.`);
+}
+
 export async function auditGrounding(fixture: EvalFixture, analysis: JobAnalysis, sources: GroundingSource[], options: GroundingJudgeOptions): Promise<GroundingAudit> {
   const model = resolveModel(options.model);
-  const response = await generateText({
-    model: createAiModel({ model, apiKey: options.apiKey, baseURL: options.customBaseUrl, protocol: options.customProtocol, headers: options.customHeaders }),
-    instructions: model.provider === Provider.Custom ? `${GROUNDING_INSTRUCTIONS}\nReturn a JSON object: {"findings":[{"id":"unit id","status":"supported|unsupported|no_factual_claim","reason":"explanation","citations":[{"sourceId":"source id","quote":"exact excerpt"}]}]}. No markdown.` : GROUNDING_INSTRUCTIONS,
-    prompt: JSON.stringify({ currentDate: new Date().toISOString().slice(0, 10), employer: fixture.company, units: analysisUnits(analysis), sources }),
-    tools: {}, maxOutputTokens: 24000,
-    ...(model.provider === Provider.OpenAI ? { providerOptions: { openai: { store: false } } } : {}),
-    ...(model.provider === Provider.Custom ? {} : { output: Output.object({ schema: GROUNDING_SCHEMA }) }),
-  });
-  if (response.finishReason === "length") throw new Error("Grounding auditor output was truncated; no accuracy pass can be reported.");
-  const output: unknown = model.provider === Provider.Custom ? extractJsonObject(await response.text) : await response.output;
-  if (!output || typeof output !== "object" || !("findings" in output) || !Array.isArray(output.findings)) throw new Error("Grounding auditor returned no findings.");
-  for (const finding of output.findings) {
-    if (!finding || typeof finding.id !== "string" || typeof finding.reason !== "string" || !["supported", "unsupported", "no_factual_claim"].includes(finding.status) || !Array.isArray(finding.citations)
-      || finding.citations.some((c: { sourceId?: unknown; quote?: unknown } | null) => !c || typeof c.sourceId !== "string" || typeof c.quote !== "string")) throw new Error("Grounding auditor returned malformed findings.");
+  const maxOutputTokens = Math.min(AUDIT_OUTPUT_TARGET, resolveMaxOutputTokens(model.id));
+  const aiModel = createAiModel({ model, apiKey: options.apiKey, baseURL: options.customBaseUrl, protocol: options.customProtocol, headers: options.customHeaders });
+  const units = analysisUnits(analysis);
+  const findings: GroundingFinding[] = [];
+  const currentDate = new Date().toISOString().slice(0, 10);
+  for (const batch of groundingBatches(units, maxOutputTokens)) {
+    try {
+      const response = await generateText({
+        model: aiModel,
+        instructions: `${GROUNDING_INSTRUCTIONS}\nThis request contains one batch of units; audit every supplied unit. Use concise rationales and the shortest exact quotes needed to support every factual clause.${model.provider === Provider.Custom ? '\nReturn a JSON object: {"findings":[{"id":"unit id","status":"supported|unsupported|no_factual_claim","reason":"explanation","citations":[{"sourceId":"source id","quote":"exact excerpt"}]}]}. No markdown.' : ""}`,
+        prompt: JSON.stringify({ currentDate, employer: fixture.company, units: batch, sources }),
+        tools: {}, maxOutputTokens,
+        ...(model.provider === Provider.OpenAI ? { providerOptions: { openai: { store: false } } } : {}),
+        ...(model.provider === Provider.Custom ? {} : { output: Output.object({ schema: GROUNDING_SCHEMA }) }),
+      });
+      if (response.finishReason === "length") throw new Error(AUDIT_TRUNCATION_MESSAGE);
+      const output: unknown = model.provider === Provider.Custom ? extractJsonObject(await response.text) : await response.output;
+      if (!output || typeof output !== "object" || !("findings" in output) || !Array.isArray(output.findings)) throw new Error("Grounding auditor returned no findings.");
+      for (const finding of output.findings) {
+        if (!finding || typeof finding.id !== "string" || typeof finding.reason !== "string" || !["supported", "unsupported", "no_factual_claim"].includes(finding.status) || !Array.isArray(finding.citations)
+          || finding.citations.some((c: { sourceId?: unknown; quote?: unknown } | null) => !c || typeof c.sourceId !== "string" || typeof c.quote !== "string")) throw new Error("Grounding auditor returned malformed findings.");
+      }
+      const batchFindings = output.findings as GroundingFinding[];
+      validateBatchCoverage(batch, batchFindings);
+      findings.push(...batchFindings);
+    } catch (error) {
+      if (error && typeof error === "object" && "finishReason" in error && error.finishReason === "length") throw new Error(AUDIT_TRUNCATION_MESSAGE);
+      throw error;
+    }
   }
-  return { findings: output.findings as GroundingFinding[], sources };
+  validateBatchCoverage(units, findings);
+  return { findings, sources };
 }
 
 export function judgeGrounding(analysis: JobAnalysis, audit: GroundingAudit): JudgeResult {
@@ -112,7 +160,10 @@ export function judgeGrounding(analysis: JobAnalysis, audit: GroundingAudit): Ju
           problems.push(`${finding.id}: invalid evidence quote/source ${citation.sourceId}`);
         }
       }
-      if (unit.id.startsWith("fit.strongestMatches.") && !finding.citations.some((c) => sources.get(c.sourceId)?.kind === "profile")) {
+      if (unit.id.startsWith("fit.strongestMatches.") && !finding.citations.some((citation) => {
+        const source = sources.get(citation.sourceId);
+        return source?.kind === "profile" && citation.quote.trim() && source.text.includes(citation.quote);
+      })) {
         problems.push(`${finding.id}: match lacks profile evidence`);
       }
     } else if (finding.status === "no_factual_claim") {

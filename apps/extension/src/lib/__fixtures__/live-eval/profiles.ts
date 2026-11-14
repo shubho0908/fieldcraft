@@ -2,7 +2,6 @@ import type { CandidateProfile } from "../../../types";
 import { DEFAULT_PROFILE } from "../../defaults";
 
 export const FIXTURE_DATE = "2026-11-14T00:00:00.000Z";
-export const FIXTURE_PROVENANCE = "Authored realistic evaluation scenarios. These are not captured job advertisements, real applicants, or representations of current company vacancies.";
 
 interface ResumeSpec {
   name: string;

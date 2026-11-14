@@ -22,6 +22,10 @@ test.beforeAll(async () => {
       response.end('<!doctype html><title>Embedded application</title><label>Full name<input id="name"></label><label>Email<input id="email"></label><button id="submit" type="submit">Submit application</button><script>document.querySelector("#submit").onclick=()=>window.submitted=true</script>');
       return;
     }
+    if (request.url === "/scroll-frames") {
+      response.end(`<!doctype html><title>Scrollable application</title><main><label>Email<input id="top-email"></label><iframe id="upper-app" src="${embeddedOrigin}/embedded"></iframe><div id="form-scroller" style="height:100px;width:400px;overflow:auto"><div style="height:800px"></div><iframe id="scroll-app" src="${embeddedOrigin}/embedded"></iframe></div><div style="width:100px;height:100px;overflow:hidden"><iframe id="clipped-app" style="margin-left:200px" src="${embeddedOrigin}/embedded"></iframe></div><div style="height:2500px"></div></main>`);
+      return;
+    }
     response.end(`<!doctype html><title>Example — Careers</title><main><h1>Customer support specialist</h1><article class="job-description"><h2>About this role</h2><p>Unique posting evidence: help customers solve problems, communicate clearly, and improve our support documentation.</p></article><label>Full name<input id="name"></label><label>Email<input id="email"></label><candidate-contact></candidate-contact><iframe title="Application" src="${embeddedOrigin}/embedded"></iframe><div hidden><iframe title="Hidden application" src="${embeddedOrigin}/embedded"></iframe></div></main><script>customElements.define('candidate-contact',class extends HTMLElement{connectedCallback(){this.attachShadow({mode:'open'}).innerHTML='<label>Phone<input id="phone" type="tel"></label>'}})</script>`);
   });
   await new Promise<void>((resolve) => server.listen(0, "0.0.0.0", resolve));
@@ -156,4 +160,33 @@ test("captures actual public Greenhouse markup inside a cross-origin iframe", as
   expect(session.snapshot!.pageText.split(opening).length - 1).toBe(1);
   expect(session.selectedFieldIds).toEqual([]);
   await expect(page.frameLocator('iframe[title="Greenhouse application"]').getByLabel("First Name", { exact: true })).toHaveValue("");
+});
+
+test("scroll-accessible cross-origin frames remain fillable while nonzero clipped frames are excluded", async () => {
+  const page = await context.newPage();
+  await page.goto(`${origin}/scroll-frames`);
+  for (const id of ["upper-app", "scroll-app", "clipped-app"]) await expect(page.frameLocator(`#${id}`).locator("#name")).toHaveValue("");
+  const tabId = await worker.evaluate(async (url) => (await chrome.tabs.query({})).find((tab) => tab.url === url)!.id!, page.url());
+  expect(await request({ type: "FIELDCRAFT_DIRECT_FILL", tabId, url: page.url() })).toMatchObject({ ok: true });
+  const session = await tabSession(tabId);
+  expect(session.snapshot!.frames).toHaveLength(3);
+  expect(session.snapshot!.fields).toHaveLength(5);
+  expect(session.selectedFieldIds).toEqual([]);
+  const selected = session.snapshot!.fields.filter((field) => field.frameId !== 0 && field.label === "Full name").map((field) => field.id);
+  expect(selected).toHaveLength(2);
+  expect(await request({ type: "FIELDCRAFT_UPDATE_TAB_REVIEW", tabId, url: page.url(), runId: session.runId, analysis: session.analysis!, selectedFieldIds: selected })).toMatchObject({ ok: true });
+  await page.evaluate(() => {
+    document.querySelector("#form-scroller")!.scrollTop = 1000;
+    window.scrollTo(0, 1200);
+  });
+  const suggestions = session.analysis!.suggestions.filter((item) => selected.includes(item.fieldId));
+  expect(await request({ type: "FIELDCRAFT_FILL_TAB", tabId, url: page.url(), runId: session.runId, suggestions })).toMatchObject({ ok: true });
+  for (const id of ["upper-app", "scroll-app"]) {
+    await expect(page.frameLocator(`#${id}`).locator("#name")).toHaveValue("Ada Example");
+    await expect(page.frameLocator(`#${id}`).locator("#email")).toHaveValue("");
+    expect(await page.frameLocator(`#${id}`).locator("body").evaluate(() => (window as unknown as { submitted?: boolean }).submitted)).toBeUndefined();
+  }
+  await expect(page.locator("#top-email")).toHaveValue("");
+  await expect(page.frameLocator("#clipped-app").locator("#name")).toHaveValue("");
+  await page.close();
 });

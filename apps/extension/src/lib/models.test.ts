@@ -393,9 +393,9 @@ describe("max output token resolution", () => {
     expect(resolveMaxOutputTokens(OpenAiModelId.Gpt56Terra, 4_096)).toBe(4_096);
   });
 
-  it("defaults custom models to 98304 and allows user overrides", () => {
+  it("defaults unknown custom models to 4096 and allows user overrides", () => {
     const customId = `${CUSTOM_MODEL_PREFIX}sarvam-105b` as const;
-    expect(resolveMaxOutputTokens(customId)).toBe(98_304);
+    expect(resolveMaxOutputTokens(customId)).toBe(4_096);
     expect(resolveMaxOutputTokens(customId, 8_192)).toBe(8_192);
     expect(resolveMaxOutputTokens(customId, 2_000_000)).toBe(1_000_000);
   });

@@ -21,6 +21,16 @@ const snapshot: PageSnapshot = {
 const auth = { apiKey: "mock-key", installId: "test" };
 
 describe("fit hardening", () => {
+  it.each(["必须持有美国工作许可", "就労資格が必要です", "يلزم تصريح عمل"])(
+    "preserves the non-Latin hard blocker %s through analysis", async (blocker) => {
+      const fit = { score: 93, hardBlockers: [blocker] };
+      expect(sanitizeFit(fit)).toMatchObject({ score: HARD_BLOCKER_SCORE_CAP, hardBlockers: [blocker] });
+      vi.mocked(generateText).mockResolvedValueOnce({ output: { fit }, finishReason: "stop" } as never);
+      expect((await runJobAnalysis(snapshot, DEFAULT_PROFILE, DEFAULT_SETTINGS, auth)).fit)
+        .toMatchObject({ score: HARD_BLOCKER_SCORE_CAP, verdict: FitVerdict.Weak, hardBlockers: [blocker] });
+    },
+  );
+
   it("forces real blockers into the weak band at both boundaries", () => {
     const fit = { score: 93, hardBlockers: ["Requires US citizenship"] };
     const result = sanitizeFit(fit);

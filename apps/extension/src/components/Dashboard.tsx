@@ -77,6 +77,10 @@ export default function Dashboard({
 
   function analyze() {
     if (status === "capturing" || status === "analyzing" || status === "filling") return;
+    if (settings.autofillMode === AutofillMode.Direct) {
+      directFill();
+      return;
+    }
     if (!apiKeyExists) {
       onOpenSettings();
       return;
@@ -95,7 +99,7 @@ export default function Dashboard({
   }
 
   function directFill() {
-    if (!binding || directFilling) return;
+    if (!binding || directFilling || status === "capturing" || status === "analyzing" || status === "filling") return;
     setDirectFilling(true);
     setActiveTab("answers");
     void chrome.runtime

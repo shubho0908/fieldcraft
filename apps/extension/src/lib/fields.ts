@@ -27,20 +27,42 @@ export function getMeaningfulCurrentValue(field: PageField): string {
 }
 
 export function requiresExplicitReview(field: PageField): boolean {
-  return field.kind === PageFieldKind.Checkbox || field.sensitive || /\b(?:authori[sz](?:ed|ation)|sponsor(?:ship|ed)?|visas?|work permit|relocat\w*|citizenship|citizen|clearance|consent|agree|agreement|acknowledg\w*|certif\w*|attest\w*|legal(?:ly)?|terms(?: and conditions)?|privacy notice)\b/iu.test(`${field.label} ${field.name} ${field.ariaLabel}`);
+  const text = [field.label, field.name, field.ariaLabel, field.placeholder]
+    .join(" ")
+    .normalize("NFKC")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ");
+  return field.kind === PageFieldKind.Checkbox || field.sensitive || /\b(?:authori[sz](?:ed|ation)|sponsor(?:ship|ed|ing)?|visas?|relocat\w*|mov(?:e|ing)|citizen(?:ship)?|residen(?:t|cy)|immigration|clearance|eligib(?:le|ility)|legal(?:ly)?|right to work|work permit|permitted to work|permission to work|entitled to work|attest\w*|certif\w*|acknowledg\w*|consent|agree(?:ment)?|accept|confirm|terms|privacy|declar(?:e|ation))\b/iu.test(text);
 }
 
-/** True when value matches a select/radio option label or value (case-insensitive). */
-export function optionMatches(field: PageField, value: string): boolean {
+/** Labels and values share an input namespace; conflicting matches fail closed. */
+export function findUniqueChoice<T>(
+  options: readonly T[],
+  value: string,
+  labels: (option: T) => readonly string[],
+): T | undefined {
   const normalized = normalizeChoice(value);
-  if (!normalized) return false;
-  return field.options.some((option, index) => {
-    if (field.kind === PageFieldKind.Select && isPlaceholderOption(option, index)) return false;
-    const labels = [option.label, option.value]
-      .map(normalizeChoice)
-      .filter(Boolean);
-    return labels.includes(normalized);
-  });
+  if (!normalized) return undefined;
+  let match: T | undefined;
+  for (const option of new Set(options)) {
+    if (!labels(option).some((label) => normalizeChoice(label) === normalized)) continue;
+    if (match !== undefined) return undefined;
+    match = option;
+  }
+  return match;
+}
+
+/** True only when a choice identifies one actual option, never a placeholder. */
+export function optionMatches(field: PageField, value: string): boolean {
+  const options = field.options.filter((option, index) => field.kind !== PageFieldKind.Select || !isPlaceholderOption(option, index));
+  if (field.kind === PageFieldKind.Checkbox) {
+    // Checkbox entries are aliases for the same boolean control, not competing
+    // options ("Checked", "true", and "1" all identify the same state).
+    const normalized = normalizeChoice(value);
+    return Boolean(normalized) && options.some((option) => [option.label, option.value].some((label) => normalizeChoice(label) === normalized));
+  }
+  return findUniqueChoice(options, value, (option) => [option.label, option.value]) !== undefined;
 }
 
 export function isChoiceField(field: PageField): boolean {

@@ -39,7 +39,8 @@ describe("analysis output budgets", () => {
     expect(hundredFieldSnapshot.fields).toHaveLength(100);
     expect(hundredFieldOutput.suggestions.every((suggestion) => suggestion.value.split(/\s+/).length >= 130)).toBe(true);
     expect(resolveMaxOutputTokens(DEFAULT_SETTINGS.model)).toBeGreaterThan(estimatedTokens * 1.5);
-    expect(resolveMaxOutputTokens("custom:test")).toBeGreaterThan(estimatedTokens * 1.5);
+    expect(resolveMaxOutputTokens("custom:test")).toBe(4_096);
+    expect(resolveMaxOutputTokens("custom:test", 98_304)).toBeGreaterThan(estimatedTokens * 1.5);
     vi.mocked(generateText).mockResolvedValueOnce({ output: hundredFieldOutput, finishReason: "stop" } as never);
     const result = await runJobAnalysis(hundredFieldSnapshot, DEFAULT_PROFILE, DEFAULT_SETTINGS, auth);
     expect(result.suggestions.map((suggestion) => suggestion.value)).toEqual(hundredFieldOutput.suggestions.map((suggestion) => suggestion.value));

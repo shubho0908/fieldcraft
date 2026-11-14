@@ -40,7 +40,7 @@ describe("frame capture", () => {
     const result = await captureTabFrames(12, topUrl);
     expect(result.url).toBe(topUrl);
     expect(result.fields.map((field) => field.id)).toEqual(["frame-0:same-local-id", "frame-7:same-local-id"]);
-    expect(result.fields[1]).toMatchObject({ frameId: 7, frameUrl: childUrl });
+    expect(result.fields[1]).toMatchObject({ frameId: 7 });
     expect(result.frames).toEqual([{ frameId: 0, url: topUrl, documentId: "content-top" }, { frameId: 7, url: childUrl, documentId: "content-child" }]);
     expect(result.pageText).toBe("Unique job description");
     expect(result.jobDescriptionText).toBe("Unique job description");
@@ -81,6 +81,17 @@ describe("frame capture", () => {
     expect(result.jobDescriptionDetected).toBe(true);
     expect(result.jobDescriptionText).toBe("Unique job description");
     expect(result.url).toBe(topUrl);
+  });
+
+  it("strips each frame's own description before deduplicating merged context", () => {
+    const excerpt = "Mandatory qualification: an active professional license.";
+    const full = `Responsibilities include operating services. ${excerpt}`;
+    const top = { ...captures[0], snapshot: { ...snapshot(), pageText: `${excerpt}\nTop application instructions`, jobDescriptionText: excerpt } };
+    const child = { ...captures[1], snapshot: { ...snapshot(childUrl), pageText: `${full}\nEmbedded application instructions`, jobDescriptionText: full } };
+    const result = mergeFrameSnapshots(top, [child], []);
+    expect(result.pageText.split(excerpt)).toHaveLength(2);
+    expect(result.pageText).toContain("Top application instructions");
+    expect(result.pageText).toContain("Embedded application instructions");
   });
 });
 

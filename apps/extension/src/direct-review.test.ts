@@ -48,9 +48,13 @@ it("prepares Direct-fill without mutating the page, then fills only explicitly s
   expect(session.selectedFieldIds).toEqual([]);
   expect(session.analysis?.suggestions).toHaveLength(2);
   const suggestion = { ...session.analysis!.suggestions[0], value: "Ada Reviewed", action: SuggestionAction.Review };
+  expect(await request({ type: "FIELDCRAFT_FILL_TAB", tabId: 1, url, runId: session.runId, suggestions: [suggestion] })).toMatchObject({ ok: false });
+  expect((document.querySelector("#name") as HTMLInputElement).value).toBe("");
   expect(await request({ type: "FIELDCRAFT_UPDATE_TAB_REVIEW", tabId: 1, url, runId: session.runId, analysis: { ...session.analysis!, suggestions: [suggestion, session.analysis!.suggestions[1]] }, selectedFieldIds: [suggestion.fieldId] })).toMatchObject({ ok: true });
-  expect(await request({ type: "FIELDCRAFT_FILL_TAB", tabId: 1, url, runId: session.runId, suggestions: [suggestion] })).toMatchObject({ ok: true });
+  expect(await request({ type: "FIELDCRAFT_FILL_TAB", tabId: 1, url, runId: session.runId, suggestions: [{ ...suggestion, value: "Unreviewed request value" }] })).toMatchObject({ ok: true });
   expect((document.querySelector("#name") as HTMLInputElement).value).toBe("Ada Reviewed");
+  expect((document.querySelector("#email") as HTMLInputElement).value).toBe("");
+  expect(await request({ type: "FIELDCRAFT_FILL_TAB", tabId: 1, url, runId: session.runId, suggestions: [session.analysis!.suggestions[1]] })).toMatchObject({ ok: false });
   expect((document.querySelector("#email") as HTMLInputElement).value).toBe("");
   expect(await request({ type: "FIELDCRAFT_FILL_TAB", tabId: 1, url, runId: "old-run", suggestions: [suggestion] })).toMatchObject({ ok: false });
 });

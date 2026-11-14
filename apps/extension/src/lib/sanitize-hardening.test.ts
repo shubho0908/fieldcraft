@@ -27,6 +27,20 @@ const suggestion: FieldSuggestion = {
 const auth = { apiKey: "mock-key", installId: "test" };
 
 describe("suggestion safety normalization", () => {
+  it.each([
+    "Do you have the right to work in Canada?",
+    "Are you a permanent resident?",
+    "I confirm this information is accurate",
+  ])("requires legal review across label and placeholder metadata: %s", async (question) => {
+    for (const metadata of [{ label: question }, { label: "Answer", placeholder: question }]) {
+      const legalField = { ...field, ...metadata, maxLength: null };
+      const answer = { ...suggestion, value: "Yes", warning: "" };
+      expect(normalizeSuggestion(answer, legalField)).toMatchObject({ action: "review", warning: expect.stringMatching(/verify/i) });
+      vi.mocked(generateText).mockResolvedValueOnce({ output: { fit: { score: 82 }, suggestions: [answer] }, finishReason: "stop" } as never);
+      expect((await runJobAnalysis({ ...snapshot, fields: [legalField] }, DEFAULT_PROFILE, DEFAULT_SETTINGS, auth)).suggestions[0].action).toBe("review");
+    }
+  });
+
   it("requires review for a model-proposed legal answer even at high confidence", async () => {
     const legalField = { ...field, label: "Are you authorized to work?", maxLength: null };
     const answer = { ...suggestion, value: "Yes", warning: "" };

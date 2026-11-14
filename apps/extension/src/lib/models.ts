@@ -330,7 +330,8 @@ const CUSTOM_MODEL_PLACEHOLDER: ModelOption = {
   description: "Any OpenAI- or Anthropic-compatible endpoint (Fireworks, Together, Groq, OpenRouter, Anthropic, MiniMax…)",
   defaultReasoningEffort: ReasoningEffort.None,
   supportedReasoningEfforts: [ReasoningEffort.None],
-  maxOutputTokens: 98_304,
+  // Unknown endpoints may have small response ceilings; users can opt in to more.
+  maxOutputTokens: 4_096,
 } as const;
 
 /** Combined catalog used by the UI and runtime. */

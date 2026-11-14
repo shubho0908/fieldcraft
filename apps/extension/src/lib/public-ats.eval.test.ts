@@ -4,13 +4,13 @@ import { describe, expect, it } from "vitest";
 import { collectPageSnapshot } from "./page";
 import sources from "./__fixtures__/ats/public-sources.json";
 
-const expected: Record<string, { count: number; jd: boolean; first?: string; source?: string }> = {
+const expected: Record<string, { count: number; jd: boolean; first?: string; source?: string; structuredEmployer?: string }> = {
   greenhouse: { count: 25, jd: true, first: "First Name", source: "selector:.job__description" },
-  "lever-posting": { count: 0, jd: true }, "lever-apply": { count: 21, jd: false, first: "Full name✱" },
-  ashby: { count: 0, jd: true, source: "selector:.ashby-job-posting-description" },
-  "ashby-apply": { count: 9, jd: false, first: "Name" },
+  "lever-posting": { count: 0, jd: true, structuredEmployer: "Mechanical Orchard" }, "lever-apply": { count: 21, jd: false, first: "Full name✱" },
+  ashby: { count: 0, jd: true, source: "selector:.ashby-job-posting-description", structuredEmployer: "Linear" },
+  "ashby-apply": { count: 9, jd: true, first: "Name", source: "structured:JobPosting.description", structuredEmployer: "Linear" },
   smartrecruiters: { count: 0, jd: true }, generic: { count: 6, jd: false, first: "Search roles..." },
-  linkedin: { count: 0, jd: true, source: "selector:.show-more-less-html__markup" },
+  linkedin: { count: 0, jd: true, source: "selector:.show-more-less-html__markup", structuredEmployer: "Epic" },
 };
 describe("public-source ATS extraction", () => {
   it.each(sources)("captures $name without guessing page type or repeating the description", (source) => {
@@ -19,6 +19,10 @@ describe("public-source ATS extraction", () => {
       const snapshot = collectPageSnapshot(dom.window.document);
       const target = expected[source.name];
       expect(source.status).toBe(200);
+      for (const script of dom.window.document.querySelectorAll('script[type="application/ld+json"]')) {
+        expect(() => JSON.parse(script.textContent ?? "")).not.toThrow();
+      }
+      if (target.structuredEmployer) expect(snapshot.companyHints?.structuredNames).toContain(target.structuredEmployer);
       expect(snapshot.fields).toHaveLength(target.count);
       if (target.first) expect(snapshot.fields[0].label).toBe(target.first);
       expect(snapshot.jobDescriptionDetected).toBe(target.jd);

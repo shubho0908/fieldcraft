@@ -523,7 +523,7 @@ describe("runJobAnalysis max output tokens", () => {
     expect(call.maxOutputTokens).toBe(4_096);
   });
 
-  it("defaults custom providers to 98304", async () => {
+  it("defaults unknown custom providers to 4096", async () => {
     const generate = vi.mocked(generateText);
     generate.mockResolvedValueOnce({
       text: JSON.stringify(validAnalysisOutput),
@@ -542,7 +542,7 @@ describe("runJobAnalysis max output tokens", () => {
     });
 
     const call = generate.mock.calls[0][0] as { maxOutputTokens: number };
-    expect(call.maxOutputTokens).toBe(98_304);
+    expect(call.maxOutputTokens).toBe(4_096);
   });
 
   it("clamps built-in overrides to the catalog maximum", async () => {

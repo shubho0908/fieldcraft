@@ -1,5 +1,6 @@
 import type { PageSnapshot } from "../types";
 import type { CompanyFactSource } from "./company-facts";
+import { normalizeSourceUrl } from "./source-url";
 
 export const EXA_API_BASE = "https://api.exa.ai";
 export const EXA_SEARCH_URL = `${EXA_API_BASE}/search`;
@@ -67,6 +68,9 @@ interface SearchCandidate {
   key: string;
   score: number;
 }
+
+export type CompanyIdentitySnapshot = Pick<PageSnapshot, "pageText" | "url"> &
+  Partial<Pick<PageSnapshot, "title" | "hostname" | "headings" | "companyHints">>;
 
 /**
  * Validates an Exa key with the smallest valid Search request. This is kept
@@ -256,7 +260,7 @@ export async function researchCompany(
  * A role-only title such as “Software Engineer” can never become a search term.
  */
 export function resolveCompanyIdentity(
-  snapshot: PageSnapshot,
+  snapshot: CompanyIdentitySnapshot,
 ): CompanyIdentity | null {
   const candidates = new Map<
     string,
@@ -314,14 +318,14 @@ export function resolveCompanyIdentity(
     if (match[1]) addCandidate(match[1], 40, "company description", true);
   }
 
-  for (const candidate of companyCandidatesFromTitle(snapshot.title)) {
+  for (const candidate of companyCandidatesFromTitle(snapshot.title ?? "")) {
     addCandidate(candidate, 60, "page title", true);
   }
 
   const atsPathCandidate = companyCandidateFromAtsUrl(snapshot.url);
   if (atsPathCandidate) addCandidate(atsPathCandidate, 70, "ATS URL", true, true);
 
-  const hostCandidate = companyCandidateFromHost(snapshot.hostname);
+  const hostCandidate = companyCandidateFromHost(snapshot.hostname ?? safeHostname(snapshot.url));
   if (hostCandidate) addCandidate(hostCandidate, 55, "company host", true, true);
 
   const best = [...candidates.values()]
@@ -476,7 +480,8 @@ export function matchesCompanyIdentity(
   return identity.aliases.some((alias) =>
     normalizeCompanyName(alias).includes(" ")
       ? includesCompanyName(text, alias)
-      : hasCompanyContext(result.title ?? "", alias) && hasCompanyContext(text, alias),
+      : (hasCompanyContext(result.title ?? "", alias) || isBrandHomepage(result, alias)) &&
+        hasCompanyContext(text, alias),
   );
 }
 
@@ -493,8 +498,21 @@ function isSearchResultRelevant(
   return identity.aliases.some((alias) =>
     normalizeCompanyName(alias).includes(" ")
       ? includesCompanyName(`${title}\n${host.replace(/[.-]/gu, " ")}`, alias)
-      : hasCompanyContext(title, alias),
+      : hasCompanyContext(title, alias) || isBrandHomepage({ ...result, url }, alias),
   );
+}
+
+/** A routing hint only: retrieved content must still establish company usage. */
+function isBrandHomepage(result: ExaSearchResult, alias: string): boolean {
+  try {
+    const url = new URL(result.url ?? "");
+    const host = safeHostname(url.href).toLocaleLowerCase().split(".");
+    const brand = normalizeCompanyName(alias);
+    return url.pathname === "/" && host.length === 2 && host[0] === brand &&
+      includesCompanyName(result.title ?? "", alias);
+  } catch {
+    return false;
+  }
 }
 
 function hasCompanyContext(text: string, alias: string): boolean {
@@ -502,7 +520,7 @@ function hasCompanyContext(text: string, alias: string): boolean {
   if (!name) return false;
   const normalized = normalizeCompanyName(text);
   return new RegExp(
-    `(?:^| )${name} (?:is (?:a |an |the )?(?:software |technology |fintech |payments |product )?(?:company|startup|platform)|(?:has |reportedly )?(?:raises?|raised|secures?|secured|closes?|closed) |announced (?:a |an |its )?(?:series [a-z]|funding|round|product)|(?:builds?|develops?|provides?|offers?) |(?:engineering|careers|funding|investors|employees|founders|ceo|cofounder|co founder|series [a-z])(?: |$))`,
+    `(?:^| )${name} (?:is (?:a |an |the )?(?:software |technology |fintech |payments |product |purpose built )?(?:company|startup|platform|tool)|(?:has |reportedly )?(?:raises?|raised|secures?|secured|closes?|closed) |announced (?:a |an |its )?(?:series [a-z]|funding|round|product)|(?:builds?|develops?|provides?|offers?) |(?:engineering|careers|funding|investors|employees|founders|ceo|cofounder|co founder|series [a-z])(?: |$))`,
     "u",
   ).test(normalized) || new RegExp(
     `(?:^| )(?:company|startup|platform|fintech|ceo of|founder of) ${name}(?: |$)`,
@@ -660,13 +678,7 @@ function normalizeResearchUrl(rawUrl: string): string {
   try {
     const url = new URL(rawUrl);
     if (!/^https?:$/iu.test(url.protocol) || !isPublicHostname(url.hostname)) return "";
-    url.hash = "";
-    for (const key of [...url.searchParams.keys()]) {
-      if (/^(?:utm_[^=]*|fbclid|gclid|ref)$/iu.test(key)) {
-        url.searchParams.delete(key);
-      }
-    }
-    return url.href.replace(/\/$/u, "");
+    return normalizeSourceUrl(url.href);
   } catch {
     return "";
   }
