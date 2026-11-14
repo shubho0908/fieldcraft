@@ -67,7 +67,9 @@ export function toSafeAnalysis(
 ): JobAnalysis {
   let fit: JobAnalysis["fit"];
   try {
-    fit = snapshot?.jobDescriptionDetected === false
+    fit = raw?.fit?.score === null && raw.fit.unavailableReason
+      ? sanitizeFit(raw.fit)
+      : snapshot?.jobDescriptionDetected === false
       ? unavailableFit(NO_JOB_DESCRIPTION_MESSAGE)
       : sanitizeFit(raw?.fit);
   } catch {

@@ -11,7 +11,7 @@ import {
   isFitVerdict,
   isSuggestionAction,
 } from "./enums";
-import { isChoiceField, optionMatches } from "./fields";
+import { getMeaningfulCurrentValue, isChoiceField, optionMatches, requiresExplicitReview } from "./fields";
 import { isThinCompanyResearch, NO_JOB_DESCRIPTION_MESSAGE, parseFitScore, sanitizeFit, unavailableFit } from "./fit";
 import { toSafeAnalysis } from "./analysis";
 import {
@@ -777,7 +777,7 @@ export function normalizeSuggestion(
 
   if (
     action === SuggestionAction.Fill &&
-    field.currentValue.trim() &&
+    getMeaningfulCurrentValue(field).trim() &&
     field.currentValue !== field.placeholder
   ) {
     const isCheckboxUnchecked =
@@ -798,9 +798,9 @@ export function normalizeSuggestion(
     warning = [warning, "Low-confidence answer: verify before filling."].filter(Boolean).join(" ");
   }
 
-  if (field.sensitive && action === SuggestionAction.Fill) {
+  if (requiresExplicitReview(field) && action === SuggestionAction.Fill) {
     action = SuggestionAction.Review;
-    warning = warning || "Sensitive answer: verify before filling.";
+    warning = warning || "Sensitive or legal answer: verify the exact question before selecting it.";
   }
 
   if (

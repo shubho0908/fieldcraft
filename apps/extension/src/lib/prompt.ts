@@ -88,7 +88,7 @@ export function getAnalysisInputWarnings(
   snapshot: PageSnapshot,
   profile: CandidateProfile,
 ): string[] {
-  const warnings: string[] = [];
+  const warnings: string[] = [...(snapshot.captureWarnings ?? [])];
   if (profile.resumeText.length > RESUME_CHARACTER_LIMIT) {
     warnings.push(`Resume text was truncated to ${RESUME_CHARACTER_LIMIT.toLocaleString("en-US")} characters for this analysis. Evidence after that limit was not sent; shorten the resume context and analyze again if needed.`);
   }
@@ -110,8 +110,9 @@ export function buildAnalysisInput(
   settings: ExtensionSettings,
 ): string {
   const { resumeAttachment, ...profileWithoutFileBytes } = profile;
+  const { jobDescriptionText: _description, ...snapshotWithoutDuplicateDescription } = snapshot;
   const safeSnapshot = {
-    ...snapshot,
+    ...snapshotWithoutDuplicateDescription,
     pageText: snapshot.pageText.slice(0, PAGE_CHARACTER_LIMIT),
     fields: snapshot.fields.slice(0, FIELD_LIMIT),
   };

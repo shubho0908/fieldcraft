@@ -27,6 +27,13 @@ const suggestion: FieldSuggestion = {
 const auth = { apiKey: "mock-key", installId: "test" };
 
 describe("suggestion safety normalization", () => {
+  it("requires review for a model-proposed legal answer even at high confidence", async () => {
+    const legalField = { ...field, label: "Are you authorized to work?", maxLength: null };
+    const answer = { ...suggestion, value: "Yes", warning: "" };
+    expect(normalizeSuggestion(answer, legalField).action).toBe("review");
+    vi.mocked(generateText).mockResolvedValueOnce({ output: { fit: { score: 82 }, suggestions: [answer] }, finishReason: "stop" } as never);
+    expect((await runJobAnalysis({ ...snapshot, fields: [legalField] }, DEFAULT_PROFILE, DEFAULT_SETTINGS, auth)).suggestions[0].action).toBe("review");
+  });
   it("announces maxLength truncation, preserves prior warnings, and requires review", async () => {
     const normalized = normalizeSuggestion(suggestion, field);
     expect(normalized.value).toHaveLength(12);

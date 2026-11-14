@@ -1,5 +1,5 @@
 import { Confidence, PageFieldKind, SuggestionAction } from "./enums";
-import { isChoiceField, optionMatches } from "./fields";
+import { getMeaningfulCurrentValue, isChoiceField, optionMatches } from "./fields";
 import type { CandidateProfile, FieldSuggestion, PageField, PageSnapshot } from "../types";
 
 interface SourceRule {
@@ -77,7 +77,7 @@ export function buildDirectSuggestions(
 
 function hasExistingValue(field: PageField): boolean {
   if (field.kind === PageFieldKind.Checkbox) return field.currentValue === "true";
-  return field.currentValue.trim().length > 0;
+  return getMeaningfulCurrentValue(field).trim().length > 0;
 }
 
 function resolveValue(field: PageField, raw: string): string | undefined {

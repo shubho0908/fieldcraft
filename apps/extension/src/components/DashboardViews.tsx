@@ -314,6 +314,7 @@ export function ResultsDashboard({
       {error && <ErrorBox message={error} onSettings={onOpenSettings} />}
 
       <div className="result-content">
+        {analysis.missingFacts.length > 0 && <div className="answer-warning" role="status"><ul>{analysis.missingFacts.map((notice) => <li key={notice}>{notice}</li>)}</ul></div>}
         {activeTab === "fit" && <FitView analysis={analysis} />}
         {activeTab === "answers" && (
           <AnswersView

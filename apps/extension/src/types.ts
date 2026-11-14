@@ -132,6 +132,7 @@ export interface CompanyResearchHints {
 }
 
 export interface PageSnapshot {
+  captureWarnings?: string[];
   jobDescriptionDetected?: boolean;
   jobDescriptionSource?: string;
   jobDescriptionText?: string;
