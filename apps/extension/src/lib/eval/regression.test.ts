@@ -198,10 +198,24 @@ describe("forbidden claim attribution and polarity", () => {
     "The candidate lacks the required BS Nursing degree.",
     "No evidence of holding BS Nursing is provided.",
     "No evidence that the applicant holds BS Nursing is provided.",
+    "No mention of BS Nursing in the supplied profile.",
+    "No record of BS Nursing in the supplied profile.",
+    "No indication of BS Nursing in the supplied profile.",
+    "The supplied profile has no record of a registered nurse license.",
   ])("preserves negative and no-evidence diagnostics: %s", (text) => {
     const output = analysis();
     output.fit.recommendation = text;
     expect(judgeMustNotClaim(output, expectations, fixture.snapshot).ok).toBe(true);
+  });
+
+  it.each([
+    "No mention of relocation is in the posting, and I am a registered nurse.",
+    "There is no record of sponsorship, but the applicant has BS Nursing.",
+    "No indication of relocation was found; the candidate holds BS Nursing.",
+  ])("rejects a positive claim beside an unrelated named absence: %s", (text) => {
+    const output = analysis();
+    output.fit.recommendation = text;
+    expect(judgeMustNotClaim(output, expectations, fixture.snapshot).ok).toBe(false);
   });
 
   it("preserves absence diagnostics when the forbidden phrase includes its verb", () => {

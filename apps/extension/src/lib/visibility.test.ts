@@ -73,4 +73,31 @@ describe("shared field and frame visibility", () => {
     expect(collectFields(document)).toEqual([]);
     expect(isFrameHostVisible(document.querySelector("iframe")!)).toBe(false);
   });
+
+  it("rejects controls parked above the scroll origin of a scrolled container", () => {
+    document.body.innerHTML = '<div style="overflow:auto;height:150px"><input name="trap"><iframe></iframe></div>';
+    const scroller = document.querySelector("div")!;
+    bounds(scroller, 0, 500, 300, 150);
+    bounds(document.querySelector("input")!, 10, 420, 100, 30);
+    bounds(document.querySelector("iframe")!, 10, 420, 200, 40);
+    expect(collectFields(document)).toEqual([]);
+    expect(isFrameHostVisible(document.querySelector("iframe")!)).toBe(false);
+  });
+
+  it("keeps controls the scroller can still scroll up to", () => {
+    document.body.innerHTML = '<div style="overflow:auto;height:150px"><input name="reachable"></div>';
+    const scroller = document.querySelector("div")!;
+    scroller.scrollTop = 200;
+    bounds(scroller, 0, 500, 300, 150);
+    bounds(document.querySelector("input")!, 10, 420, 100, 30);
+    expect(collectFields(document).map((field) => field.name)).toEqual(["reachable"]);
+  });
+
+  it("keeps controls below the scroll origin of a scrolled container", () => {
+    document.body.innerHTML = '<div style="overflow:auto;height:150px"><input name="below"></div>';
+    const scroller = document.querySelector("div")!;
+    bounds(scroller, 0, 500, 300, 150);
+    bounds(document.querySelector("input")!, 10, 620, 100, 30);
+    expect(collectFields(document).map((field) => field.name)).toEqual(["below"]);
+  });
 });

@@ -103,6 +103,10 @@ export function isElementVisible(
     if (clips(x) || scrolls(x)) {
       if (bounds.width <= 1) return false;
       if (scrolls(x)) {
+        // Scrolling stops at zero, so content that sits before the container's
+        // origin can never be revealed and must stay out of review.
+        const contentLeft = rect.left - bounds.left + parent.element.scrollLeft;
+        if (contentLeft + rect.width <= 0) return false;
         const shift = right <= bounds.left ? bounds.left - left : left >= bounds.right ? bounds.right - right : 0;
         left += shift;
         right += shift;
@@ -114,6 +118,10 @@ export function isElementVisible(
     if (clips(y) || scrolls(y)) {
       if (bounds.height <= 1) return false;
       if (scrolls(y)) {
+        // Scrolling stops at zero, so content that sits before the container's
+        // origin can never be revealed and must stay out of review.
+        const contentTop = rect.top - bounds.top + parent.element.scrollTop;
+        if (contentTop + rect.height <= 0) return false;
         const shift = bottom <= bounds.top ? bounds.top - top : top >= bounds.bottom ? bounds.bottom - bottom : 0;
         top += shift;
         bottom += shift;

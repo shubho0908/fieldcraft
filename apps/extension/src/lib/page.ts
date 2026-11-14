@@ -328,6 +328,26 @@ function capturePageContext(doc: Document, fields: PageField[]) {
     }
     return null;
   };
+  // A posting can split its description into sibling blocks, so blocks are
+  // grouped by the posting that owns them. Blocks that belong to different
+  // postings are different roles, and merging their text would score the
+  // candidate against requirements from several jobs at once.
+  const postingGroup = (node: Element): Element => {
+    if (node.matches("article")) return node;
+    for (let parent = composedParent(node); parent; parent = composedParent(parent)) {
+      if (parent.matches("article")) return parent;
+    }
+    return node.parentElement ?? node;
+  };
+  const groups = new Map<Element, HTMLElement[]>();
+  for (const root of roots) {
+    const group = postingGroup(root);
+    const existing = groups.get(group);
+    if (existing) existing.push(root);
+    else groups.set(group, [root]);
+  }
+  const separatePostings = [...groups.values()].filter((group) =>
+    group.map((node) => visibleText(node, true)).join("\n\n").length > 120).length > 1;
   const scopes = new Set(roots.map(postingScope).filter((node) => node !== null));
   const headers = queryAll<HTMLElement>(doc, "header").filter((header) => {
     const scope = postingScope(header);
@@ -337,7 +357,7 @@ function capturePageContext(doc: Document, fields: PageField[]) {
   const selectedRoots = new Set([...roots, ...headers]);
   const sections = queryAll<HTMLElement>(doc, "*").filter((node) => selectedRoots.has(node))
     .map((node) => ({ node, text: visibleText(node, true) })).filter(({ text }) => text);
-  const explicitText = sections.map(({ text }) => text).join("\n\n");
+  const explicitText = separatePostings ? "" : sections.map(({ text }) => text).join("\n\n");
   if (explicitText.length > 120) {
     description = explicitText;
     sections.forEach(({ node }) => descriptionNodes.add(node));
@@ -800,7 +820,16 @@ async function setComboboxValue(
   const controlledIds = () => `${element.getAttribute("aria-controls") ?? ""} ${element.getAttribute("aria-owns") ?? ""}`.trim();
   let changed = false;
   let writing = true;
-  const edited = () => { if (!writing) changed = true; };
+  let selecting = false;
+  const edited = () => {
+    // The option's own selection events are not user edits.
+    if (writing || selecting) return;
+    // A widget may commit the option asynchronously, after the interaction
+    // ended. A value that already matches the requested option is the
+    // selection itself, not an edit made underneath us.
+    if (element.value === value) return;
+    changed = true;
+  };
   element.addEventListener("input", edited);
   element.addEventListener("change", edited);
   try {
@@ -830,11 +859,16 @@ async function setComboboxValue(
       throw new Error(`No unique exact matching option in the controlled listbox for “${value}”`);
     }
     const MouseEventType = element.ownerDocument.defaultView?.MouseEvent ?? MouseEvent;
-    match.dispatchEvent(new MouseEventType("mousedown", { bubbles: true, composed: true }));
-    // A mousedown handler can replace either the control or the option.
-    assertOwned();
-    if (!match.isConnected || !isVisible(match)) throw new Error("The combobox option changed before it could be chosen.");
-    match.click();
+    selecting = true;
+    try {
+      match.dispatchEvent(new MouseEventType("mousedown", { bubbles: true, composed: true }));
+      // A mousedown handler can replace either the control or the option.
+      assertOwned();
+      if (!match.isConnected || !isVisible(match)) throw new Error("The combobox option changed before it could be chosen.");
+      match.click();
+    } finally {
+      selecting = false;
+    }
   } finally {
     element.removeEventListener("input", edited);
     element.removeEventListener("change", edited);

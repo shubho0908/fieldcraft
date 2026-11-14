@@ -53,6 +53,36 @@ describe("complete composed posting capture", () => {
     expect(collectPageSnapshot(document).jobDescriptionText).toBe(description);
   });
 
+  it("keeps separate postings apart instead of merging their descriptions", () => {
+    const backend = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include five years of professional engineering experience and clear communication across teams.";
+    const nursing = "Responsibilities include delivering dependable bedside care and maintaining clinical records. Requirements include an active registered nurse license and three years of acute nursing experience.";
+    document.body.innerHTML = `<main><article><h2>Backend Engineer</h2><div class="job-description"><p>${backend}</p></div></article><article><h2>Registered Nurse</h2><div class="job-description"><p>${nursing}</p></div></article></main>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(false);
+    expect(snapshot.jobDescriptionText).not.toContain(backend);
+    expect(snapshot.jobDescriptionText).not.toContain(nursing);
+  });
+
+  it("keeps separate postings apart when the posting itself carries the description class", () => {
+    const backend = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include five years of professional engineering experience and clear communication across teams.";
+    const nursing = "Responsibilities include delivering dependable bedside care and maintaining clinical records. Requirements include an active registered nurse license and three years of acute nursing experience.";
+    document.body.innerHTML = `<main><article class="job-description"><h2>Backend Engineer</h2><p>${backend}</p></article><article class="job-description"><h2>Registered Nurse</h2><p>${nursing}</p></article></main>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(false);
+    expect(snapshot.jobDescriptionText).not.toContain(backend);
+    expect(snapshot.jobDescriptionText).not.toContain(nursing);
+  });
+
+  it("keeps sibling description blocks of a single posting together", () => {
+    const overview = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include professional engineering experience across teams.";
+    const qualifications = "Qualifications include five years of experience with distributed systems and clear written communication with product partners.";
+    document.body.innerHTML = `<article><div class="job-description"><p>${overview}</p></div><div class="job-description"><p>${qualifications}</p></div></article>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(true);
+    expect(snapshot.jobDescriptionText).toContain(overview);
+    expect(snapshot.jobDescriptionText).toContain(qualifications);
+  });
+
   it("reads assigned text once and never reads unused slot fallback or light children", () => {
     document.body.innerHTML = `<career-post class="job-description"><p slot="description">${description}</p><span>Unassigned secret</span></career-post>`;
     document.querySelector("career-post")!.attachShadow({ mode: "open" }).innerHTML = '<slot name="description">Unused fallback secret</slot>';
@@ -148,5 +178,21 @@ describe("unambiguous and current choice writes", () => {
     const [field] = collectFields(document);
     expect((await fillPageFields([suggestion(field, "Bengaluru")], document, undefined, new Set([field.id])))[0].status).toBe("failed");
     expect(click).not.toHaveBeenCalled();
+  });
+
+  it("clicks an option that commits the value while the pointer goes down", async () => {
+    document.body.innerHTML = '<label>City<input role="combobox" aria-controls="cities"></label><div id="cities" role="listbox"><div role="option">Bengaluru</div></div>';
+    const input = document.querySelector("input")!;
+    const option = document.querySelector<HTMLElement>("[role=option]")!;
+    const click = vi.fn();
+    option.addEventListener("click", click);
+    option.addEventListener("mousedown", () => {
+      input.value = "Bengaluru";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const [field] = collectFields(document);
+    expect((await fillPageFields([suggestion(field, "Bengaluru")], document, undefined, new Set([field.id])))[0].status).toBe("filled");
+    expect(click).toHaveBeenCalledOnce();
   });
 });

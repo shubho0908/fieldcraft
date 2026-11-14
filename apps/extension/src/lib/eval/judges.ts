@@ -60,6 +60,13 @@ const EVIDENCE_ABSENCE = new RegExp(
   `\\b(?:no|without)\\s+(?:(?:explicit|documented|verified|supporting|sufficient)\\s+)?evidence(?:\\b[^.!?;,\\n]*\\b(?:of|for|supporting|supports|establishing|establishes|shows|showing|or|nor|and)|\\s+(?:that\\s+)?(?:(?:the|this)\\s+)?(?:candidate|applicant)(?:\\s+(?:has|holds?|possesses?|earned|completed|obtained))?)\\s+${CLAIM_QUALIFIERS}$`,
   "iu",
 );
+// Named absence forms ("no mention of", "no record of") assert that a claim is
+// unsupported. They are scoped to the phrase they introduce, so they never
+// exempt an unrelated assertion that follows.
+const NAMED_ABSENCE = new RegExp(
+  `\\b(?:no|without)\\s+(?:(?:explicit|documented|verified|mention|record|indication|trace|sign|reference|listing|sighting)\\s+of\\s+)${CLAIM_QUALIFIERS}$`,
+  "iu",
+);
 const FOLLOWING_ABSENCE = /^\s+(?:(?:degree|licen[cs]e|licen[cs]ure|qualification|experience|credential|certification|status|background|evidence|claim|training)\s+)*(?:(?:is|are|was|were|has been|have been)\s+)?(?:not(?!\s+(?:only|just|merely|without|missing|absent|lacking|unsupported|unverified|undocumented)\b)|unverified|missing|absent|unsupported|undocumented)\b/iu;
 const PRECEDING_REQUIREMENT = new RegExp(
   `\\b(?:requires?|requiring|(?:must|has\\s+to|required\\s+to)\\s+(?:have|hold|possess)|required(?:\\s+qualifications?)?\\s*:?|mandatory\\s*:?)\\s+${CLAIM_QUALIFIERS}$`,
@@ -82,7 +89,7 @@ function explicitlyAboutApplicant(text: string): boolean {
 }
 
 function isNegativeAssertion(prefix: string, suffix: string): boolean {
-  const absence = DIRECT_ABSENCE.exec(prefix) ?? EVIDENCE_ABSENCE.exec(prefix);
+  const absence = DIRECT_ABSENCE.exec(prefix) ?? EVIDENCE_ABSENCE.exec(prefix) ?? NAMED_ABSENCE.exec(prefix);
   if (absence && !/\b(?:not|never|no|doesn't|isn't|can't|cannot)\s+(?:(?:currently|actually|really|entirely)\s+)*$/iu.test(prefix.slice(0, absence.index))) return true;
   return FOLLOWING_ABSENCE.test(suffix);
 }
