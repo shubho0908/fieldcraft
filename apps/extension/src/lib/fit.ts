@@ -8,6 +8,12 @@ import type { JobAnalysis } from "../types";
 
 export type { FitVerdictType as FitVerdict };
 
+export const NO_JOB_DESCRIPTION_MESSAGE = "No job description found on this page; open the posting and analyze it there. You can still review field suggestions.";
+
+export function unavailableFit(reason: string): JobAnalysis["fit"] {
+  return { score: null, unavailableReason: reason, verdict: FitVerdict.Weak, strongestMatches: [], gaps: [], hardBlockers: [], recommendation: reason };
+}
+
 /** Score bands that define verdict labels. */
 export function verdictForScore(score: number): FitVerdictType {
   for (const band of FIT_SCORE_BANDS) {
@@ -24,6 +30,7 @@ export function verdictForScore(score: number): FitVerdictType {
 export function sanitizeFit(
   fit: (Omit<Partial<JobAnalysis["fit"]>, "score"> & { score?: unknown }) | undefined,
 ): JobAnalysis["fit"] {
+  if (fit?.score === null && fit.unavailableReason?.trim()) return unavailableFit(fit.unavailableReason.trim());
   const hardBlockers = cleanStringList(fit?.hardBlockers).filter((blocker) => {
     const normalized = blocker.toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
     return !/^(?:|none|na|null|nil|notapplicable|nohardblockers?|noblockers?(?:identified|found)?|nohardblockers?(?:identified|found))$/.test(normalized);

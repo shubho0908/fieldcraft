@@ -132,6 +132,9 @@ export interface CompanyResearchHints {
 }
 
 export interface PageSnapshot {
+  jobDescriptionDetected?: boolean;
+  jobDescriptionSource?: string;
+  jobDescriptionText?: string;
   title: string;
   url: string;
   hostname: string;
@@ -155,7 +158,6 @@ export interface FieldSuggestion {
 }
 
 export interface JobAnalysis {
-  fitUnavailableReason?: string;
   job: {
     company: string;
     role: string;
@@ -170,7 +172,8 @@ export interface JobAnalysis {
     remotePolicy: string;
   };
   fit: {
-    score: number;
+    score: number | null;
+    unavailableReason?: string;
     verdict: FitVerdict;
     strongestMatches: string[];
     gaps: string[];

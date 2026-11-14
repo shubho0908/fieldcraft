@@ -65,7 +65,7 @@ export function judgeFitScoreRange(
 ): JudgeResult {
   const score = analysis.fit.score;
   const { min, max } = expectations.score;
-  if (score < min || score > max) {
+  if (score === null || score < min || score > max) {
     return fail(
       JudgeId.FitScoreRange,
       `score ${score} outside expected [${min}, ${max}]`,
@@ -75,6 +75,7 @@ export function judgeFitScoreRange(
 }
 
 export function judgeFitVerdictMatchesScore(analysis: JobAnalysis): JudgeResult {
+  if (analysis.fit.score === null) return fail(JudgeId.FitVerdictBand, "Fit score unavailable");
   const expected = verdictForScore(analysis.fit.score);
   if (analysis.fit.verdict !== expected) {
     return fail(
@@ -88,6 +89,7 @@ export function judgeFitVerdictMatchesScore(analysis: JobAnalysis): JudgeResult 
 export function judgeHardBlockerScoreCap(analysis: JobAnalysis): JudgeResult {
   if (
     analysis.fit.hardBlockers.length > 0 &&
+    analysis.fit.score !== null &&
     analysis.fit.score > HARD_BLOCKER_SCORE_CAP
   ) {
     return fail(

@@ -12,7 +12,7 @@ import {
   isSuggestionAction,
 } from "./enums";
 import { isChoiceField, optionMatches } from "./fields";
-import { isThinCompanyResearch, parseFitScore } from "./fit";
+import { isThinCompanyResearch, NO_JOB_DESCRIPTION_MESSAGE, parseFitScore, sanitizeFit, unavailableFit } from "./fit";
 import { toSafeAnalysis } from "./analysis";
 import {
   CONNECTION_TEST_REASONING_EFFORT,
@@ -143,6 +143,7 @@ function asStringList(value: unknown): string[] {
  */
 export function coerceAnalysisOutput(
   raw: unknown,
+  noJobDescription = false,
 ): Omit<JobAnalysis, "generatedAt" | "research"> {
   if (!isRecord(raw)) {
     throw new Error("The model response was not a JSON object.");
@@ -150,7 +151,8 @@ export function coerceAnalysisOutput(
 
   const fitRaw = isRecord(raw.fit) ? raw.fit : raw;
   const fit: JobAnalysis["fit"] = {
-    score: parseFitScore(fitRaw.score ?? fitRaw.fitScore),
+    score: noJobDescription ? null : parseFitScore(fitRaw.score ?? fitRaw.fitScore),
+    ...(noJobDescription ? { unavailableReason: NO_JOB_DESCRIPTION_MESSAGE } : {}),
     verdict:
       typeof fitRaw.verdict === "string" && isFitVerdict(fitRaw.verdict)
         ? fitRaw.verdict
@@ -459,7 +461,7 @@ export async function runJobAnalysis(
       if ((await result.finishReason) === "length") {
         throw new Error(ANALYSIS_TRUNCATION_MESSAGE);
       }
-      parsed = coerceAnalysisOutput(extractJsonObject(await result.text));
+      parsed = coerceAnalysisOutput(extractJsonObject(await result.text), snapshot.jobDescriptionDetected === false);
     } else {
       const result = await generateText({
         model: aiModel,
@@ -474,7 +476,7 @@ export async function runJobAnalysis(
       if ((await result.finishReason) === "length") {
         throw new Error(ANALYSIS_TRUNCATION_MESSAGE);
       }
-      parsed = coerceAnalysisOutput(await result.output);
+      parsed = coerceAnalysisOutput(await result.output, snapshot.jobDescriptionDetected === false);
     }
   } catch (error) {
     throw new Error(formatAnalysisError(error, model.provider));
@@ -688,6 +690,7 @@ export function sanitizeAnalysis(
   context?: { inputWarnings?: string[] },
 ): JobAnalysis {
   const knownFields = new Map(snapshot.fields.map((field) => [field.id, field]));
+  const fit = snapshot.jobDescriptionDetected === false ? unavailableFit(NO_JOB_DESCRIPTION_MESSAGE) : sanitizeFit(parsed.fit);
   const seenSuggestions = new Set<string>();
   const generatedSuggestions: JobAnalysis["suggestions"] = [];
   for (const suggestion of parsed.suggestions ?? []) {
@@ -743,6 +746,7 @@ export function sanitizeAnalysis(
   return toSafeAnalysis(
     {
       ...parsed,
+      fit,
       company,
       suggestions,
       missingFacts: [...(parsed.missingFacts ?? []), ...(context?.inputWarnings ?? [])],

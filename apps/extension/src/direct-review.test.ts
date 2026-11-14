@@ -69,5 +69,6 @@ it("keeps Direct-fill suggestions unselected, including after an empty selection
   expect(analysis.suggestions).toHaveLength(1);
   const session = withCompletedAnalysis(createAnalysisSession({ tabId: 1, url: snapshot.url, runId: "run", status: "capturing", snapshot }), analysis);
   expect([...createReviewDraft(session)!.selectedFieldIds]).toEqual([]);
-  expect(analysis.fitUnavailableReason).toContain("No fit analysis was performed");
+  expect(analysis.fit.unavailableReason).toContain("No fit analysis was performed");
+  expect(analysis.fit.score).toBeNull();
 });

@@ -357,8 +357,8 @@ export function ResultsDashboard({
 }
 
 function FitView({ analysis }: { analysis: JobAnalysis }) {
-  if (analysis.fitUnavailableReason) return <section className="fit-card"><p>{analysis.fitUnavailableReason}</p></section>;
   const { fit, job } = analysis;
+  if (fit.score === null) return <section className="fit-card"><p>{fit.unavailableReason || "Fit score unavailable. Analyze the job posting again."}</p></section>;
   return (
     <div className="view-stack">
       <section className="fit-card">

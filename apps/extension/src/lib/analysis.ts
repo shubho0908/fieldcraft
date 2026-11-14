@@ -1,5 +1,5 @@
 import { Confidence, SuggestionAction, isConfidence, isSuggestionAction } from "./enums";
-import { cleanStringList, sanitizeFit } from "./fit";
+import { cleanStringList, NO_JOB_DESCRIPTION_MESSAGE, sanitizeFit, unavailableFit } from "./fit";
 import type { FieldSuggestion, JobAnalysis, PageSnapshot } from "../types";
 
 function sanitizeJob(
@@ -65,7 +65,14 @@ export function toSafeAnalysis(
   raw: Partial<JobAnalysis> | undefined,
   snapshot?: PageSnapshot,
 ): JobAnalysis {
-  const fit = sanitizeFit(raw?.fit);
+  let fit: JobAnalysis["fit"];
+  try {
+    fit = snapshot?.jobDescriptionDetected === false
+      ? unavailableFit(NO_JOB_DESCRIPTION_MESSAGE)
+      : sanitizeFit(raw?.fit);
+  } catch {
+    fit = unavailableFit("The saved fit score is unavailable. Analyze this page again.");
+  }
   const job = sanitizeJob(raw?.job, snapshot);
   const company = sanitizeCompany(raw?.company);
   const suggestions = sanitizeSuggestions(raw?.suggestions);
