@@ -328,25 +328,26 @@ function capturePageContext(doc: Document, fields: PageField[]) {
     }
     return null;
   };
-  // A posting can split its description into sibling blocks, so blocks are
-  // grouped by the posting that owns them. Blocks that belong to different
-  // postings are different roles, and merging their text would score the
-  // candidate against requirements from several jobs at once.
-  const postingGroup = (node: Element): Element => {
+  // A posting can split its description across wrappers. Only a distinct
+  // article is evidence of another role: grouping by the immediate parent
+  // drops overview and qualifications of one job, and the English fallback
+  // cannot recover that text when the posting is not in English.
+  const postingArticle = (node: Element): Element | null => {
     if (node.matches("article")) return node;
     for (let parent = composedParent(node); parent; parent = composedParent(parent)) {
       if (parent.matches("article")) return parent;
     }
-    return node.parentElement ?? node;
+    return null;
   };
-  const groups = new Map<Element, HTMLElement[]>();
+  const articles = new Map<Element, HTMLElement[]>();
   for (const root of roots) {
-    const group = postingGroup(root);
-    const existing = groups.get(group);
+    const article = postingArticle(root);
+    if (!article) continue;
+    const existing = articles.get(article);
     if (existing) existing.push(root);
-    else groups.set(group, [root]);
+    else articles.set(article, [root]);
   }
-  const separatePostings = [...groups.values()].filter((group) =>
+  const separatePostings = [...articles.values()].filter((group) =>
     group.map((node) => visibleText(node, true)).join("\n\n").length > 120).length > 1;
   const scopes = new Set(roots.map(postingScope).filter((node) => node !== null));
   const headers = queryAll<HTMLElement>(doc, "header").filter((header) => {

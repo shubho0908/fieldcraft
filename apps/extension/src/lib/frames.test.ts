@@ -41,7 +41,7 @@ describe("frame capture", () => {
     expect(result.url).toBe(topUrl);
     expect(result.fields.map((field) => field.id)).toEqual(["frame-0:same-local-id", "frame-7:same-local-id"]);
     expect(result.fields[1]).toMatchObject({ frameId: 7 });
-    expect(result.frames).toEqual([{ frameId: 0, url: topUrl, documentId: "content-top" }, { frameId: 7, url: childUrl, documentId: "content-child" }]);
+    expect(result.frames).toEqual([{ frameId: 0, url: topUrl, documentId: "content-top", navigationDocumentId: "browser-top" }, { frameId: 7, url: childUrl, documentId: "content-child", navigationDocumentId: "browser-child" }]);
     expect(result.pageText).toBe("Unique job description");
     expect(result.jobDescriptionText).toBe("Unique job description");
     expect(sendMessage.mock.calls.map((call) => call[2])).toEqual([{ frameId: 0 }, { frameId: 7 }]);
@@ -107,6 +107,29 @@ describe("frame fills", () => {
     expect(fills[0]).toEqual([12, { type: "FIELDCRAFT_FILL", suggestions: [suggestion("same-local-id")], selectedFieldIds: ["same-local-id"], url: childUrl, documentId: "content-child" }, { frameId: 7 }]);
     expect(result).toEqual([{ fieldId: "frame-7:same-local-id", status: "filled", message: "Filled" }]);
     expect(assertCurrent).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a same-URL reload before the replacement content script is listening", async () => {
+    const { sendMessage, getAllFrames } = browser();
+    const captured = await captureTabFrames(12, topUrl);
+    sendMessage.mockClear();
+    getAllFrames.mockResolvedValue([navigation[0], { ...navigation[1], documentId: "reloaded-browser-child" }]);
+    sendMessage.mockImplementation(async (_tabId: number, request: { type: string }, target: { frameId: number }) => {
+      if (target.frameId === 7) throw new Error("Could not establish connection. Receiving end does not exist.");
+      if (request.type === "FIELDCRAFT_VALIDATE_DOCUMENT") return { ok: true, frameHosts: [{ documentId: "content-child", visible: true }] };
+      return { ok: true, results: [] };
+    });
+    await expect(fillTabFrames(12, captured, [suggestion("frame-7:same-local-id")], async () => {})).rejects.toThrow(/document changed/);
+    expect(sendMessage.mock.calls.filter((call) => call[2]?.frameId === 7 || call[1].type === "FIELDCRAFT_FILL")).toEqual([]);
+  });
+
+  it("reports a missing content script as a document change and does not fill", async () => {
+    const { sendMessage } = browser();
+    const captured = await captureTabFrames(12, topUrl);
+    sendMessage.mockClear();
+    sendMessage.mockRejectedValue(new Error("Could not establish connection. Receiving end does not exist."));
+    await expect(fillTabFrames(12, captured, [suggestion("frame-7:same-local-id")], async () => {})).rejects.toThrow(/changed/);
+    expect(sendMessage.mock.calls.filter((call) => call[1].type === "FIELDCRAFT_FILL")).toEqual([]);
   });
 
   it("writes nothing if a selected iframe has reloaded at the same URL", async () => {

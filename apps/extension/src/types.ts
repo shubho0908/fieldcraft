@@ -145,7 +145,7 @@ export interface PageSnapshot {
   pageText: string;
   fields: PageField[];
   capturedAt: string;
-  frames?: Array<{ frameId: number; url: string; documentId?: string }>;
+  frames?: Array<{ frameId: number; url: string; documentId?: string; navigationDocumentId?: string }>;
   /** Optional because saved sessions and eval fixtures predate this signal. */
   companyHints?: CompanyResearchHints;
 }

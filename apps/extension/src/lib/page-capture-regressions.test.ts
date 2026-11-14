@@ -73,6 +73,26 @@ describe("complete composed posting capture", () => {
     expect(snapshot.jobDescriptionText).not.toContain(nursing);
   });
 
+  it("keeps one posting's sections together when they sit in different wrappers", () => {
+    const overview = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include professional engineering experience across teams.";
+    const qualifications = "Qualifications include five years of experience with distributed systems and clear written communication with product partners.";
+    document.body.innerHTML = `<main><section><h2>Overview</h2><div class="job-description"><p>${overview}</p></div></section><section><h2>Qualifications</h2><div class="job-description"><p>${qualifications}</p></div></section></main>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(true);
+    expect(snapshot.jobDescriptionText).toContain(overview);
+    expect(snapshot.jobDescriptionText).toContain(qualifications);
+  });
+
+  it("keeps a non-English posting split across wrappers without an article", () => {
+    const overview = "Buscamos una persona para diseñar sistemas de pagos confiables y trabajar con el equipo de producto durante los próximos años en esta oficina.";
+    const qualifications = "La persona debe contar con cinco años de experiencia profesional y disponibilidad para trabajar de forma presencial en nuestra oficina de Madrid.";
+    document.body.innerHTML = `<main><section><div class="job-description"><p>${overview}</p></div></section><section><div class="job-description"><p>${qualifications}</p></div></section></main>`;
+    const snapshot = collectPageSnapshot(document);
+    expect(snapshot.jobDescriptionDetected).toBe(true);
+    expect(snapshot.jobDescriptionText).toContain(overview);
+    expect(snapshot.jobDescriptionText).toContain(qualifications);
+  });
+
   it("keeps sibling description blocks of a single posting together", () => {
     const overview = "Responsibilities include designing reliable payment services and operating production infrastructure. Requirements include professional engineering experience across teams.";
     const qualifications = "Qualifications include five years of experience with distributed systems and clear written communication with product partners.";

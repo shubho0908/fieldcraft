@@ -1,8 +1,8 @@
-import type { FieldSuggestion, FillResult, PageSnapshot } from "../types";
+import type { FieldSuggestion, FillResult, PageSnapshot, RuntimeRequest } from "../types";
 import type { FrameCapture } from "./frame-document";
 
 type NavigationFrame = { frameId: number; parentFrameId: number; url: string; documentId?: string };
-type CapturedFrame = NavigationFrame & FrameCapture;
+type CapturedFrame = NavigationFrame & FrameCapture & { navigationDocumentId?: string };
 
 async function navigationFrames(tabId: number): Promise<NavigationFrame[]> {
   if (typeof chrome.webNavigation?.getAllFrames !== "function") {
@@ -58,7 +58,7 @@ export function mergeFrameSnapshots(top: CapturedFrame, embedded: CapturedFrame[
     headings: [...new Set(frames.flatMap((frame) => frame.snapshot.headings))],
     fields: frames.flatMap((frame) => namespaceFrameSnapshot(frame.frameId, frame.snapshot).fields),
     pageText: pageText.slice(0, 60_000),
-    frames: frames.map((frame) => ({ frameId: frame.frameId, url: frame.snapshot.url, documentId: frame.documentId })),
+    frames: frames.map((frame) => ({ frameId: frame.frameId, url: frame.snapshot.url, documentId: frame.documentId, navigationDocumentId: frame.navigationDocumentId })),
     captureWarnings: [...new Set([...frames.flatMap((frame) => frame.snapshot.captureWarnings ?? []), ...warnings])],
   };
 }
@@ -68,7 +68,9 @@ export async function captureTabFrames(tabId: number, topUrl: string): Promise<P
   const responses = await Promise.allSettled(frames.map(async (frame): Promise<CapturedFrame> => {
     const response = await chrome.tabs.sendMessage(tabId, { type: "FIELDCRAFT_CAPTURE" }, { frameId: frame.frameId });
     if (!response?.ok || !response.documentId || !response.snapshot || response.snapshot.url !== frame.url) throw new Error("The frame could not be read or changed during capture");
-    return { ...frame, ...response };
+    // The content script id overwrites the browser document id. Keep both:
+    // fill must notice a same-URL navigation before that script is listening.
+    return { ...frame, ...response, navigationDocumentId: frame.documentId };
   }));
   const topIndex = frames.findIndex((frame) => frame.frameId === 0);
   const topResult = responses[topIndex];
@@ -108,10 +110,27 @@ export async function captureTabFrames(tabId: number, topUrl: string): Promise<P
   return mergeFrameSnapshots(top, [...included.values()].filter((frame) => frame.frameId !== 0), warnings);
 }
 
+const FRAME_CHANGED = "An application frame document changed. Review the current page again.";
+
+function frameDisconnected(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  return /receiving end does not exist|could not establish connection|message port closed before a response/i.test(message);
+}
+
+async function sendToFrame(tabId: number, frameId: number, message: RuntimeRequest): Promise<{ ok?: boolean; error?: string; results?: FillResult[]; frameHosts?: FrameCapture["frameHosts"] }> {
+  try {
+    return await chrome.tabs.sendMessage(tabId, message, { frameId });
+  } catch (error) {
+    // The document navigated and its content script is gone. Nothing was delivered.
+    if (frameDisconnected(error)) throw new Error(FRAME_CHANGED);
+    throw error;
+  }
+}
+
 async function validateFrame(tabId: number, frame: NonNullable<PageSnapshot["frames"]>[number]): Promise<FrameCapture["frameHosts"]> {
   if (!frame.documentId) throw new Error("The captured document is missing. Review the page again.");
-  const response = await chrome.tabs.sendMessage(tabId, { type: "FIELDCRAFT_VALIDATE_DOCUMENT", url: frame.url, documentId: frame.documentId }, { frameId: frame.frameId });
-  if (!response?.ok) throw new Error("An application frame document changed. Review the current page again.");
+  const response = await sendToFrame(tabId, frame.frameId, { type: "FIELDCRAFT_VALIDATE_DOCUMENT", url: frame.url, documentId: frame.documentId });
+  if (!response?.ok) throw new Error(FRAME_CHANGED);
   return response.frameHosts ?? [];
 }
 
@@ -130,7 +149,7 @@ async function validateTargets(tabId: number, snapshot: PageSnapshot, targets: N
   const checked = await Promise.all([...required].map(async (id) => {
     const frame = snapshot.frames!.find((item) => item.frameId === id);
     const active = current.find((item) => item.frameId === id);
-    if (!frame || frame.url !== active?.url) throw new Error("An application frame changed. Review the current page again.");
+    if (!frame || frame.url !== active?.url || (frame.navigationDocumentId !== undefined && active?.documentId !== frame.navigationDocumentId)) throw new Error(FRAME_CHANGED);
     return { frame, hosts: await validateFrame(tabId, frame) };
   }));
   for (const { frame } of checked) {
@@ -163,7 +182,8 @@ export async function fillTabFrames(tabId: number, snapshot: PageSnapshot, sugge
     await validateTargets(tabId, snapshot, [frame]);
     const original = groups.get(frame.frameId)!;
     const local = original.map((item) => ({ ...item, fieldId: item.fieldId.slice(`frame-${frame.frameId}:`.length) }));
-    const response = await chrome.tabs.sendMessage(tabId, { type: "FIELDCRAFT_FILL", suggestions: local, selectedFieldIds: local.map((item) => item.fieldId), url: frame.url, documentId: frame.documentId }, { frameId: frame.frameId });
+    if (!frame.documentId) throw new Error("The captured document is missing. Review the page again.");
+    const response = await sendToFrame(tabId, frame.frameId, { type: "FIELDCRAFT_FILL", suggestions: local, selectedFieldIds: local.map((item) => item.fieldId), url: frame.url, documentId: frame.documentId });
     if (!response?.ok || !Array.isArray(response.results)) throw new Error(response?.error || "Could not fill the reviewed frame. Review the page again.");
     for (const item of response.results as FillResult[]) {
       if (!local.some((suggestion) => suggestion.fieldId === item.fieldId)) throw new Error("The frame returned an unknown field result.");

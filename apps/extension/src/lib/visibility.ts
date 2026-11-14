@@ -88,12 +88,19 @@ export function isElementVisible(
   let reachableY = viewportFixed ? 0 : view?.scrollY ?? 0;
   for (const parent of ancestors.slice(1)) {
     if (parent.element === doc.scrollingElement) continue;
-    if (scrolls(overflowAxis(parent.style, "X"))) reachableX += parent.element.scrollLeft;
+    // RTL scrollLeft is negative once leftward content is revealed. Only a
+    // positive offset moves content back toward the page origin.
+    if (scrolls(overflowAxis(parent.style, "X"))) reachableX += Math.max(0, parent.element.scrollLeft);
     if (scrolls(overflowAxis(parent.style, "Y"))) reachableY += parent.element.scrollTop;
   }
   if (rect.right + reachableX <= 0 || rect.bottom + reachableY <= 0) return false;
 
   let { left, right, top, bottom } = rect;
+  // Inner scrolling changes where an element sits in an outer content box.
+  // Undo it before testing the outer origin: the reachable position is the
+  // one with those inner scrollers back at zero.
+  let innerScrollX = 0;
+  let innerScrollY = 0;
   for (const parent of ancestors.slice(1)) {
     if (parent.style.display === "contents") continue;
     const x = overflowAxis(parent.style, "X");
@@ -103,10 +110,13 @@ export function isElementVisible(
     if (clips(x) || scrolls(x)) {
       if (bounds.width <= 1) return false;
       if (scrolls(x)) {
-        // Scrolling stops at zero, so content that sits before the container's
-        // origin can never be revealed and must stay out of review.
-        const contentLeft = rect.left - bounds.left + parent.element.scrollLeft;
-        if (contentLeft + rect.width <= 0) return false;
+        // LTR scrolling stops at zero, so content before that origin is unreachable.
+        // RTL scrolling stops at zero on the right and goes negative to reveal
+        // content on the left, including content already on screen.
+        const contentLeft = rect.left - bounds.left + parent.element.scrollLeft + innerScrollX;
+        const rtl = parent.style.direction === "rtl";
+        if (rtl ? contentLeft >= bounds.width : contentLeft + rect.width <= 0) return false;
+        innerScrollX += Math.max(0, parent.element.scrollLeft);
         const shift = right <= bounds.left ? bounds.left - left : left >= bounds.right ? bounds.right - right : 0;
         left += shift;
         right += shift;
@@ -120,8 +130,9 @@ export function isElementVisible(
       if (scrolls(y)) {
         // Scrolling stops at zero, so content that sits before the container's
         // origin can never be revealed and must stay out of review.
-        const contentTop = rect.top - bounds.top + parent.element.scrollTop;
+        const contentTop = rect.top - bounds.top + parent.element.scrollTop + innerScrollY;
         if (contentTop + rect.height <= 0) return false;
+        innerScrollY += parent.element.scrollTop;
         const shift = bottom <= bounds.top ? bounds.top - top : top >= bounds.bottom ? bounds.bottom - bottom : 0;
         top += shift;
         bottom += shift;
