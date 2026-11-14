@@ -198,6 +198,7 @@ export interface JobAnalysis {
   missingFacts: string[];
   /** Client-side research quality signal. Not model output. */
   research: {
+    grounded?: boolean;
     attempted: boolean;
     thin: boolean;
     /** Why external research was safely skipped or could not complete. */

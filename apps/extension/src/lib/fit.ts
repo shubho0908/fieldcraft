@@ -5,6 +5,7 @@ import {
   type FitVerdict as FitVerdictType,
 } from "./enums";
 import type { JobAnalysis } from "../types";
+import { isUnknownCompanyFact } from "./company-facts";
 
 export type { FitVerdictType as FitVerdict };
 
@@ -64,8 +65,7 @@ export function parseFitScore(value: unknown): number {
 }
 
 export function isUnknownFact(value: string | undefined): boolean {
-  const normalized = (value ?? "").trim().toLocaleLowerCase();
-  return !normalized || normalized === "unknown" || normalized === "n/a" || normalized === "na";
+  return isUnknownCompanyFact(value);
 }
 
 /**

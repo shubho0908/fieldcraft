@@ -32,6 +32,7 @@ import {
 import { ANALYSIS_INSTRUCTIONS, buildAnalysisInput, getAnalysisInputWarnings } from "./prompt";
 import { getApiKey, getExaApiKey, getInstallId, getSettings } from "./storage";
 import { researchCompany } from "./exa";
+import { groundCompanyFacts, type CompanyFactSource } from "./company-facts";
 import type {
   CandidateProfile,
   ExtensionSettings,
@@ -42,6 +43,7 @@ import type {
 } from "../types";
 
 export interface OpenAiAuth {
+  onResearchEvidence?: (sources: CompanyFactSource[]) => void;
   apiKey: string;
   installId: string;
   exaApiKey?: string;
@@ -385,10 +387,11 @@ export async function runJobAnalysis(
   const config = resolveAnalysisConfig(settings);
   let input = buildAnalysisInput(snapshot, profile, settings);
   let researchSources: Array<{ title: string; url: string }> = [];
+  let researchEvidence: CompanyFactSource[] = [];
   let researchIssue: string | undefined;
 
   if (settings.researchCompany) {
-    const exaKey = auth.exaApiKey || (await getExaApiKey());
+    const exaKey = auth.exaApiKey;
     if (!exaKey) {
       throw new Error(
         "Add an Exa API key in Settings or disable 'Research the company'.",
@@ -398,6 +401,7 @@ export async function runJobAnalysis(
       const research = await researchCompany(exaKey, snapshot);
       if (research.context) input += `\n\n${research.context}`;
       researchSources = research.sources;
+      researchEvidence = research.evidence ?? [];
       researchIssue = research.issue;
     } catch (error) {
       // Company research is optional. A transient search or crawl failure must
@@ -409,6 +413,7 @@ export async function runJobAnalysis(
 
   // `config.reasoning.effort` is already clamped to the model's supported set by
   // resolveAnalysisConfig(); geminiProviderOptions() explains the Gemini side.
+  auth.onResearchEvidence?.(researchEvidence);
   let providerOptions: SharedV4ProviderOptions | undefined;
   if (model.provider === Provider.OpenAI) {
     providerOptions = {
@@ -492,7 +497,7 @@ export async function runJobAnalysis(
     researchSources,
     settings.researchCompany,
     researchIssue,
-    { inputWarnings: getAnalysisInputWarnings(snapshot, profile) },
+    { inputWarnings: getAnalysisInputWarnings(snapshot, profile), companySources: researchEvidence },
   );
 }
 
@@ -687,7 +692,7 @@ export function sanitizeAnalysis(
   citedSources: Array<{ title: string; url: string }>,
   researchAttempted: boolean,
   researchIssue?: string,
-  context?: { inputWarnings?: string[] },
+  context?: { inputWarnings?: string[]; companySources?: CompanyFactSource[] },
 ): JobAnalysis {
   const knownFields = new Map(snapshot.fields.map((field) => [field.id, field]));
   const fit = snapshot.jobDescriptionDetected === false ? unavailableFit(NO_JOB_DESCRIPTION_MESSAGE) : sanitizeFit(parsed.fit);
@@ -727,7 +732,7 @@ export function sanitizeAnalysis(
   // subset it directly used for the company brief.
   const sources = selectRetrievedSources(parsed.company?.sources ?? [], citedSources);
 
-  const company = {
+  const { company, droppedFacts } = groundCompanyFacts({
     summary: parsed.company?.summary ?? "",
     product: parsed.company?.product ?? "",
     stage: parsed.company?.stage ?? "",
@@ -736,12 +741,13 @@ export function sanitizeAnalysis(
     engineeringSignals: parsed.company?.engineeringSignals ?? [],
     risks: parsed.company?.risks ?? [],
     sources,
-  };
+  }, snapshot, context?.companySources);
 
   const research = {
+    grounded: true,
     attempted: researchAttempted,
     thin: isThinCompanyResearch(company, researchAttempted),
-    ...(researchIssue ? { issue: researchIssue } : {}),
+    ...((researchIssue || droppedFacts.length) ? { issue: [researchIssue, droppedFacts.length ? `Unverified company facts were omitted: ${droppedFacts.join(", ")}.` : ""].filter(Boolean).join(" ") } : {}),
   };
   return toSafeAnalysis(
     {

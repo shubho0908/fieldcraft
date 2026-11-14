@@ -80,6 +80,7 @@ export function toSafeAnalysis(
   const suggestions = sanitizeSuggestions(raw?.suggestions);
   const missingFacts = cleanStringList(raw?.missingFacts);
   const research = {
+    grounded: raw?.research?.grounded ?? false,
     attempted: raw?.research?.attempted ?? false,
     thin: raw?.research?.thin ?? false,
     issue: raw?.research?.issue,

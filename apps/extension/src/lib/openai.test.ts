@@ -286,7 +286,7 @@ describe("sanitizeAnalysis", () => {
     expect(analysis.fit.score).toBe(HARD_BLOCKER_SCORE_CAP);
     expect(analysis.fit.verdict).toBe(FitVerdict.Weak);
     expect(analysis.company.sources).toEqual([]);
-    expect(analysis.research).toEqual({ attempted: true, thin: true });
+    expect(analysis.research).toEqual({ attempted: true, thin: true, grounded: true, issue: undefined });
     expect(analysis.suggestions).toHaveLength(1);
   });
 });

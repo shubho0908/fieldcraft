@@ -556,6 +556,7 @@ function ResearchView({ analysis, snapshot }: { analysis: JobAnalysis; snapshot:
         </div>
       )}
       <p className="research-summary">{company.summary}</p>
+      {!analysis.research.grounded && <p className="answer-warning" role="status">Saved company facts are unverified. Analyze again to check their sources.</p>}
       <div className="research-facts">
         <Fact label="Product" value={company.product} />
         <Fact label="Stage" value={company.stage} />

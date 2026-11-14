@@ -71,7 +71,7 @@ describe("fit hardening", () => {
     expect(output.company).toMatchObject({ summary: "", product: "", funding: "" });
     vi.mocked(generateText).mockResolvedValueOnce({ output: raw, finishReason: "stop" } as never);
     const result = await runJobAnalysis(snapshot, DEFAULT_PROFILE, DEFAULT_SETTINGS, auth);
-    expect(result.company).toMatchObject({ summary: "", product: "", funding: "" });
+    expect(result.company).toMatchObject({ summary: "Unknown", product: "Unknown", funding: "Unknown" });
   });
 
   it("drops malformed suggestion items before the sanitizer sees them", async () => {
