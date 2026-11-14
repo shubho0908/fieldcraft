@@ -680,31 +680,12 @@ export function sanitizeAnalysis(
   const seenSuggestions = new Set<string>();
   const generatedSuggestions: JobAnalysis["suggestions"] = [];
   for (const suggestion of parsed.suggestions ?? []) {
-    if (!knownFields.has(suggestion.fieldId) || seenSuggestions.has(suggestion.fieldId)) {
+    if (!suggestion || typeof suggestion.fieldId !== "string" || seenSuggestions.has(suggestion.fieldId)) {
       continue;
     }
-    seenSuggestions.add(suggestion.fieldId);
     const field = knownFields.get(suggestion.fieldId);
-    if (!field) {
-      generatedSuggestions.push(
-        normalizeSuggestion(suggestion, {
-          id: suggestion.fieldId,
-          kind: PageFieldKind.Text,
-          type: "text",
-          name: "",
-          label: suggestion.label || suggestion.fieldId,
-          placeholder: "",
-          ariaLabel: "",
-          section: "",
-          required: false,
-          sensitive: false,
-          currentValue: "",
-          maxLength: null,
-          options: [],
-        }),
-      );
-      continue;
-    }
+    if (!field) continue;
+    seenSuggestions.add(suggestion.fieldId);
     generatedSuggestions.push(normalizeSuggestion(suggestion, field));
   }
 
@@ -791,8 +772,15 @@ export function normalizeSuggestion(
     }
   }
 
-  if (field.maxLength != null && field.maxLength > 0) {
+  if (field.maxLength != null && field.maxLength > 0 && value.length > field.maxLength) {
     value = value.slice(0, field.maxLength);
+    if (action === SuggestionAction.Fill) action = SuggestionAction.Review;
+    warning = [warning, `Answer was truncated to this field's ${field.maxLength}-character limit. Review the shortened answer before filling.`].filter(Boolean).join(" ");
+  }
+
+  if (action === SuggestionAction.Fill && confidence === Confidence.Low) {
+    action = SuggestionAction.Review;
+    warning = [warning, "Low-confidence answer: verify before filling."].filter(Boolean).join(" ");
   }
 
   if (field.sensitive && action === SuggestionAction.Fill) {
