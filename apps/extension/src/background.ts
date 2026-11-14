@@ -1,5 +1,6 @@
 import { isAnalyzableTabUrl } from "./lib/page";
 import { prepareDirectReview } from "./lib/direct-review";
+import { captureTabFrames, fillTabFrames } from "./lib/frames";
 import {
   getNotificationUrl,
   runReleaseCheck,
@@ -357,6 +358,7 @@ async function startAnalysis(tabId: number, directUrl?: string): Promise<void> {
     // change is reflected in the actual background run.
     const profile = await getProfile();
     const analysis = directUrl !== undefined ? prepareDirectReview(snapshot, profile) : await analyzeJob(snapshot, profile, await getSettings());
+    analysis.missingFacts = [...new Set([...analysis.missingFacts, ...snapshot.captureWarnings ?? []])];
 
     await assertPageStillMatches(tabId, url, runId, snapshot);
     const completed = await updateRun(tabId, url, runId, (session) =>
@@ -396,14 +398,9 @@ async function fillTab(
 
   try {
     await assertTabUrl(request.tabId, request.url);
-    const response = await chrome.tabs.sendMessage(request.tabId, {
-      type: "FIELDCRAFT_FILL",
-      suggestions,
-      selectedFieldIds: [...requested],
-      url: request.url,
-    } satisfies RuntimeRequest);
-    if (!response?.ok) throw new Error(response?.error || "Could not fill page");
-    const results = response.results as FillResult[];
+    const results = await fillTabFrames(request.tabId, session.snapshot, suggestions, async () => {
+      await requireCurrentSession(request.tabId, request.url, request.runId);
+    });
 
     await updateRun(request.tabId, request.url, request.runId, (current) => ({
       ...current,
@@ -451,11 +448,8 @@ async function getCurrentSession(tabId: number): Promise<TabAnalysisSession | nu
 
 async function captureTab(tabId: number): Promise<PageSnapshot> {
   try {
-    const response = await chrome.tabs.sendMessage(tabId, {
-      type: "FIELDCRAFT_CAPTURE",
-    } satisfies RuntimeRequest);
-    if (!response?.ok) throw new Error(response?.error || "Could not read this page");
-    return response.snapshot as PageSnapshot;
+    const tab = await getEligibleTab(tabId);
+    return await captureTabFrames(tabId, tab.url!);
   } catch (error) {
     const message = errorMessage(error, "Could not read this page");
     if (/receiving end does not exist|could not establish connection/i.test(message)) {

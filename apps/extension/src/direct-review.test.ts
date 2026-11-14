@@ -34,6 +34,7 @@ it("prepares Direct-fill without mutating the page, then fills only explicitly s
   vi.stubGlobal("chrome", {
     runtime: { onMessage: { addListener: (listener: typeof listeners[number]) => listeners.push(listener) }, onInstalled: event(), onStartup: event(), onConnect: event() },
     tabs: { get: vi.fn(async () => ({ id: 1, url })), sendMessage, onRemoved: event(), onUpdated: event() },
+    webNavigation: { getAllFrames: vi.fn(async () => [{ frameId: 0, parentFrameId: -1, url, documentId: "browser-document" }]) },
     commands: { onCommand: event() }, alarms: { onAlarm: event() }, action: { onClicked: event() },
   });
   await import("./content");

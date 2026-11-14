@@ -104,6 +104,8 @@ export interface FieldOption {
 
 export interface PageField {
   id: string;
+  frameId?: number;
+  frameUrl?: string;
   kind: PageFieldKind;
   type: string;
   name: string;
@@ -144,6 +146,7 @@ export interface PageSnapshot {
   pageText: string;
   fields: PageField[];
   capturedAt: string;
+  frames?: Array<{ frameId: number; url: string; documentId?: string }>;
   /** Optional because saved sessions and eval fixtures predate this signal. */
   companyHints?: CompanyResearchHints;
 }
